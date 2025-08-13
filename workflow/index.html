@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Workflow Builder (Bootstrap Version)</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="bg-light">
+
+    <div id="app-container" class="vw-100 vh-100 d-flex flex-column">
+        <!-- Header -->
+        <header class="bg-white bg-opacity-75 p-3 d-flex align-items-center gap-4 border-bottom shadow-sm z-3" style="backdrop-filter: blur(10px);">
+            <h1 class="h4 fw-bold text-dark my-0">Workflow Builder</h1>
+            <div class="mx-auto"></div>
+            <div class="btn-group">
+                 <button data-action="undo" class="btn btn-outline-secondary d-flex align-items-center gap-2">
+                     <i class="bi bi-arrow-counterclockwise"></i> Undo
+                 </button>
+                 <button data-action="redo" class="btn btn-outline-secondary d-flex align-items-center gap-2">
+                     <i class="bi bi-arrow-clockwise"></i> Redo
+                 </button>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <button data-action="import-json" class="btn btn-info text-white">Import JSON</button>
+                <button data-action="export-json" class="btn btn-dark">Export JSON</button>
+            </div>
+            <div class="d-flex align-items-center gap-1 bg-light p-1 rounded-3 border">
+                <button data-action="zoom-out" class="btn btn-sm btn-light border">
+                    <i class="bi bi-zoom-out"></i>
+                </button>
+                <span data-ref="zoom-level" class="fw-monospace" style="width: 50px; text-align: center;">100%</span>
+                <button data-action="zoom-in" class="btn btn-sm btn-light border">
+                    <i class="bi bi-zoom-in"></i>
+                </button>
+            </div>
+            <button data-action="reset-view" class="btn btn-outline-secondary">Reset View</button>
+            <button data-action="run-simulation" class="btn btn-success d-flex align-items-center gap-2">
+                <i class="bi bi-play-fill"></i> Chạy Mô phỏng
+            </button>
+        </header>
+
+        <!-- Main Content (Canvas and Settings) -->
+        <main class="d-flex flex-grow-1 position-relative overflow-hidden">
+            <!-- New Left Panel with Tabs -->
+            <aside class="d-flex flex-column flex-shrink-0 border-end" style="width: 380px; height: 100%; background-color: #fff;">
+                <ul class="nav nav-tabs nav-fill p-2" id="left-panel-tabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="nodes-tab" data-bs-toggle="tab" data-bs-target="#tab-pane-nodes" type="button" role="tab" aria-controls="tab-pane-nodes" aria-selected="true">Khối</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="variables-tab" data-bs-toggle="tab" data-bs-target="#tab-pane-variables" type="button" role="tab" aria-controls="tab-pane-variables" aria-selected="false">Biến</button>
+                    </li>
+                </ul>
+                <div class="tab-content overflow-auto" id="left-panel-tab-content">
+                    <div class="tab-pane fade show active p-3" id="tab-pane-nodes" role="tabpanel" aria-labelledby="nodes-tab">
+                        <input type="search" data-ref="palette-search" placeholder="Tìm kiếm khối..." class="form-control form-control-sm mb-3">
+                        <div data-ref="palette-content">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+                    <div class="tab-pane fade p-3" id="tab-pane-variables" role="tabpanel" aria-labelledby="variables-tab" data-ref="variables-panel">
+                        <h3 class="h5 fw-bold text-dark mb-4">Biến</h3>
+                        <div class="mb-4">
+                            <h4 class="h6 fw-semibold text-secondary mb-2 border-bottom pb-1">Toàn cục (Global)</h4>
+                            <div data-ref="global-variables-container" class="tree-view p-2 bg-light rounded mb-3 border"></div>
+                            <form data-ref="add-global-var-form" class="row g-2">
+                                <div class="col-6">
+                                    <input type="text" name="key" placeholder="Tên biến" required class="form-control form-control-sm">
+                                </div>
+                                <div class="col-6">
+                                    <input type="text" name="value" placeholder="Giá trị (JSON)" required class="form-control form-control-sm">
+                                </div>
+                                <div class="col-12">
+                                    <button type="submit" class="btn btn-primary btn-sm w-100">Thêm</button>
+                                </div>
+                            </form>
+                        </div>
+                        <div>
+                            <h4 class="h6 fw-semibold text-secondary mb-2 border-bottom pb-1">Đầu ra các Khối (Node Outputs)</h4>
+                            <div data-ref="node-outputs-container" class="tree-view p-2 bg-light rounded border"></div>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Canvas Container -->
+            <div data-ref="canvas-container" class="canvas-container">
+                <div data-ref="workflow-canvas" class="workflow-canvas">
+                    <svg data-ref="connector-svg" class="connector-svg"></svg>
+                </div>
+            </div>
+
+            <!-- Right Settings Panel (remains absolute) -->
+            <aside data-ref="settings-panel" class="side-panel settings-panel hidden"></aside>
+        </main>
+
+        <!-- Console Log Panel -->
+        <footer data-ref="console-panel" class="bg-white border-top d-flex flex-column flex-shrink-0" style="height: 200px;">
+            <div data-ref="console-resizer" class="w-100" style="height: 8px; cursor: ns-resize; background-color: #e9ecef;"></div>
+            <div class="p-2 d-flex justify-content-between align-items-center border-bottom bg-light flex-shrink-0">
+                <h3 class="h6 mb-0 fw-semibold text-secondary">Workflow Log</h3>
+                <button data-action="clear-console" class="btn btn-sm btn-outline-secondary">Dọn dẹp</button>
+            </div>
+            <div data-ref="console-output" class="console-output flex-grow-1 p-2 font-monospace small bg-dark text-white overflow-auto"></div>
+        </footer>
+    </div>
+
+    <!-- Hidden file input for JSON import -->
+    <input type="file" id="json-import-input" accept="application/json" class="d-none">
+
+    <!-- Context Menus -->
+    <div data-ref="node-context-menu" class="context-menu">
+        <div class="context-menu-item" data-action="copy">Sao chép <span class="context-menu-shortcut">Ctrl+C</span></div>
+        <div class="context-menu-item" data-action="paste">Dán <span class="context-menu-shortcut">Ctrl+V</span></div>
+        <div class="context-menu-separator"></div>
+        <div class="context-menu-item" data-action="delete">Xóa <span class="context-menu-shortcut">Delete</span></div>
+    </div>
+    <div data-ref="canvas-context-menu" class="context-menu">
+        <div class="context-menu-item" data-action="undo">Undo <span class="context-menu-shortcut">Ctrl+Z</span></div>
+        <div class="context-menu-item" data-action="redo">Redo <span class="context-menu-shortcut">Ctrl+Shift+Z</span></div>
+        <div class="context-menu-separator"></div>
+        <div class="context-menu-item" data-action="paste">Dán <span class="context-menu-shortcut">Ctrl+V</span></div>
+    </div>
+    <div data-ref="variable-context-menu" class="context-menu">
+        <div class="context-menu-item" data-action="copy-value">Copy giá trị</div>
+        <div class="context-menu-item" data-action="copy-key">Copy khóa</div>
+        <div class="context-menu-item" data-action="copy-path">Copy đường dẫn</div>
+    </div>
+    
+    <!-- Variable Picker Popup -->
+    <div data-ref="variable-picker-popup" class="variable-picker-popup"></div>
+
+    <!-- cURL Import Modal -->
+    <div class="modal fade" id="curl-import-modal" tabindex="-1" aria-labelledby="curlImportModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="curlImportModalLabel">Import from cURL Command</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small">Dán lệnh cURL (từ Chrome DevTools, Postman, etc.) vào ô bên dưới. Ứng dụng sẽ cố gắng phân tích URL, phương thức, headers, và body.</p>
+                    <textarea id="curl-input-textarea" class="form-control font-monospace" rows="10" placeholder="curl 'https://api.example.com/...' ..."></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                    <button type="button" class="btn btn-primary" id="process-curl-import-btn">Import</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/logger.js"></script>
+    <script src="js/setting.js"></script>
+    <script src="js/workflow.js"></script>
+    <script src="js/config.js"></script>
+    <script>
+
+        // --- INITIALIZATION ---
+        document.addEventListener('DOMContentLoaded', () => {
+            // Define initial global variables
+            const initialGlobals = {
+                apiKey: "ABC-123-XYZ",
+                environment: "production",
+                adminEmail: "admin@example.com",
+                todoId: 1
+            };
+
+            // Initialize the builder. 
+            new WorkflowBuilder('app-container', workflowConfig, null, initialGlobals);
+        });
+    </script>
+</body>
+</html>
