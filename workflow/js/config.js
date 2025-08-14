@@ -575,7 +575,6 @@ const workflowConfig = {
                     icon: '<i class="bi bi-magic"></i>',
                     outputs: ['success', 'error'],
                     defaultData: {
-                        locale: 'en',
                         generationType: 'string.uuid',
                         min: 0, max: 100,
                         length: 16,
@@ -588,17 +587,6 @@ const workflowConfig = {
                         ]
                     },
                     settings: [
-                        {
-                            type: 'select',
-                            label: 'Ngôn ngữ (Locale)',
-                            dataField: 'locale',
-                            options: [
-                                { value: 'en', text: 'English' }, { value: 'vi', text: 'Vietnamese' }, { value: 'ja', text: 'Japanese' },
-                                { value: 'de', text: 'German' }, { value: 'fr', text: 'French' }, { value: 'es', text: 'Spanish' },
-                                { value: 'it', text: 'Italian' }, { value: 'ko', text: 'Korean' }, { value: 'ru', text: 'Russian' },
-                                { value: 'zh_CN', text: 'Chinese (Simplified)' }, { value: 'zh_TW', text: 'Chinese (Traditional)' }
-                            ]
-                        },
                         {
                             type: 'select',
                             label: 'Loại dữ liệu',
@@ -667,11 +655,9 @@ const workflowConfig = {
                         ]}
                     ],
                     execute: (data, logger, context) => {
-                        const { allFakers, Faker } = require('@faker-js/faker');
-                        const { generationType, locale = 'en' } = data;
-                        if (logger) logger.info(`Đang tạo dữ liệu loại: ${generationType} với ngôn ngữ ${locale}`);
-                        
-                        const faker = locale === 'en' ? require('@faker-js/faker').faker : new Faker({ locale: allFakers[locale] });
+                        const { faker } = require('@faker-js/faker');
+                        const { generationType } = data;
+                        if (logger) logger.info(`Đang tạo dữ liệu loại: ${generationType}`);
 
                         const _generateSingleValue = (type, params) => {
                             const [module, method] = type.split('.');
@@ -679,6 +665,7 @@ const workflowConfig = {
                                 throw new Error(`Loại dữ liệu không xác định hoặc không hợp lệ: ${type}`);
                             }
                             
+                            // Handle methods with specific options from our UI
                             if (type === 'number.int' || type === 'number.float') {
                                 return faker.number[method]({ min: params.min, max: params.max, precision: params.precision });
                             }
@@ -686,6 +673,7 @@ const workflowConfig = {
                                 return faker[module][method](params.length);
                             }
                             
+                            // Default call for methods without parameters
                             return faker[module][method]();
                         };
                         
