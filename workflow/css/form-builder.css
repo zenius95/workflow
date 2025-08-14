@@ -1,0 +1,90 @@
+/* Palette */
+.palette .palette-item {
+    cursor: grab;
+    background-color: #fff;
+    border: 1px solid #dee2e6;
+    transition: background-color 0.2s, transform 0.2s;
+}
+.palette .palette-item:hover {
+    background-color: #e9ecef;
+    transform: translateY(-2px);
+}
+.palette .palette-item:active {
+    cursor: grabbing;
+}
+
+/* Canvas */
+.canvas {
+    min-height: 200px;
+}
+.canvas-component {
+    position: relative;
+    background-color: #fff;
+    border: 1px solid #dee2e6;
+    transition: box-shadow 0.2s, border-color 0.2s;
+    cursor: pointer;
+}
+.canvas-component.selected {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.25);
+}
+.component-label {
+    font-weight: 500;
+}
+.component-type {
+    font-size: 0.75rem;
+    color: #6c757d;
+    font-family: monospace;
+}
+.component-actions {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    display: none;
+    z-index: 10;
+}
+.canvas-component:hover .component-actions {
+    display: flex;
+}
+.component-actions .btn {
+    width: 28px;
+    height: 28px;
+    font-size: 14px;
+    line-height: 1;
+}
+.component-container {
+    min-height: 50px;
+}
+
+/* Properties Panel */
+.properties-panel {
+    background-color: #f8f9fa;
+}
+.prop-wrapper > label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #495057;
+    text-transform: uppercase;
+    margin-bottom: 0.25rem;
+}
+.visible-when-builder .form-check-label {
+    font-size: 0.9rem;
+}
+.visible-when-builder .form-label {
+    margin-bottom: 0.1rem;
+}
+
+/* SortableJS styles */
+.sortable-ghost {
+    background-color: rgba(13, 110, 253, 0.1);
+    border: 2px dashed #0d6efd;
+    opacity: 0.7;
+}
+.sortable-drag {
+    opacity: 1 !important;
+}
+
+/* Make modals appear above each other */
+#output-modal {
+    z-index: 1060;
+}
