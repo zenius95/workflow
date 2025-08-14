@@ -173,9 +173,9 @@ const workflowConfig = {
         {
             name: 'Actions',
             nodes: [
-                { 
+                {
                     type: 'http_request',
-                    title: 'HTTP Request', 
+                    title: 'HTTP Request',
                     displayName: 'HTTP Request',
                     icon: '<i class="bi bi-globe"></i>',
                     outputs: ['success', 'error'],
@@ -198,11 +198,11 @@ const workflowConfig = {
                                             { value: 'GET', text: 'GET' }, { value: 'POST', text: 'POST' }, { value: 'PUT', text: 'PUT' }, { value: 'DELETE', text: 'DELETE' }, { value: 'PATCH', text: 'PATCH' }
                                         ]},
                                         { type: 'number', label: 'Timeout (ms)', dataField: 'timeout' },
-                                        { 
-                                            type: 'button', 
-                                            text: '<i class="bi bi-clipboard-plus"></i> Import from cURL', 
-                                            action: 'import-curl', 
-                                            class: 'btn-outline-primary w-100 mt-2' 
+                                        {
+                                            type: 'button',
+                                            text: '<i class="bi bi-clipboard-plus"></i> Import from cURL',
+                                            action: 'import-curl',
+                                            class: 'btn-outline-primary w-100 mt-2'
                                         }
                                     ]
                                 },
@@ -221,11 +221,11 @@ const workflowConfig = {
                                         ]}
                                     ]
                                 },
-                                { 
-                                    title: 'Params', 
+                                {
+                                    title: 'Params',
                                     controls: [
-                                        { 
-                                            type: 'repeater', 
+                                        {
+                                            type: 'repeater',
                                             dataField: 'queryParams',
                                             addButtonText: '+ Thêm Query Param',
                                             fields: [
@@ -233,13 +233,13 @@ const workflowConfig = {
                                                 { type: 'text', dataField: 'value', placeholder: 'Value', variablePicker: true }
                                             ]
                                         }
-                                    ] 
+                                    ]
                                 },
-                                { 
-                                    title: 'Headers', 
+                                {
+                                    title: 'Headers',
                                     controls: [
-                                        { 
-                                            type: 'repeater', 
+                                        {
+                                            type: 'repeater',
                                             dataField: 'headers',
                                             addButtonText: '+ Thêm Header',
                                             fields: [
@@ -247,7 +247,7 @@ const workflowConfig = {
                                                 { type: 'text', dataField: 'value', placeholder: 'Value', variablePicker: true }
                                             ]
                                         }
-                                    ] 
+                                    ]
                                 },
                                 {
                                     title: 'Body',
@@ -259,8 +259,8 @@ const workflowConfig = {
                                             { type: 'textarea', label: 'JSON', dataField: 'body.json', rows: 8, placeholder: '{ "key": "{{some_variable}}" }' }
                                         ]},
                                         { type: 'group', visibleWhen: { dataField: 'body.type', is: 'form-urlencoded' }, controls: [
-                                            { 
-                                                type: 'repeater', 
+                                            {
+                                                type: 'repeater',
                                                 dataField: 'body.formUrlEncoded',
                                                 addButtonText: '+ Thêm trường Form',
                                                 fields: [
@@ -307,7 +307,7 @@ const workflowConfig = {
                                 if (!requestHeaders.has('Content-Type')) requestHeaders.set('Content-Type', 'application/x-www-form-urlencoded');
                             }
                         }
-                        
+
                         if (logger) logger.info(`=> ${method} ${finalUrl.toString()}`);
                         try {
                             const response = await fetch(finalUrl.toString(), options);
@@ -327,14 +327,14 @@ const workflowConfig = {
                             } catch (e) {
                                 responseBody = await response.text(); // Fallback to text if JSON parsing fails
                             }
-                            
+
                             const result = { statusCode: response.status, ok: response.ok, headers: responseHeaders, body: responseBody };
 
                             if (!response.ok) {
                                 if (logger) logger.error(`<= ${response.status} ${response.statusText}`);
                                 throw Object.assign(new Error(`Request failed with status ${response.status}`), { context: result });
                             }
-                            
+
                             if (logger) logger.success(`<= ${response.status} ${response.statusText}`);
                             return result;
                         } catch (error) {
@@ -346,9 +346,9 @@ const workflowConfig = {
                         }
                     }
                 },
-                { 
+                {
                     type: 'send_email',
-                    title: 'Gửi Email', 
+                    title: 'Gửi Email',
                     displayName: 'Gửi Email',
                     icon: '<i class="bi bi-envelope"></i>',
                     outputs: ['success', 'error'],
@@ -421,7 +421,7 @@ const workflowConfig = {
                             if (stderr) {
                                 if (logger) logger.info(`Stderr: ${stderr}`);
                             }
-                            
+
                             if (logger) logger.success(`Lệnh thực thi thành công.`);
                             resolve({ stdout, stderr });
                         });
@@ -481,7 +481,7 @@ const workflowConfig = {
                         const { folderPath, fileName, content, writeMode } = data;
                         if (!folderPath) throw new Error('Thư mục lưu trữ không được để trống.');
                         if (!fileName) throw new Error('Tên file không được để trống.');
-                        
+
                         const finalPath = path.join(folderPath, fileName);
                         const operation = writeMode === 'append' ? fs.appendFile : fs.writeFile;
                         const actionText = writeMode === 'append' ? 'nối vào' : 'ghi vào';
@@ -517,17 +517,17 @@ const workflowConfig = {
                     settings: [
                         { type: 'textarea', label: 'Nội dung HTML', dataField: 'htmlContent', rows: 6, variablePicker: true },
                         { type: 'info', text: 'Dùng CSS Selector để trích xuất dữ liệu. Nếu "Thuộc tính" để trống, sẽ lấy text bên trong.' },
-                        { 
-                            type: 'repeater', 
+                        {
+                            type: 'repeater',
                             dataField: 'extractions',
                             addButtonText: '<i class="bi bi-plus-lg"></i> Thêm trường trích xuất',
                             fields: [
                                 { type: 'text', dataField: 'key', placeholder: 'Key' },
                                 { type: 'text', dataField: 'selector', placeholder: 'CSS Selector' },
                                 { type: 'text', dataField: 'attribute', placeholder: 'Thuộc tính' },
-                                { 
-                                    type: 'select', 
-                                    dataField: 'extractType', 
+                                {
+                                    type: 'select',
+                                    dataField: 'extractType',
                                     options: [
                                         { value: 'single', text: 'Một' },
                                         { value: 'multiple', text: 'Nhiều' }
@@ -542,12 +542,12 @@ const workflowConfig = {
 
                         const doc = new DOMParser().parseFromString(htmlContent, 'text/html');
                         const results = {};
-                        
+
                         if (logger) logger.info(`Bắt đầu trích xuất từ HTML...`);
 
                         extractions.forEach(ext => {
                             if (!ext.key || !ext.selector) return;
-                            
+
                             try {
                                 if (ext.extractType === 'multiple') {
                                     const elements = doc.querySelectorAll(ext.selector);
@@ -563,7 +563,7 @@ const workflowConfig = {
                                 results[ext.key] = { error: `Invalid selector: ${e.message}` };
                             }
                         });
-                        
+
                         if (logger) logger.success(`Trích xuất HTML hoàn tất.`);
                         return results;
                     }
@@ -576,10 +576,11 @@ const workflowConfig = {
                     outputs: ['success', 'error'],
                     defaultData: {
                         generationType: 'string.uuid',
+                        locale: 'en', // *** NEW: Default locale
                         min: 0, max: 100,
                         length: 16,
                         jsonStructure: [
-                            { key: 'id', type: 'string.uuid' }, 
+                            { key: 'id', type: 'string.uuid' },
                             { key: 'user', type: 'object', children: [
                                 { key: 'name', type: 'person.fullName' },
                                 { key: 'email', type: 'internet.email' }
@@ -587,6 +588,20 @@ const workflowConfig = {
                         ]
                     },
                     settings: [
+                        { // *** NEW: Locale selector
+                            type: 'select',
+                            label: 'Ngôn ngữ (Locale)',
+                            dataField: 'locale',
+                            options: [
+                                { value: 'vi', text: 'Vietnamese (vi)' },
+                                { value: 'en', text: 'English (en)' },
+                                { value: 'de', text: 'German (de)' },
+                                { value: 'ja', text: 'Japanese (ja)' },
+                                { value: 'fr', text: 'French (fr)' },
+                                { value: 'es', text: 'Spanish (es)' },
+                                { value: 'ru', text: 'Russian (ru)' },
+                            ]
+                        },
                         {
                             type: 'select',
                             label: 'Loại dữ liệu',
@@ -655,16 +670,23 @@ const workflowConfig = {
                         ]}
                     ],
                     execute: (data, logger, context) => {
-                        const { faker } = require('@faker-js/faker');
-                        const { generationType } = data;
-                        if (logger) logger.info(`Đang tạo dữ liệu loại: ${generationType}`);
+                        // *** UPDATED: Logic for localization
+                        const { Faker, allLocales } = require('@faker-js/faker');
+                        const { generationType, locale = 'en' } = data;
 
+                        if (logger) logger.info(`Đang tạo dữ liệu loại: ${generationType} với ngôn ngữ: ${locale}`);
+                        
+                        // Initialize Faker with the selected locale, and English as a fallback
+                        const faker = new Faker({
+                            locale: [allLocales[locale], allLocales.en],
+                        });
+                        
                         const _generateSingleValue = (type, params) => {
                             const [module, method] = type.split('.');
                             if (!module || !method || !faker[module] || !faker[module][method]) {
                                 throw new Error(`Loại dữ liệu không xác định hoặc không hợp lệ: ${type}`);
                             }
-                            
+
                             // Handle methods with specific options from our UI
                             if (type === 'number.int' || type === 'number.float') {
                                 return faker.number[method]({ min: params.min, max: params.max, precision: params.precision });
@@ -672,11 +694,11 @@ const workflowConfig = {
                             if (type === 'string.alphanumeric' || type === 'internet.password') {
                                 return faker[module][method](params.length);
                             }
-                            
+
                             // Default call for methods without parameters
                             return faker[module][method]();
                         };
-                        
+
                         const _buildObjectRecursively = (structure, params) => {
                             const output = {};
                             if (!Array.isArray(structure)) return output;
@@ -709,13 +731,13 @@ const workflowConfig = {
         {
             name: 'Logic',
             nodes: [
-                { 
+                {
                     type: 'condition',
-                    title: 'Điều kiện', 
+                    title: 'Điều kiện',
                     displayName: 'Điều kiện (If)',
                     icon: '<i class="bi bi-sign-split"></i>',
                     outputs: ['true', 'false'],
-                    defaultData: { 
+                    defaultData: {
                         conditionGroups: [
                             [ // Group 1 (OR)
                                 { inputValue: '', operator: '==', comparisonValue: '' } // Condition 1.1 (AND)
@@ -736,7 +758,7 @@ const workflowConfig = {
                         const evaluateCondition = (cond) => {
                             const { inputValue, operator, comparisonValue } = cond;
                             if (logger) logger.info(`-- Đang kiểm tra: "${inputValue}" ${operator} "${comparisonValue}"`);
-                            
+
                             let result = false;
                             const numInputValue = parseFloat(inputValue);
                             const numComparisonValue = parseFloat(comparisonValue);
@@ -767,13 +789,13 @@ const workflowConfig = {
                         resolve({ selectedPort, data: { conditionResult: finalResult } });
                     })
                 },
-                { 
+                {
                     type: 'loop',
-                    title: 'Vòng lặp', 
+                    title: 'Vòng lặp',
                     displayName: 'Vòng lặp (Loop)',
                     icon: '<i class="bi bi-arrow-repeat"></i>',
                     outputs: ['loop', 'done'],
-                    defaultData: { 
+                    defaultData: {
                         inputArray: ''
                     },
                     settings: [
@@ -788,20 +810,20 @@ const workflowConfig = {
                         return inputArray;
                     }
                 },
-                { 
+                {
                     type: 'data_processing',
-                    title: 'Xử lý Dữ liệu', 
+                    title: 'Xử lý Dữ liệu',
                     displayName: 'Xử lý Dữ liệu',
                     icon: '<i class="bi bi-code-slash"></i>',
                     outputs: ['success', 'error'],
-                    defaultData: { 
+                    defaultData: {
                         input: '',
                         operation: '',
                         params: {}
                     },
                     settings: [
                         { type: 'text', label: 'Giá trị đầu vào', dataField: 'input', placeholder: '{{some_node.output}}', variablePicker: true },
-                        { type: 'select', label: 'Thao tác', dataField: 'operation', onChange: 'rerender', 
+                        { type: 'select', label: 'Thao tác', dataField: 'operation', onChange: 'rerender',
                             optionGroups: [
                                 { label: 'String', options: Object.keys(DATA_OPERATIONS.string).map(k => ({ value: `string.${k}`, text: DATA_OPERATIONS.string[k].name })) },
                                 { label: 'Number', options: Object.keys(DATA_OPERATIONS.number).map(k => ({ value: `number.${k}`, text: DATA_OPERATIONS.number[k].name })) },
@@ -835,9 +857,9 @@ const workflowConfig = {
                         if (!opConfig || typeof opConfig.execute !== 'function') {
                             throw new Error(`Thao tác không hợp lệ: ${operation}`);
                         }
-                        
+
                         if (logger) logger.info(`Đang thực hiện ${opConfig.name} trên đầu vào.`);
-                        
+
                         let processedInput = input;
                         if (operationType !== 'json' && typeof input === 'string') {
                             try {
@@ -893,7 +915,7 @@ const workflowConfig = {
                     outputs: ['success'],
                     defaultData: { variables: [{ key: '', value: '' }] },
                     settings: [
-                        { 
+                        {
                             type: 'repeater',
                             dataField: 'variables',
                             addButtonText: '+ Thêm biến',
