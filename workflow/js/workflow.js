@@ -12,6 +12,7 @@ class WorkflowBuilder extends EventTarget {
         this.initialWorkflow = initialWorkflow;
         this.initialGlobalVariables = JSON.parse(JSON.stringify(initialGlobalVariables)); // Store initial state
         this.globalVariables = JSON.parse(JSON.stringify(initialGlobalVariables));
+        this.formData = {}; // <<< DỮ LIỆU MỚI: Lưu input từ Form Builder Preview
         this.executionState = {}; // Stores outputs of nodes during simulation
         this.nodes = [];
         this.connections = [];
@@ -74,6 +75,11 @@ class WorkflowBuilder extends EventTarget {
         this._queryDOMElements();
         this.logger = new Logger(this.dom.consoleOutput);
         this.settingsRenderer = new SettingsRenderer(this);
+        
+        if (document.getElementById('form-builder-modal')) {
+            this.formBuilder = new FormBuilder(this);
+        }
+
         this._populatePalette();
         this._setupEventListeners();
         this._updateVariablesPanel();
@@ -213,6 +219,15 @@ class WorkflowBuilder extends EventTarget {
         this.globalVariables[key] = value;
         this._updateVariablesPanel();
         this.dispatchEvent(new CustomEvent('globalvar:changed', { detail: { key, value } }));
+    }
+
+    /**
+     * Thiết lập dữ liệu từ Form Builder Preview
+     * @param {object} newData - The complete data object from the form.
+     */
+    setFormData(newData) {
+        this.formData = newData;
+        this._updateVariablesPanel(); // Cập nhật lại bảng biến
     }
 
     // --- End of Public API Methods ---
@@ -846,6 +861,10 @@ class WorkflowBuilder extends EventTarget {
     _hideSettingsPanel() { this.dom.settingsPanel.classList.add('hidden'); }
 
     _getProperty(obj, path) {
+        // <<< VÁ LỖI: Thêm kiểm tra để tránh lỗi 'split' of undefined >>>
+        if (typeof path !== 'string' || !path) {
+            return undefined;
+        }
         return path.split('.').reduce((o, i) => (o && typeof o === 'object' && i in o) ? o[i] : undefined, obj);
     }
 
@@ -989,7 +1008,7 @@ class WorkflowBuilder extends EventTarget {
 
         try {
             const resolvedData = JSON.parse(JSON.stringify(node.data));
-            const executionContext = { global: this.globalVariables, ...this.executionState };
+            const executionContext = { global: this.globalVariables, ...this.executionState, form: this.formData };
             
             const resolveRecursively = (obj) => {
                 for (const key in obj) {
@@ -1375,31 +1394,68 @@ class WorkflowBuilder extends EventTarget {
 
     _handleAddGlobalVariable(e) {
         e.preventDefault();
-        const formData = new FormData(e.target);
-        const key = formData.get('key').trim();
-        let value = formData.get('value').trim();
+        const keyInput = e.target.querySelector('input[name="key"]');
+        const valueInput = e.target.querySelector('input[name="value"]');
+        const key = keyInput.value.trim();
+        let value = valueInput.value.trim();
 
         if (!key) return;
 
-        try { value = JSON.parse(value); } catch (error) { /* It's just a string */ }
+        try {
+            value = JSON.parse(value);
+        } catch (error) {
+            // It's just a string, which is fine
+        }
 
         this.setGlobalVariable(key, value);
         e.target.reset();
+        keyInput.focus();
     }
     
     _updateVariablesPanel() {
-        if (this.dom.variablesPanel) {
-            this.dom.variablesPanel.querySelectorAll('details').forEach(d => {
-                this.treeViewStates.set(d.id, d.open);
-            });
-        }
+        if (!this.dom.variablesPanel) return;
 
-        this.dom.globalVariablesContainer.innerHTML = '';
-        this.dom.globalVariablesContainer.appendChild(this._createTreeView(this.globalVariables, 'global'));
+        this.dom.variablesPanel.querySelectorAll('details').forEach(d => {
+            this.treeViewStates.set(d.id, d.open);
+        });
 
-        this.dom.nodeOutputsContainer.innerHTML = '';
-        this.dom.nodeOutputsContainer.appendChild(this._createNodeOutputsTreeView(this.executionState));
+        const panelContent = this.dom.variablesPanel;
+        panelContent.innerHTML = ''; // Clear everything
+
+        // --- Global Variables Section ---
+        const globalSection = document.createElement('div');
+        globalSection.className = 'mb-4';
+        globalSection.innerHTML = `
+            <h4 class="h6 fw-semibold text-secondary mb-2 border-bottom pb-1">Toàn cục (Global)</h4>
+            <div data-ref="global-variables-container" class="tree-view p-2 bg-light rounded mb-3 border"></div>
+        `;
+        const globalTreeContainer = globalSection.querySelector('[data-ref="global-variables-container"]');
+        globalTreeContainer.appendChild(this._createTreeView(this.globalVariables, 'global'));
+        globalSection.appendChild(this.dom.addGlobalVarForm);
+        panelContent.appendChild(globalSection);
+
+        // --- Form Data Section ---
+        const formSection = document.createElement('div');
+        formSection.className = 'mb-4';
+        formSection.innerHTML = `
+            <h4 class="h6 fw-semibold text-secondary mb-2 border-bottom pb-1">Dữ liệu Form (Preview)</h4>
+            <div data-ref="form-data-container" class="tree-view p-2 bg-light rounded border"></div>
+        `;
+        const formTreeContainer = formSection.querySelector('[data-ref="form-data-container"]');
+        formTreeContainer.appendChild(this._createTreeView(this.formData, 'form'));
+        panelContent.appendChild(formSection);
+
+        // --- Node Outputs Section ---
+        const outputSection = document.createElement('div');
+        outputSection.innerHTML = `
+            <h4 class="h6 fw-semibold text-secondary mb-2 border-bottom pb-1">Đầu ra các Khối (Node Outputs)</h4>
+            <div data-ref="node-outputs-container" class="tree-view p-2 bg-light rounded border"></div>
+        `;
+        const outputTreeContainer = outputSection.querySelector('[data-ref="node-outputs-container"]');
+        outputTreeContainer.appendChild(this._createNodeOutputsTreeView(this.executionState));
+        panelContent.appendChild(outputSection);
     }
+
 
     _createNodeOutputsTreeView(executionState) {
         if (executionState === null || typeof executionState !== 'object' || Object.keys(executionState).length === 0) {
@@ -1579,6 +1635,12 @@ class WorkflowBuilder extends EventTarget {
         globalsHeader.textContent = 'Biến Toàn Cục';
         popup.appendChild(globalsHeader);
         popup.appendChild(this._createPickerTreeView(this.globalVariables, 'global'));
+        
+        const formDataHeader = document.createElement('h6');
+        formDataHeader.className = "small text-uppercase text-muted fw-bold p-1 mt-2";
+        formDataHeader.textContent = 'Dữ liệu Form';
+        popup.appendChild(formDataHeader);
+        popup.appendChild(this._createPickerTreeView(this.formData, 'form'));
 
         const nodesHeader = document.createElement('h6');
         nodesHeader.className = "small text-uppercase text-muted fw-bold p-1 mt-2";
@@ -1691,7 +1753,7 @@ class WorkflowBuilder extends EventTarget {
         this.dispatchEvent(new CustomEvent('simulation:node:start', { detail: { node } }));
         
         const resolvedNodeData = JSON.parse(JSON.stringify(node.data));
-        const resolutionContext = { global: this.globalVariables, ...this.executionState };
+        const resolutionContext = { global: this.globalVariables, form: this.formData, ...this.executionState };
         
         const resolveRecursively = (obj) => {
             for (const key in obj) {

@@ -8,18 +8,20 @@ class SettingsRenderer {
             this.dialog = require('@electron/remote').dialog;
         } catch (e) {
             console.error("Không thể tải module @electron/remote. Các nút chọn file/folder sẽ không hoạt động.", e);
-            this.workflow.logger.error("Lỗi cấu hình: Không thể kích hoạt tính năng chọn file/folder. Vui lòng kiểm tra lại file main.js và đảm bảo đã cài đặt @electron/remote.");
+            if (this.workflow && this.workflow.logger) {
+                this.workflow.logger.error("Lỗi cấu hình: Không thể kích hoạt tính năng chọn file/folder. Vui lòng kiểm tra lại file main.js và đảm bảo đã cài đặt @electron/remote.");
+            }
             this.dialog = null;
         }
     }
 
-    render(settingsConfig, nodeId, nodeData) {
+    render(settingsConfig, uniqueId, dataObject) {
         const container = document.createDocumentFragment();
         const row = document.createElement('div');
-        row.className = 'row g-2'; // Add gutter spacing for columns
+        row.className = 'row g-2';
         
         settingsConfig.forEach(control => {
-            const controlEl = this._renderControl(control, nodeId, nodeData);
+            const controlEl = this._renderControl(control, uniqueId, dataObject);
             if (controlEl) row.appendChild(controlEl);
         });
 
@@ -27,9 +29,9 @@ class SettingsRenderer {
         return container;
     }
 
-    _renderControl(control, nodeId, nodeData) {
+    _renderControl(control, uniqueId, dataObject) {
         if (control.visibleWhen) {
-            const value = this.workflow._getProperty(nodeData, control.visibleWhen.dataField);
+            const value = this.workflow._getProperty(dataObject, control.visibleWhen.dataField);
             if (value !== control.visibleWhen.is) return null;
         }
 
@@ -39,50 +41,52 @@ class SettingsRenderer {
         const wrapper = document.createElement('div');
         wrapper.className = 'mb-3';
 
+        if (control.label) {
+            const label = document.createElement('label');
+            label.className = 'form-label fw-semibold small';
+            label.textContent = control.label;
+            wrapper.appendChild(label);
+        }
+
         let element;
         switch (control.type) {
             case 'text':
             case 'number':
             case 'password':
-                element = this._renderInput(control, nodeId);
+                element = this._renderInput(control, uniqueId, dataObject);
                 break;
             case 'textarea':
-                element = this._renderTextarea(control, nodeId);
+                element = this._renderTextarea(control, uniqueId, dataObject);
                 break;
             case 'select':
-                element = this._renderSelect(control, nodeId);
+                element = this._renderSelect(control, uniqueId, dataObject);
                 break;
             case 'file-select':
-                element = this._renderFileSelect(control, nodeId);
+                element = this._renderFileSelect(control, uniqueId, dataObject);
                 break;
             case 'folder-select':
-                element = this._renderFolderSelect(control, nodeId);
+                element = this._renderFolderSelect(control, uniqueId, dataObject);
                 break;
             case 'tabs':
-                return this._renderTabs(control, nodeId, nodeData);
+                 element = this._renderTabs(control, uniqueId, dataObject);
+                 break;
             case 'repeater':
+                element = this._renderRepeater(control, uniqueId, dataObject);
+                break;
+            case 'group':
+                element = this._renderGroup(control, uniqueId, dataObject);
+                break;
             case 'condition-builder':
             case 'json-builder':
-            case 'group':
             case 'button':
             case 'output-display':
             case 'info':
-                const fullWidthElement = this._renderSpecialType(control, nodeId, nodeData);
-                if(fullWidthElement) wrapper.appendChild(fullWidthElement);
-                colWrapper.appendChild(wrapper);
-                return colWrapper;
+                element = this._renderSpecialType(control, uniqueId, dataObject);
+                break;
             default:
                 return null;
         }
         
-        if (control.label) {
-            const label = document.createElement('label');
-            label.className = 'form-label fw-semibold small';
-            label.htmlFor = element.id;
-            label.textContent = control.label;
-            wrapper.appendChild(label);
-        }
-
         wrapper.appendChild(element);
         
         if (control.helpText) {
@@ -96,13 +100,10 @@ class SettingsRenderer {
         return colWrapper;
     }
 
-     _renderSpecialType(control, nodeId, nodeData) {
+     _renderSpecialType(control, uniqueId, dataObject) {
         switch (control.type) {
-            case 'tabs':              return this._renderTabs(control, nodeId, nodeData);
-            case 'repeater':          return this._renderRepeater(control, nodeId, nodeData);
-            case 'condition-builder': return this._renderConditionBuilder(control, nodeId, nodeData);
-            case 'json-builder':      return this._renderJsonBuilder(control, nodeId, nodeData);
-            case 'group':             return this._renderGroup(control, nodeId, nodeData);
+            case 'condition-builder': return this._renderConditionBuilder(control, uniqueId, dataObject);
+            case 'json-builder':      return this._renderJsonBuilder(control, uniqueId, dataObject);
             case 'button':            return this._renderButton(control);
             case 'output-display':    return this._renderOutputDisplay(control);
             case 'info':              
@@ -114,15 +115,20 @@ class SettingsRenderer {
         }
     }
 
-    _renderInput(control, nodeId) {
-        const id = `settings-${nodeId}-${control.dataField.replace(/\./g, '-')}`;
-        const value = this.workflow._getProperty(this.workflow.selectedNodes[0].data, control.dataField) || '';
+    _createSafeId(uniqueId, control) {
+        const safePart = (control.dataField || `${control.type}-${Math.random().toString(36).slice(2)}`).replace(/\./g, '-');
+        return `settings-${uniqueId}-${safePart}`;
+    }
+
+    _renderInput(control, uniqueId, dataObject) {
+        const id = this._createSafeId(uniqueId, control);
+        const value = this.workflow._getProperty(dataObject, control.dataField) || '';
 
         if (control.variablePicker) {
             const group = document.createElement('div');
             group.className = 'input-group input-group-sm';
             group.innerHTML = `
-                <input id="${id}" type="${control.type}" data-field="${control.dataField}" class="form-control" placeholder="${control.placeholder || ''}" value="${value}">
+                <input id="${id}" type="${control.type}" data-field="${control.dataField}" class="form-control form-control-sm" placeholder="${control.placeholder || ''}" value="${value}">
                 <button class="btn btn-outline-secondary variable-picker-btn" type="button" data-target-input="${id}"><i class="bi bi-braces"></i></button>
             `;
             return group;
@@ -138,9 +144,9 @@ class SettingsRenderer {
         }
     }
 
-    _renderTextarea(control, nodeId) {
-            const id = `settings-${nodeId}-${control.dataField.replace(/\./g, '-')}`;
-            const value = this.workflow._getProperty(this.workflow.selectedNodes[0].data, control.dataField) || '';
+    _renderTextarea(control, uniqueId, dataObject) {
+            const id = this._createSafeId(uniqueId, control);
+            const value = this.workflow._getProperty(dataObject, control.dataField) || '';
 
             const element = document.createElement('textarea');
             element.id = id;
@@ -160,9 +166,9 @@ class SettingsRenderer {
         return element;
     }
 
-    _renderSelect(control, nodeId) {
-        const id = `settings-${nodeId}-${control.dataField.replace(/\./g, '-')}`;
-        const value = this.workflow._getProperty(this.workflow.selectedNodes[0].data, control.dataField) || '';
+    _renderSelect(control, uniqueId, dataObject) {
+        const id = this._createSafeId(uniqueId, control);
+        const value = this.workflow._getProperty(dataObject, control.dataField) || '';
         const select = document.createElement('select');
         select.id = id;
         select.dataset.field = control.dataField;
@@ -180,7 +186,7 @@ class SettingsRenderer {
                 });
                 select.appendChild(optgroup);
             });
-        } else {
+        } else if (control.options) {
             control.options.forEach(opt => {
                 const option = document.createElement('option');
                 option.value = opt.value;
@@ -192,9 +198,9 @@ class SettingsRenderer {
         return select;
     }
 
-    _renderFileSelect(control, nodeId) {
-        const id = `settings-${nodeId}-${control.dataField.replace(/\./g, '-')}`;
-        const value = this.workflow._getProperty(this.workflow.selectedNodes[0].data, control.dataField) || '';
+    _renderFileSelect(control, uniqueId, dataObject) {
+        const id = this._createSafeId(uniqueId, control);
+        const value = this.workflow._getProperty(dataObject, control.dataField) || '';
         const group = document.createElement('div');
         group.className = 'input-group input-group-sm';
         group.innerHTML = `
@@ -206,9 +212,9 @@ class SettingsRenderer {
         return group;
     }
 
-    _renderFolderSelect(control, nodeId) {
-        const id = `settings-${nodeId}-${control.dataField.replace(/\./g, '-')}`;
-        const value = this.workflow._getProperty(this.workflow.selectedNodes[0].data, control.dataField) || '';
+    _renderFolderSelect(control, uniqueId, dataObject) {
+        const id = this._createSafeId(uniqueId, control);
+        const value = this.workflow._getProperty(dataObject, control.dataField) || '';
         const group = document.createElement('div');
         group.className = 'input-group input-group-sm';
         group.innerHTML = `
@@ -238,13 +244,9 @@ class SettingsRenderer {
         }
     }
 
-    _renderTabs(control, nodeId, nodeData) {
-        const colWrapper = document.createElement('div');
-        colWrapper.className = control.col ? `col-md-${control.col}` : 'col-12';
-
-        const tabId = `settings-tabs-${nodeId}`;
+    _renderTabs(control, uniqueId, dataObject) {
+        const tabId = `settings-tabs-${uniqueId}`;
         const wrapper = document.createElement('div');
-        wrapper.className = 'mb-3';
 
         const nav = document.createElement('ul');
         nav.className = 'nav nav-tabs mb-3';
@@ -255,7 +257,7 @@ class SettingsRenderer {
 
         control.tabs.forEach((tab, index) => {
             const paneId = `${tabId}-pane-${index}`;
-            const activeClass = tab.active ? 'active' : '';
+            const activeClass = index === 0 ? 'active' : '';
 
             const navItem = document.createElement('li');
             navItem.className = 'nav-item';
@@ -271,7 +273,7 @@ class SettingsRenderer {
             const row = document.createElement('div');
             row.className = 'row g-2';
             tab.controls.forEach(c => {
-                const el = this._renderControl(c, nodeId, nodeData);
+                const el = this._renderControl(c, uniqueId, dataObject);
                 if (el) row.appendChild(el);
             });
             pane.appendChild(row);
@@ -280,92 +282,65 @@ class SettingsRenderer {
 
         wrapper.appendChild(nav);
         wrapper.appendChild(content);
-        colWrapper.appendChild(wrapper);
-        return colWrapper;
+        return wrapper;
     }
     
-    _renderGroup(control, nodeId, nodeData) {
+    _renderGroup(control, uniqueId, dataObject) {
         const groupWrapper = document.createElement('div');
-        groupWrapper.className = 'row g-2'; 
+        groupWrapper.className = 'row g-2 border rounded p-3'; 
         control.controls.forEach(c => {
-            const el = this._renderControl(c, nodeId, nodeData);
+            const el = this._renderControl(c, uniqueId, dataObject);
             if (el) groupWrapper.appendChild(el);
         });
         return groupWrapper;
     }
 
-    _renderRepeater(control, nodeId, nodeData) {
+    _renderRepeater(control, uniqueId, dataObject) {
         const wrapper = document.createElement('div');
         const container = document.createElement('div');
         wrapper.appendChild(container);
 
-        const renderRows = () => {
-            container.innerHTML = '';
-            const items = this.workflow._getProperty(nodeData, control.dataField) || [];
+        const items = this.workflow._getProperty(dataObject, control.dataField) || [];
 
-            items.forEach((item, index) => {
-                const rowWrapper = document.createElement('div');
-                rowWrapper.className = 'repeater-row d-grid align-items-center gap-2 mb-2';
+        items.forEach((item, index) => {
+            const rowWrapper = document.createElement('div');
+            rowWrapper.className = 'repeater-row d-grid align-items-center gap-2 mb-2';
+            
+            rowWrapper.style.gridTemplateColumns = `repeat(${(control.fields || []).length}, 1fr) auto`;
+
+            (control.fields || []).forEach(fieldConfig => {
+                const fieldPath = `${control.dataField}.${index}.${fieldConfig.dataField}`;
+                // <<< SỬA LỖI: Không bỏ đi 'label' nữa >>>
+                const tempControlConfig = { ...fieldConfig, dataField: fieldPath, col: null }; 
+                const fieldElement = this._renderControl(tempControlConfig, uniqueId, dataObject);
                 
-                rowWrapper.style.gridTemplateColumns = `repeat(${control.fields.length}, 1fr) auto`;
-
-                control.fields.forEach(fieldConfig => {
-                    const fieldPath = `${control.dataField}.${index}.${fieldConfig.dataField}`;
-                    const tempControlConfig = { ...fieldConfig, dataField: fieldPath, label: null, col: null }; 
-                    const fieldElement = this._renderControl(tempControlConfig, nodeId, nodeData);
-                    
-                    const innerContent = fieldElement.firstElementChild;
-                    
-                    const inputElement = innerContent.querySelector('input, select, textarea');
-                    if (inputElement && fieldConfig.placeholder) {
-                        inputElement.placeholder = fieldConfig.placeholder;
-                    }
-                    
-                    rowWrapper.appendChild(innerContent);
-                });
-
-                const removeBtn = document.createElement('button');
-                removeBtn.className = 'btn btn-sm btn-outline-danger flex-shrink-0 align-self-center';
-                removeBtn.innerHTML = '<i class="bi bi-trash"></i>';
-                removeBtn.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    items.splice(index, 1);
-                    this.workflow._updateSettingsPanel(); 
-                    this.workflow._commitState(`Xóa mục trong repeater: ${control.dataField}`);
-                });
-                rowWrapper.appendChild(removeBtn);
-
-                container.appendChild(rowWrapper);
+                rowWrapper.appendChild(fieldElement);
             });
-        };
 
-        renderRows();
+            const removeBtn = document.createElement('button');
+            removeBtn.className = 'btn btn-sm btn-outline-danger flex-shrink-0 align-self-center';
+            removeBtn.innerHTML = '<i class="bi bi-trash"></i>';
+            removeBtn.dataset.action = 'remove-repeater-item';
+            removeBtn.dataset.field = control.dataField;
+            removeBtn.dataset.index = index;
+            rowWrapper.appendChild(removeBtn);
+
+            container.appendChild(rowWrapper);
+        });
 
         const addButton = document.createElement('button');
         addButton.className = 'btn btn-sm btn-outline-secondary w-100 mt-2';
         addButton.innerHTML = control.addButtonText || '+ Thêm';
+        addButton.dataset.action = 'add-repeater-item';
+        addButton.dataset.field = control.dataField;
         wrapper.appendChild(addButton);
-
-        addButton.addEventListener('click', (e) => {
-            e.preventDefault();
-            const items = this.workflow._getProperty(nodeData, control.dataField);
-            if (items) {
-                const newItem = {};
-                control.fields.forEach(field => {
-                    this.workflow._setProperty(newItem, field.dataField, field.defaultValue || '');
-                });
-                items.push(newItem);
-                this.workflow._updateSettingsPanel();
-                this.workflow._commitState(`Thêm mục vào repeater: ${control.dataField}`);
-            }
-        });
 
         return wrapper;
     }
 
-    _renderConditionBuilder(control, nodeId, nodeData) {
+    _renderConditionBuilder(control, uniqueId, dataObject) {
         const container = document.createElement('div');
-        const conditionGroups = this.workflow._getProperty(nodeData, control.dataField) || [];
+        const conditionGroups = this.workflow._getProperty(dataObject, control.dataField) || [];
 
         conditionGroups.forEach((group, groupIndex) => {
             if (groupIndex > 0) {
@@ -395,8 +370,8 @@ class SettingsRenderer {
             group.forEach((cond, condIndex) => {
                 const row = document.createElement('div');
                 row.className = 'condition-row';
-                const inputValueId = `${nodeId}-cond-${groupIndex}-${condIndex}-inputValue`;
-                const comparisonValueId = `${nodeId}-cond-${groupIndex}-${condIndex}-comparisonValue`;
+                const inputValueId = `${uniqueId}-cond-${groupIndex}-${condIndex}-inputValue`;
+                const comparisonValueId = `${uniqueId}-cond-${groupIndex}-${condIndex}-comparisonValue`;
 
                 row.innerHTML = `
                     <div class="input-group input-group-sm">
@@ -456,9 +431,9 @@ class SettingsRenderer {
         return container;
     }
 
-    _renderJsonBuilder(control, nodeId, nodeData) {
+    _renderJsonBuilder(control, uniqueId, dataObject) {
         const container = document.createElement('div');
-        const items = this.workflow._getProperty(nodeData, control.dataField) || [];
+        const items = this.workflow._getProperty(dataObject, control.dataField) || [];
         this._renderJsonBuilderUI(container, items, control.dataField);
         return container;
     }
@@ -468,26 +443,29 @@ class SettingsRenderer {
 
         const dataTypeOptions = document.createElement('select');
         const nodeConfig = this.workflow._findNodeConfig('generate_data');
-        const tempSelectDiv = document.createElement('div');
-        this.workflow.settingsRenderer.render(nodeConfig.settings, 'temp', {}).querySelectorAll('select[data-field="generationType"] optgroup').forEach(optgroup => {
-            const newOptgroup = document.createElement('optgroup');
-            newOptgroup.label = optgroup.label;
-            optgroup.querySelectorAll('option').forEach(opt => {
-                if(opt.value && opt.value !== 'structured_json') { 
-                    const newOpt = document.createElement('option');
-                    newOpt.value = opt.value;
-                    newOpt.textContent = opt.textContent;
-                    newOptgroup.appendChild(newOpt);
+        if (nodeConfig) {
+            const tempSelectDiv = document.createElement('div');
+            this.workflow.settingsRenderer.render(nodeConfig.settings, 'temp', {}).querySelectorAll('select[data-field="generationType"] optgroup').forEach(optgroup => {
+                const newOptgroup = document.createElement('optgroup');
+                newOptgroup.label = optgroup.label;
+                optgroup.querySelectorAll('option').forEach(opt => {
+                    if(opt.value && opt.value !== 'structured_json') { 
+                        const newOpt = document.createElement('option');
+                        newOpt.value = opt.value;
+                        newOpt.textContent = opt.textContent;
+                        newOptgroup.appendChild(newOpt);
+                    }
+                });
+                if (newOptgroup.label === 'Dữ liệu có cấu trúc') {
+                    const objOpt = document.createElement('option');
+                    objOpt.value = 'object';
+                    objOpt.textContent = 'Object (Nhóm)';
+                    newOptgroup.appendChild(objOpt);
                 }
+                dataTypeOptions.appendChild(newOptgroup);
             });
-            if (newOptgroup.label === 'Dữ liệu có cấu trúc') {
-                const objOpt = document.createElement('option');
-                objOpt.value = 'object';
-                objOpt.textContent = 'Object (Nhóm)';
-                newOptgroup.appendChild(objOpt);
-            }
-            dataTypeOptions.appendChild(newOptgroup);
-        });
+        }
+
 
         items.forEach((item, index) => {
             const currentPath = `${dataPath}.${index}`;

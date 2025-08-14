@@ -1,47 +1,73 @@
-document.addEventListener('DOMContentLoaded', () => {
-    if (!document.getElementById('form-builder-modal')) return;
+class FormBuilder {
+    constructor(workflowInstance) {
+        this.workflow = workflowInstance; 
 
-    // --- DOM Elements ---
-    const palette = document.getElementById('component-palette');
-    const canvas = document.getElementById('canvas');
-    const propertiesPanel = document.getElementById('properties-panel');
-    const generateBtn = document.getElementById('generate-btn');
-    const clearCanvasBtn = document.getElementById('clear-canvas-btn');
-    const outputModal = new bootstrap.Modal(document.getElementById('output-modal'));
-    const outputCode = document.getElementById('output-code');
-    const copyCodeBtn = document.getElementById('copy-code-btn');
+        // --- DOM Elements ---
+        this.palette = document.getElementById('component-palette');
+        this.canvas = document.getElementById('canvas');
+        this.propertiesPanel = document.getElementById('properties-panel');
+        this.generateBtn = document.getElementById('generate-btn');
+        this.clearCanvasBtn = document.getElementById('clear-canvas-btn');
+        this.outputModal = new bootstrap.Modal(document.getElementById('output-modal'));
+        this.outputCode = document.getElementById('output-code');
+        this.copyCodeBtn = document.getElementById('copy-code-btn');
+        this.previewPane = document.getElementById('preview-pane');
 
-    // --- State ---
-    let components = [];
-    let selectedComponentId = null;
-    let nextId = 1;
+        // --- State ---
+        this.components = [];
+        this.selectedComponentId = null;
+        this.nextId = 1;
+        this.formData = {}; 
 
-    // --- Definitions ---
-    const CONTROL_DEFINITIONS = {
-        'text': { name: 'Text Input', icon: 'bi-input-cursor-text', props: ['label', 'dataField', 'placeholder', 'helpText', 'variablePicker', 'col', 'visibleWhen'] },
-        'number': { name: 'Number Input', icon: 'bi-hash', props: ['label', 'dataField', 'placeholder', 'col', 'visibleWhen'] },
-        'password': { name: 'Password Input', icon: 'bi-key', props: ['label', 'dataField', 'placeholder', 'col', 'visibleWhen'] },
-        'textarea': { name: 'Textarea', icon: 'bi-textarea-resize', props: ['label', 'dataField', 'rows', 'placeholder', 'variablePicker', 'visibleWhen'] },
-        'select': { name: 'Select (Dropdown)', icon: 'bi-menu-button-wide', props: ['label', 'dataField', 'options', 'onChange', 'col', 'visibleWhen'] },
-        'group': { name: 'Group', icon: 'bi-collection', props: ['visibleWhen'], isContainer: true },
-        'tabs': { name: 'Tabs', icon: 'bi-segmented-nav', props: [], isContainer: true, hasTabs: true },
-        'repeater': { name: 'Repeater', icon: 'bi-plus-slash-minus', props: ['dataField', 'addButtonText'], isContainer: true, hasFields: true },
-        'button': { name: 'Button', icon: 'bi-hand-index-thumb', props: ['text', 'action', 'class'] },
-        'info': { name: 'Info Text', icon: 'bi-info-circle', props: ['text'] },
-    };
+        // --- Definitions ---
+        this.CONTROL_DEFINITIONS = {
+            'text': { name: 'Text Input', icon: 'bi-input-cursor-text', props: ['label', 'dataField', 'placeholder', 'helpText', 'variablePicker', 'col', 'visibleWhen'] },
+            'number': { name: 'Number Input', icon: 'bi-hash', props: ['label', 'dataField', 'placeholder', 'col', 'visibleWhen'] },
+            'password': { name: 'Password Input', icon: 'bi-key', props: ['label', 'dataField', 'placeholder', 'col', 'visibleWhen'] },
+            'textarea': { name: 'Textarea', icon: 'bi-textarea-resize', props: ['label', 'dataField', 'rows', 'placeholder', 'variablePicker', 'visibleWhen'] },
+            'select': { name: 'Select (Dropdown)', icon: 'bi-menu-button-wide', props: ['label', 'dataField', 'options', 'onChange', 'col', 'visibleWhen'] },
+            // <<< THÊM MỚI 2 DÒNG DƯỚI >>>
+            'file-select': { name: 'File Select', icon: 'bi-file-earmark-arrow-up', props: ['label', 'dataField', 'helpText', 'col', 'visibleWhen'] },
+            'folder-select': { name: 'Folder Select', icon: 'bi-folder-plus', props: ['label', 'dataField', 'helpText', 'col', 'visibleWhen'] },
+            'group': { name: 'Group', icon: 'bi-collection', props: ['label', 'helpText', 'visibleWhen'], isContainer: true },
+            'tabs': { name: 'Tabs', icon: 'bi-segmented-nav', props: ['label', 'helpText', 'tabs'], isContainer: true, hasTabs: true },
+            'repeater': { name: 'Repeater', icon: 'bi-plus-slash-minus', props: ['label', 'helpText', 'dataField', 'addButtonText', 'fields'], isContainer: true, hasFields: true },
+            'button': { name: 'Button', icon: 'bi-hand-index-thumb', props: ['text', 'action', 'class'] },
+            'info': { name: 'Info Text', icon: 'bi-info-circle', props: ['text'] },
+        };
+        
+        this.initialize();
+    }
 
+    // ... (Phần còn lại của file không có thay đổi quan trọng) ...
     // --- Helper Functions ---
-
-    function findComponent(id, componentArray = components) {
+    findComponent(id, componentArray = this.components) {
         for (const comp of componentArray) {
             if (comp.id === id) return comp;
-            if (CONTROL_DEFINITIONS[comp.type].isContainer) {
-                const found = findComponent(id, comp.config.controls || []);
+            if (this.CONTROL_DEFINITIONS[comp.type].isContainer) {
+                const found = this.findComponent(id, comp.config.controls || []);
                 if (found) return found;
             }
-            if (CONTROL_DEFINITIONS[comp.type].hasTabs) {
+            if (this.CONTROL_DEFINITIONS[comp.type].hasTabs) {
                  for (const tab of comp.config.tabs) {
-                    const found = findComponent(id, tab.controls || []);
+                    const found = this.findComponent(id, tab.controls || []);
+                    if (found) return found;
+                }
+            }
+        }
+        return null;
+    }
+    
+    findComponentByDataField(dataField, componentArray = this.components.map(c => c.config)) {
+        for (const config of componentArray) {
+            if (config.dataField === dataField) return config;
+            if (config.controls) {
+                const found = this.findComponentByDataField(dataField, config.controls);
+                if (found) return found;
+            }
+            if (config.tabs) {
+                for (const tab of config.tabs) {
+                    const found = this.findComponentByDataField(dataField, tab.controls);
                     if (found) return found;
                 }
             }
@@ -49,124 +75,183 @@ document.addEventListener('DOMContentLoaded', () => {
         return null;
     }
 
-    function getComponentPath(id, componentArray = components) {
+
+    getComponentPath(id, componentArray = this.components) {
         for (let i = 0; i < componentArray.length; i++) {
             const comp = componentArray[i];
             if (comp.id === id) return { parent: componentArray, index: i };
-            if (CONTROL_DEFINITIONS[comp.type].isContainer) {
-                const result = getComponentPath(id, comp.config.controls);
+            if (this.CONTROL_DEFINITIONS[comp.type].isContainer) {
+                const result = this.getComponentPath(id, comp.config.controls);
                 if (result) return result;
             }
-            if (CONTROL_DEFINITIONS[comp.type].hasTabs) {
+             if (this.CONTROL_DEFINITIONS[comp.type].hasTabs) {
                 for (const tab of comp.config.tabs) {
-                    const result = getComponentPath(id, tab.controls);
+                    const result = this.getComponentPath(id, tab.controls);
                     if (result) return result;
                 }
             }
         }
         return null;
     }
-
-    function getAllFields(excludeId, componentArray = components) {
+    
+    getAllFields(excludeId, componentArray = this.components) {
         let fields = [];
         componentArray.forEach(comp => {
             if (comp.id !== excludeId && comp.config.dataField) {
                 fields.push({ text: `${comp.config.label || comp.type} (${comp.config.dataField})`, value: comp.config.dataField });
             }
-            if (CONTROL_DEFINITIONS[comp.type].isContainer) {
-                fields = fields.concat(getAllFields(excludeId, comp.config.controls || []));
+            if (this.CONTROL_DEFINITIONS[comp.type].isContainer) {
+                fields = fields.concat(this.getAllFields(excludeId, comp.config.controls || []));
             }
-            if (CONTROL_DEFINITIONS[comp.type].hasTabs) {
-                (comp.config.tabs || []).forEach(tab => fields = fields.concat(getAllFields(excludeId, tab.controls || [])));
+            if (this.CONTROL_DEFINITIONS[comp.type].hasTabs) {
+                (comp.config.tabs || []).forEach(tab => fields = fields.concat(this.getAllFields(excludeId, tab.controls || [])));
             }
         });
         return fields;
     }
 
-    // --- Main Functions ---
 
-    function initialize() {
-        renderPalette();
-        setupDragAndDrop();
-        generateBtn.addEventListener('click', generateOutput);
-        clearCanvasBtn.addEventListener('click', clearCanvas);
-        copyCodeBtn.addEventListener('click', copyOutputToClipboard);
-        renderCanvas();
+    // --- Main Functions ---
+    initialize() {
+        this.renderPalette();
+        this.setupDragAndDrop();
+        this.generateBtn.addEventListener('click', () => this.generateOutput());
+        this.clearCanvasBtn.addEventListener('click', () => this.clearCanvas());
+        this.copyCodeBtn.addEventListener('click', () => this.copyOutputToClipboard());
+
+        this.previewPane.addEventListener('input', (e) => {
+            const target = e.target;
+            const fieldPath = target.dataset.field;
+            if (fieldPath) {
+                const value = target.type === 'checkbox' ? target.checked : target.value;
+                this.workflow._setProperty(this.formData, fieldPath, value);
+                this.workflow.setFormData(this.formData);
+            }
+        });
+        
+        this.previewPane.addEventListener('click', (e) => {
+            const button = e.target.closest('button');
+            if (!button) return;
+
+            const action = button.dataset.action;
+            const dataField = button.dataset.field;
+            const index = parseInt(button.dataset.index, 10);
+
+            if (action === 'add-repeater-item') {
+                const componentConfig = this.findComponentByDataField(dataField);
+                if (componentConfig) {
+                    let items = this.workflow._getProperty(this.formData, dataField);
+                    if (!Array.isArray(items)) {
+                        items = [];
+                        this.workflow._setProperty(this.formData, dataField, items);
+                    }
+                    const newItem = {};
+                    (componentConfig.fields || []).forEach(field => {
+                        this.workflow._setProperty(newItem, field.dataField, field.defaultValue || '');
+                    });
+                    items.push(newItem);
+                    this.workflow.setFormData(this.formData);
+                    this.renderPreview();
+                }
+            } else if (action === 'remove-repeater-item') {
+                 let items = this.workflow._getProperty(this.formData, dataField);
+                 if (Array.isArray(items) && index >= 0) {
+                     items.splice(index, 1);
+                     this.workflow.setFormData(this.formData);
+                     this.renderPreview();
+                 }
+            }
+        });
+
+
+        this.renderCanvas();
     }
 
-    function renderPalette() {
-        palette.innerHTML = '';
-        Object.entries(CONTROL_DEFINITIONS).forEach(([type, def]) => {
+    renderPalette() {
+        this.palette.innerHTML = '';
+        Object.entries(this.CONTROL_DEFINITIONS).forEach(([type, def]) => {
             const item = document.createElement('div');
             item.className = 'palette-item p-2 mb-2 rounded d-flex align-items-center gap-2';
             item.dataset.type = type;
             item.innerHTML = `<i class="bi ${def.icon}"></i> <span>${def.name}</span>`;
-            palette.appendChild(item);
+            this.palette.appendChild(item);
         });
     }
 
-    function setupDragAndDrop() {
-        new Sortable(palette, { group: { name: 'builder', pull: 'clone', put: false }, sort: false });
-        makeSortable(canvas, components);
+    setupDragAndDrop() {
+        new Sortable(this.palette, { group: { name: 'builder', pull: 'clone', put: false }, sort: false });
+        this.makeSortable(this.canvas, this.components);
     }
 
-    function makeSortable(containerElement, group) {
+    makeSortable(containerElement, group) {
         new Sortable(containerElement, {
             group: 'builder', animation: 150,
             onAdd: (evt) => {
                 const type = evt.item.dataset.type;
-                const newComponent = createComponent(type);
+                if (!type || !this.CONTROL_DEFINITIONS[type]) {
+                    evt.item.remove();
+                    return;
+                }
+                const newComponent = this.createComponent(type);
                 evt.item.remove();
                 group.splice(evt.newIndex, 0, newComponent);
-                renderCanvas();
-                selectComponent(newComponent.id);
+                this.renderCanvas();
+                this.selectComponent(newComponent.id);
             },
             onUpdate: (evt) => {
                 const movedItem = group.splice(evt.oldIndex, 1)[0];
                 group.splice(evt.newIndex, 0, movedItem);
-                renderCanvas();
+                this.renderCanvas();
             }
         });
     }
 
-    function createComponent(type) {
-        const id = `comp-${nextId++}`;
-        const def = CONTROL_DEFINITIONS[type];
+    createComponent(type) {
+        const id = `comp-${this.nextId++}`;
+        const def = this.CONTROL_DEFINITIONS[type];
         const component = { id, type, config: { type } };
-        if (def.props.includes('dataField')) component.config.dataField = `field_${nextId}`;
+        if (def.props.includes('dataField')) {
+            component.config.dataField = `field_${this.nextId}`;
+        }
         if (def.props.includes('label')) component.config.label = def.name;
-        if (type === 'tabs') component.config.tabs = [{ title: 'Tab 1', active: true, controls: [] }];
-        if (type === 'repeater') component.config.fields = [{ type: 'text', dataField: 'key' }];
+        if (type === 'tabs') {
+            component.config.tabs = [{ title: 'Tab 1', controls: [] }];
+            component.config.activeTabIndex = 0;
+        }
+        if (type === 'repeater') {
+            component.config.addButtonText = "+ Thêm mục";
+            component.config.fields = [{ type: 'text', dataField: 'key', placeholder: 'Key', label: 'Key' }];
+        }
         if (def.isContainer) component.config.controls = component.config.controls || [];
         return component;
     }
     
     // --- Rendering Functions ---
-
-    function renderCanvas() {
-        canvas.innerHTML = '';
-        if (components.length === 0) {
-            canvas.innerHTML = '<p class="text-muted text-center">Kéo các thành phần từ Hộp công cụ vào đây</p>';
+    renderCanvas() {
+        this.canvas.innerHTML = '';
+        if (this.components.length === 0) {
+            this.canvas.innerHTML = '<p class="text-muted text-center">Kéo các thành phần từ Hộp công cụ vào đây</p>';
         } else {
-            components.forEach(comp => canvas.appendChild(createComponentElement(comp)));
+            this.components.forEach(comp => this.canvas.appendChild(this.createComponentElement(comp)));
         }
-        renderPropertiesPanel();
+        this.renderPropertiesPanel();
+        this.renderPreview();
     }
 
-    function createComponentElement(component) {
-        const def = CONTROL_DEFINITIONS[component.type];
+    createComponentElement(component) {
+        const def = this.CONTROL_DEFINITIONS[component.type];
         const wrapper = document.createElement('div');
         wrapper.className = 'canvas-component p-3 mb-2 rounded';
         wrapper.dataset.id = component.id;
-        if (component.id === selectedComponentId) wrapper.classList.add('selected');
+        if (component.id === this.selectedComponentId) wrapper.classList.add('selected');
         
         wrapper.innerHTML = `<div class="d-flex justify-content-between align-items-start"><div class="pe-4"><div class="component-label"><i class="bi ${def.icon} me-2"></i>${component.config.label || def.name}</div><div class="component-type">${component.config.dataField || `ID: ${component.id}`}</div></div><div class="component-actions btn-group"><button class="btn btn-sm btn-outline-danger btn-delete"><i class="bi bi-trash"></i></button></div></div>`;
         
-        if (def.isContainer && component.config.controls) {
+        if (def.isContainer && !def.hasTabs && component.config.controls) {
             const containerDiv = document.createElement('div');
             containerDiv.className = 'component-container mt-3 p-3 border rounded bg-body-secondary';
-            component.config.controls.forEach(child => containerDiv.appendChild(createComponentElement(child)));
-            makeSortable(containerDiv, component.config.controls);
+            component.config.controls.forEach(child => containerDiv.appendChild(this.createComponentElement(child)));
+            this.makeSortable(containerDiv, component.config.controls);
             wrapper.appendChild(containerDiv);
         }
 
@@ -176,16 +261,35 @@ document.addEventListener('DOMContentLoaded', () => {
             const nav = document.createElement('ul');
             nav.className = 'nav nav-tabs';
             const tabContent = document.createElement('div');
-            tabContent.className = 'tab-content border border-top-0 p-3';
+            tabContent.className = 'tab-content';
+            
             (component.config.tabs || []).forEach((tab, index) => {
-                const isActive = index === 0;
-                nav.innerHTML += `<li class="nav-item"><button class="nav-link ${isActive ? 'active' : ''}">${tab.title}</button></li>`;
+                const isActive = index === (component.config.activeTabIndex || 0);
+                
+                const navItem = document.createElement('li');
+                navItem.className = 'nav-item';
+                const navLink = document.createElement('button');
+                navLink.className = `nav-link ${isActive ? 'active' : ''}`;
+                navLink.textContent = tab.title;
+
                 const pane = document.createElement('div');
-                pane.className = `tab-pane fade ${isActive ? 'show active' : ''}`;
-                (tab.controls || []).forEach(child => pane.appendChild(createComponentElement(child)));
-                makeSortable(pane, tab.controls);
+                pane.className = `tab-pane fade component-container border border-top-0 rounded-bottom bg-body-secondary p-3 ${isActive ? 'show active' : ''}`;
+                pane.style.minHeight = '50px';
+
+                navLink.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation(); 
+                    this.updateComponentConfig(component.id, 'activeTabIndex', index);
+                });
+                
+                navItem.appendChild(navLink);
+                nav.appendChild(navItem);
+                
+                (tab.controls || []).forEach(child => pane.appendChild(this.createComponentElement(child)));
+                this.makeSortable(pane, tab.controls);
                 tabContent.appendChild(pane);
             });
+
             tabContainer.appendChild(nav);
             tabContainer.appendChild(tabContent);
             wrapper.appendChild(tabContainer);
@@ -193,34 +297,85 @@ document.addEventListener('DOMContentLoaded', () => {
 
         wrapper.addEventListener('click', e => {
             e.stopPropagation();
-            if (e.target.closest('.btn-delete')) deleteComponent(component.id);
-            else selectComponent(component.id);
+            if (e.target.closest('.btn-delete')) this.deleteComponent(component.id);
+            else this.selectComponent(component.id);
         });
         return wrapper;
     }
-    
-    function renderPropertiesPanel() {
-        propertiesPanel.innerHTML = '';
-        const component = findComponent(selectedComponentId);
-        if (!component) {
-            propertiesPanel.innerHTML = '<p class="text-muted p-3">Chưa có thành phần nào được chọn.</p>';
+
+    renderPreview() {
+        this.previewPane.innerHTML = '';
+        if (this.components.length === 0) {
+            this.previewPane.innerHTML = '<p class="text-muted text-center">Chưa có gì để xem trước</p>';
             return;
         }
 
-        const def = CONTROL_DEFINITIONS[component.type];
-        def.props.forEach(prop => propertiesPanel.appendChild(createPropertyInput(component, prop)));
+        const finalConfig = this.components.map(c => c.config);
+        const formContent = this.workflow.settingsRenderer.render(finalConfig, 'preview', this.formData);
+        
+        const tabTriggers = formContent.querySelectorAll('[data-bs-toggle="tab"]');
+        tabTriggers.forEach(tabTriggerEl => {
+             const tab = new bootstrap.Tab(tabTriggerEl);
+             tabTriggerEl.addEventListener('click', event => {
+                event.preventDefault();
+                tab.show();
+             });
+        });
+        
+        this.previewPane.appendChild(formContent);
     }
     
-    function createPropertyInput(component, prop) {
+    renderPropertiesPanel() {
+        this.propertiesPanel.innerHTML = '';
+        const component = this.findComponent(this.selectedComponentId);
+        if (!component) {
+            this.propertiesPanel.innerHTML = '<p class="text-muted p-3">Chưa có thành phần nào được chọn.</p>';
+            return;
+        }
+
+        const def = this.CONTROL_DEFINITIONS[component.type];
+        def.props.forEach(prop => this.propertiesPanel.appendChild(this.createPropertyInput(component, prop)));
+    }
+    
+    createPropertyInput(component, prop) {
         const value = component.config[prop];
         const wrapper = document.createElement('div');
         wrapper.className = 'mb-3 prop-wrapper';
         const propName = prop.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
         
         let inputHtml = '';
-        if (prop === 'visibleWhen') {
+        
+        if (prop === 'fields') {
+            const fieldTypes = `<option value="text">Text</option><option value="number">Number</option><option value="password">Password</option>`;
+            let fieldsHtml = (value || []).map((field, i) => `
+                <div class="repeater-field-row" data-index="${i}">
+                    <input type="text" class="form-control form-control-sm" placeholder="Label" data-field-prop="label" value="${field.label || ''}">
+                    <input type="text" class="form-control form-control-sm" placeholder="Data Field" data-field-prop="dataField" value="${field.dataField || ''}">
+                    <select class="form-select form-select-sm" data-field-prop="type">${fieldTypes.replace(`value="${field.type}"`, `value="${field.type}" selected`)}</select>
+                    <input type="text" class="form-control form-control-sm" placeholder="Placeholder" data-field-prop="placeholder" value="${field.placeholder || ''}">
+                    <button class="btn btn-outline-danger btn-sm btn-remove-field" type="button">✖</button>
+                </div>`).join('');
+            inputHtml = `
+                <div class="fields-builder">
+                    <div class="repeater-field-header">
+                        <label>Label</label>
+                        <label>Data Field</label>
+                        <label>Type</label>
+                        <label>Placeholder</label>
+                    </div>
+                    ${fieldsHtml}
+                </div>
+                <button class="btn btn-sm btn-outline-primary w-100 mt-1 btn-add-field">+ Thêm Field</button>`;
+        } else if (prop === 'tabs') {
+            let tabsHtml = (value || []).map((tab, i) => `
+                <div class="input-group input-group-sm mb-1" data-index="${i}">
+                    <input type="text" class="form-control" placeholder="Tab Title" data-tab-prop="title" value="${tab.title || ''}">
+                    <button class="btn btn-outline-danger btn-sm btn-remove-tab" type="button">✖</button>
+                </div>`).join('');
+            inputHtml = `<div class="tabs-builder">${tabsHtml}</div><button class="btn btn-sm btn-outline-primary w-100 mt-1 btn-add-tab">+ Thêm Tab</button>`;
+        } else if (prop === 'visibleWhen') {
             const vw = value || {};
-            const allFields = getAllFields(component.id);
+            const allFields = this.getAllFields(component.id);
             const optionsHtml = allFields.map(f => `<option value="${f.value}" ${f.value === vw.dataField ? 'selected' : ''}>${f.text}</option>`).join('');
             inputHtml = `<div class="visible-when-builder p-2 border rounded bg-white"><div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" id="vw-enabled-${component.id}" ${value ? 'checked' : ''}><label class="form-check-label" for="vw-enabled-${component.id}">Bật điều kiện hiển thị</label></div><div class="vw-controls ${value ? '' : 'd-none'}"><label class="form-label small">Khi trường</label><select class="form-select form-select-sm mb-1" data-vw-prop="dataField"><option value="">-- Chọn trường --</option>${optionsHtml}</select><label class="form-label small">có giá trị</label><input type="text" class="form-control form-control-sm" data-vw-prop="is" value="${vw.is || ''}" placeholder="ví dụ: bearer"></div></div>`;
         } else if (prop === 'options') {
@@ -235,68 +390,117 @@ document.addEventListener('DOMContentLoaded', () => {
         
         wrapper.innerHTML = `<label class="form-label">${propName}</label>${inputHtml}`;
         
+        const fieldsBuilder = wrapper.querySelector('.fields-builder');
+        if (fieldsBuilder) {
+            wrapper.querySelector('.btn-add-field').addEventListener('click', () => {
+                const newFields = [...(component.config.fields || []), { type: 'text', dataField: '', placeholder: '', label: '' }];
+                this.updateComponentConfig(component.id, 'fields', newFields);
+                this.renderPropertiesPanel();
+            });
+            fieldsBuilder.addEventListener('click', e => {
+                 if(e.target.classList.contains('btn-remove-field')) {
+                    const index = parseInt(e.target.closest('.repeater-field-row').dataset.index, 10);
+                    const currentFields = component.config.fields || [];
+                    currentFields.splice(index, 1);
+                    this.updateComponentConfig(component.id, 'fields', currentFields);
+                    this.renderPropertiesPanel();
+                 }
+            });
+            fieldsBuilder.querySelectorAll('input, select').forEach(input => input.addEventListener('input', e => {
+                 const index = parseInt(e.target.closest('.repeater-field-row').dataset.index, 10);
+                 const prop = e.target.dataset.fieldProp;
+                 const currentFields = [...(component.config.fields || [])];
+                 currentFields[index][prop] = e.target.value;
+                 this.updateComponentConfig(component.id, 'fields', currentFields);
+            }));
+        }
+
+        const tabsBuilder = wrapper.querySelector('.tabs-builder');
+        if (tabsBuilder) {
+            wrapper.querySelector('.btn-add-tab').addEventListener('click', () => {
+                const newTabs = [...(component.config.tabs || []), { title: `Tab ${component.config.tabs.length + 1}`, controls: [] }];
+                this.updateComponentConfig(component.id, 'tabs', newTabs);
+                this.renderPropertiesPanel();
+            });
+            tabsBuilder.addEventListener('click', e => {
+                 if(e.target.classList.contains('btn-remove-tab')) {
+                    const index = parseInt(e.target.parentElement.dataset.index, 10);
+                    const currentTabs = component.config.tabs || [];
+                    currentTabs.splice(index, 1);
+                    this.updateComponentConfig(component.id, 'tabs', currentTabs);
+                    this.renderPropertiesPanel();
+                 }
+            });
+            tabsBuilder.querySelectorAll('input').forEach(input => input.addEventListener('input', e => {
+                 const index = parseInt(e.target.parentElement.dataset.index, 10);
+                 const prop = e.target.dataset.tabProp;
+                 const currentTabs = [...(component.config.tabs || [])];
+                 currentTabs[index][prop] = e.target.value;
+                 this.updateComponentConfig(component.id, 'tabs', currentTabs);
+            }));
+        }
+        
         const vwBuilder = wrapper.querySelector('.visible-when-builder');
         if (vwBuilder) {
             const enabledSwitch = vwBuilder.querySelector('.form-check-input');
             const controls = vwBuilder.querySelector('.vw-controls');
             enabledSwitch.addEventListener('change', () => {
                 controls.classList.toggle('d-none', !enabledSwitch.checked);
-                updateComponentConfig(component.id, 'visibleWhen', enabledSwitch.checked ? { dataField: '', is: '' } : undefined);
-                renderPropertiesPanel();
+                this.updateComponentConfig(component.id, 'visibleWhen', enabledSwitch.checked ? { dataField: '', is: '' } : undefined);
+                this.renderPropertiesPanel();
             });
             controls.querySelectorAll('input, select').forEach(input => input.addEventListener('input', () => {
                 const newVw = { dataField: controls.querySelector('[data-vw-prop="dataField"]').value, is: controls.querySelector('[data-vw-prop="is"]').value };
-                updateComponentConfig(component.id, 'visibleWhen', newVw);
+                this.updateComponentConfig(component.id, 'visibleWhen', newVw);
             }));
         }
         
         const optionsBuilder = wrapper.querySelector('.options-builder');
         if (optionsBuilder) {
             wrapper.querySelector('.btn-add-option').addEventListener('click', () => {
-                updateComponentConfig(component.id, 'options', [...(component.config.options || []), { text: '', value: '' }]);
-                renderPropertiesPanel();
+                this.updateComponentConfig(component.id, 'options', [...(component.config.options || []), { text: '', value: '' }]);
+                this.renderPropertiesPanel();
             });
             optionsBuilder.addEventListener('click', e => {
                  if(e.target.classList.contains('btn-remove-option')) {
                     const index = parseInt(e.target.parentElement.dataset.index, 10);
                     const currentOptions = component.config.options || [];
                     currentOptions.splice(index, 1);
-                    updateComponentConfig(component.id, 'options', currentOptions);
-                    renderPropertiesPanel();
+                    this.updateComponentConfig(component.id, 'options', currentOptions);
+                    this.renderPropertiesPanel();
                  }
             });
             optionsBuilder.querySelectorAll('input').forEach(input => input.addEventListener('input', e => {
                  const index = parseInt(e.target.parentElement.dataset.index, 10);
                  const prop = e.target.dataset.optProp;
                  const currentOptions = [...(component.config.options || [])];
-                 currentOptions[index][prop] = e.target.value;
-                 updateComponentConfig(component.id, 'options', currentOptions);
+                 currentTabs[index][prop] = e.target.value;
+                 this.updateComponentConfig(component.id, 'options', currentOptions);
             }));
         }
 
         wrapper.querySelectorAll('[data-prop]').forEach(input => input.addEventListener('input', e => {
-            updateComponentConfig(component.id, e.target.dataset.prop, e.target.type === 'checkbox' ? e.target.checked : e.target.value);
+            this.updateComponentConfig(component.id, e.target.dataset.prop, e.target.type === 'checkbox' ? e.target.checked : e.target.value);
         }));
         return wrapper;
     }
     
     // --- State Update and Action Functions ---
-
-    function selectComponent(id) {
-        if (selectedComponentId === id) return;
-        selectedComponentId = id;
+    selectComponent(id) {
+        if (this.selectedComponentId === id) return;
+        this.selectedComponentId = id;
         document.querySelectorAll('.canvas-component').forEach(el => el.classList.toggle('selected', el.dataset.id === id));
-        renderPropertiesPanel();
+        this.renderPropertiesPanel();
     }
 
-    function updateComponentConfig(id, prop, value) {
-        const component = findComponent(id);
+    updateComponentConfig(id, prop, value) {
+        const component = this.findComponent(id);
         if (!component) return;
 
         try {
             if (prop === 'options' && typeof value === 'string' && value.trim().startsWith('[')) {
                 component.config[prop] = JSON.parse(value);
-            } else if (['col', 'rows'].includes(prop) && value !== '') {
+            } else if (['col', 'rows', 'activeTabIndex'].includes(prop) && value !== '') {
                 component.config[prop] = parseInt(value, 10);
             } else if (value === '' || value === false) {
                  delete component.config[prop];
@@ -305,47 +509,46 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (e) { /* Ignore JSON errors */ }
         
-        const componentElement = canvas.querySelector(`.canvas-component[data-id="${id}"]`);
+        const componentElement = this.canvas.querySelector(`.canvas-component[data-id="${id}"]`);
         if (componentElement) {
-            const def = CONTROL_DEFINITIONS[component.type];
+            const def = this.CONTROL_DEFINITIONS[component.type];
             const labelEl = componentElement.querySelector('.component-label');
             const typeEl = componentElement.querySelector('.component-type');
             if (labelEl) labelEl.innerHTML = `<i class="bi ${def.icon} me-2"></i>${component.config.label || def.name}`;
-            if (typeEl) typeEl.textContent = component.config.dataField || `ID: ${component.id}`;
+            if (typeEl) typeEl.textContent = component.config.dataField || `ID: ${id}`;
         }
+        this.renderCanvas();
     }
     
-    function deleteComponent(id) {
-        const path = getComponentPath(id);
+    deleteComponent(id) {
+        const path = this.getComponentPath(id);
         if (path) {
             path.parent.splice(path.index, 1);
-            if (selectedComponentId === id) selectedComponentId = null;
-            renderCanvas();
+            if (this.selectedComponentId === id) this.selectedComponentId = null;
+            this.renderCanvas();
         }
     }
     
-    function clearCanvas() {
+    clearCanvas() {
         if (confirm('Sếp có chắc muốn xóa toàn bộ form không?')) {
-            components = [];
-            selectedComponentId = null;
-            renderCanvas();
-            makeSortable(canvas, components);
+            this.components = [];
+            this.selectedComponentId = null;
+            this.renderCanvas();
+            this.makeSortable(this.canvas, this.components);
         }
     }
 
-    function generateOutput() {
-        if (components.length === 0) return alert('Chưa có thành phần nào trên vùng làm việc!');
-        const finalConfig = components.map(c => c.config);
-        outputCode.textContent = JSON.stringify(finalConfig, null, 4);
-        outputModal.show();
+    generateOutput() {
+        if (this.components.length === 0) return alert('Chưa có thành phần nào trên vùng làm việc!');
+        const finalConfig = this.components.map(c => c.config);
+        this.outputCode.textContent = JSON.stringify(finalConfig, null, 4);
+        this.outputModal.show();
     }
     
-    function copyOutputToClipboard() {
-        navigator.clipboard.writeText(outputCode.textContent).then(() => {
-            copyCodeBtn.innerHTML = '<i class="bi bi-check-lg me-1"></i> Đã copy!';
-            setTimeout(() => copyCodeBtn.innerHTML = '<i class="bi bi-clipboard me-1"></i> Copy Code', 2000);
+    copyOutputToClipboard() {
+        navigator.clipboard.writeText(this.outputCode.textContent).then(() => {
+            this.copyCodeBtn.innerHTML = '<i class="bi bi-check-lg me-1"></i> Đã copy!';
+            setTimeout(() => this.copyCodeBtn.innerHTML = '<i class="bi bi-clipboard me-1"></i> Copy Code', 2000);
         });
     }
-
-    initialize();
-});
+}
