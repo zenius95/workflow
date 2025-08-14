@@ -30,58 +30,61 @@ class SettingsRenderer {
     }
 
     _renderControl(control, uniqueId, dataObject) {
-        if (control.visibleWhen) {
-            const value = this.workflow._getProperty(dataObject, control.visibleWhen.dataField);
-            if (value !== control.visibleWhen.is) return null;
+        // FIX: Normalize the control object to handle nested components in groups/tabs
+        const actualControl = control.config ? control.config : control;
+
+        if (actualControl.visibleWhen) {
+            const value = this.workflow._getProperty(dataObject, actualControl.visibleWhen.dataField);
+            if (value !== actualControl.visibleWhen.is) return null;
         }
 
         const colWrapper = document.createElement('div');
-        colWrapper.className = control.col ? `col-md-${control.col}` : 'col-12';
+        colWrapper.className = actualControl.col ? `col-md-${actualControl.col}` : 'col-12';
 
         const wrapper = document.createElement('div');
         wrapper.className = 'mb-3';
 
-        if (control.label) {
+        if (actualControl.label) {
             const label = document.createElement('label');
             label.className = 'form-label fw-semibold small';
-            label.textContent = control.label;
+            label.textContent = actualControl.label;
             wrapper.appendChild(label);
         }
 
         let element;
-        switch (control.type) {
+        switch (actualControl.type) {
             case 'text':
             case 'number':
             case 'password':
-                element = this._renderInput(control, uniqueId, dataObject);
+                element = this._renderInput(actualControl, uniqueId, dataObject);
                 break;
             case 'textarea':
-                element = this._renderTextarea(control, uniqueId, dataObject);
+                element = this._renderTextarea(actualControl, uniqueId, dataObject);
                 break;
             case 'select':
-                element = this._renderSelect(control, uniqueId, dataObject);
+                element = this._renderSelect(actualControl, uniqueId, dataObject);
                 break;
             case 'file-select':
-                element = this._renderFileSelect(control, uniqueId, dataObject);
+                element = this._renderFileSelect(actualControl, uniqueId, dataObject);
                 break;
             case 'folder-select':
-                element = this._renderFolderSelect(control, uniqueId, dataObject);
+                element = this._renderFolderSelect(actualControl, uniqueId, dataObject);
                 break;
             case 'tabs':
-                 element = this._renderTabs(control, uniqueId, dataObject);
+                 element = this._renderTabs(actualControl, uniqueId, dataObject);
                  break;
             case 'repeater':
-                element = this._renderRepeater(control, uniqueId, dataObject);
+                element = this._renderRepeater(actualControl, uniqueId, dataObject);
                 break;
             case 'group':
-                element = this._renderGroup(control, uniqueId, dataObject);
+                element = this._renderGroup(actualControl, uniqueId, dataObject);
                 break;
             case 'condition-builder':
             case 'json-builder':
             case 'button':
             case 'output-display':
             case 'info':
-                element = this._renderSpecialType(control, uniqueId, dataObject);
+                element = this._renderSpecialType(actualControl, uniqueId, dataObject);
                 break;
             default:
                 return null;
@@ -89,10 +92,10 @@ class SettingsRenderer {
         
         wrapper.appendChild(element);
         
-        if (control.helpText) {
+        if (actualControl.helpText) {
             const help = document.createElement('div');
             help.className = 'form-text';
-            help.textContent = control.helpText;
+            help.textContent = actualControl.helpText;
             wrapper.appendChild(help);
         }
         
@@ -299,24 +302,43 @@ class SettingsRenderer {
         const wrapper = document.createElement('div');
         const container = document.createElement('div');
         wrapper.appendChild(container);
-
-        const items = this.workflow._getProperty(dataObject, control.dataField) || [];
-
-        items.forEach((item, index) => {
+    
+        let items = this.workflow._getProperty(dataObject, control.dataField);
+    
+        // <<< FIX START: Handle empty repeater in preview >>>
+        // If items are missing for the preview, create a default item for display purposes.
+        if (uniqueId === 'preview' && (!Array.isArray(items) || items.length === 0)) {
+            const newItem = {};
+            (control.fields || []).forEach(field => {
+                // In a repeater, the field's dataField is the key within the item object
+                newItem[field.dataField] = field.defaultValue || '';
+            });
+            items = [newItem];
+            // Also, update the main formData object so that child controls can get the correct values
+            this.workflow._setProperty(dataObject, control.dataField, items);
+            // This is slightly redundant if dataObject is formData, but ensures the main instance is synced
+            this.workflow.setFormData(this.workflow.formData);
+        }
+        // Ensure items is an array to prevent errors
+        items = Array.isArray(items) ? items : [];
+        // <<< FIX END >>>
+    
+        items.forEach((itemData, index) => {
             const rowWrapper = document.createElement('div');
             rowWrapper.className = 'repeater-row d-grid align-items-center gap-2 mb-2';
-            
             rowWrapper.style.gridTemplateColumns = `repeat(${(control.fields || []).length}, 1fr) auto`;
-
+    
             (control.fields || []).forEach(fieldConfig => {
                 const fieldPath = `${control.dataField}.${index}.${fieldConfig.dataField}`;
-                // <<< SỬA LỖI: Không bỏ đi 'label' nữa >>>
-                const tempControlConfig = { ...fieldConfig, dataField: fieldPath, col: null }; 
+                const tempControlConfig = { ...fieldConfig, dataField: fieldPath, col: null }; // col: null to prevent double wrapping
                 const fieldElement = this._renderControl(tempControlConfig, uniqueId, dataObject);
                 
-                rowWrapper.appendChild(fieldElement);
+                // fieldElement is already a .col-div, so we append it directly to the grid
+                if (fieldElement) {
+                    rowWrapper.appendChild(fieldElement);
+                }
             });
-
+    
             const removeBtn = document.createElement('button');
             removeBtn.className = 'btn btn-sm btn-outline-danger flex-shrink-0 align-self-center';
             removeBtn.innerHTML = '<i class="bi bi-trash"></i>';
@@ -324,17 +346,17 @@ class SettingsRenderer {
             removeBtn.dataset.field = control.dataField;
             removeBtn.dataset.index = index;
             rowWrapper.appendChild(removeBtn);
-
+    
             container.appendChild(rowWrapper);
         });
-
+    
         const addButton = document.createElement('button');
         addButton.className = 'btn btn-sm btn-outline-secondary w-100 mt-2';
         addButton.innerHTML = control.addButtonText || '+ Thêm';
         addButton.dataset.action = 'add-repeater-item';
         addButton.dataset.field = control.dataField;
         wrapper.appendChild(addButton);
-
+    
         return wrapper;
     }
 

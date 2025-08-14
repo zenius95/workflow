@@ -26,7 +26,6 @@ class FormBuilder {
             'password': { name: 'Password Input', icon: 'bi-key', props: ['label', 'dataField', 'placeholder', 'col', 'visibleWhen'] },
             'textarea': { name: 'Textarea', icon: 'bi-textarea-resize', props: ['label', 'dataField', 'rows', 'placeholder', 'variablePicker', 'visibleWhen'] },
             'select': { name: 'Select (Dropdown)', icon: 'bi-menu-button-wide', props: ['label', 'dataField', 'options', 'onChange', 'col', 'visibleWhen'] },
-            // <<< THÊM MỚI 2 DÒNG DƯỚI >>>
             'file-select': { name: 'File Select', icon: 'bi-file-earmark-arrow-up', props: ['label', 'dataField', 'helpText', 'col', 'visibleWhen'] },
             'folder-select': { name: 'Folder Select', icon: 'bi-folder-plus', props: ['label', 'dataField', 'helpText', 'col', 'visibleWhen'] },
             'group': { name: 'Group', icon: 'bi-collection', props: ['label', 'helpText', 'visibleWhen'], isContainer: true },
@@ -39,7 +38,6 @@ class FormBuilder {
         this.initialize();
     }
 
-    // ... (Phần còn lại của file không có thay đổi quan trọng) ...
     // --- Helper Functions ---
     findComponent(id, componentArray = this.components) {
         for (const comp of componentArray) {
@@ -126,6 +124,7 @@ class FormBuilder {
                 const value = target.type === 'checkbox' ? target.checked : target.value;
                 this.workflow._setProperty(this.formData, fieldPath, value);
                 this.workflow.setFormData(this.formData);
+                this.renderPreview(); // FIX: Re-render the preview on input
             }
         });
         
