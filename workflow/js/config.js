@@ -575,54 +575,89 @@ const workflowConfig = {
                     icon: '<i class="bi bi-magic"></i>',
                     outputs: ['success', 'error'],
                     defaultData: {
-                        generationType: 'uuid',
+                        locale: 'en',
+                        generationType: 'string.uuid',
                         min: 0, max: 100,
                         length: 16,
-                        charset: 'alphanumeric',
                         jsonStructure: [
-                            { key: 'id', type: 'uuid' }, 
+                            { key: 'id', type: 'string.uuid' }, 
                             { key: 'user', type: 'object', children: [
-                                { key: 'name', type: 'full_name' },
-                                { key: 'email', type: 'email' }
+                                { key: 'name', type: 'person.fullName' },
+                                { key: 'email', type: 'internet.email' }
                             ]}
                         ]
                     },
                     settings: [
                         {
                             type: 'select',
+                            label: 'Ngôn ngữ (Locale)',
+                            dataField: 'locale',
+                            options: [
+                                { value: 'en', text: 'English' }, { value: 'vi', text: 'Vietnamese' }, { value: 'ja', text: 'Japanese' },
+                                { value: 'de', text: 'German' }, { value: 'fr', text: 'French' }, { value: 'es', text: 'Spanish' },
+                                { value: 'it', text: 'Italian' }, { value: 'ko', text: 'Korean' }, { value: 'ru', text: 'Russian' },
+                                { value: 'zh_CN', text: 'Chinese (Simplified)' }, { value: 'zh_TW', text: 'Chinese (Traditional)' }
+                            ]
+                        },
+                        {
+                            type: 'select',
                             label: 'Loại dữ liệu',
                             dataField: 'generationType',
                             onChange: 'rerender',
                             optionGroups: [
-                                { label: 'IDs & Keys', options: [{ value: 'uuid', text: 'UUID v4' }] },
-                                { label: 'Số', options: [{ value: 'random_number', text: 'Số ngẫu nhiên' }] },
-                                { label: 'Chuỗi', options: [{ value: 'random_string', text: 'Chuỗi ngẫu nhiên' }] },
-                                { label: 'Dữ liệu giả (Fake Data)', options: [
-                                    { value: 'full_name', text: 'Họ và Tên' }, { value: 'email', text: 'Email' }, { value: 'address', text: 'Địa chỉ' },
-                                    { value: 'city', text: 'Thành phố' }, { value: 'company', text: 'Tên công ty' }, { value: 'product_name', text: 'Tên sản phẩm' },
-                                    { value: 'credit_card', text: 'Số thẻ tín dụng' }, { value: 'phone_number', text: 'Số điện thoại' }, { value: 'country', text: 'Quốc gia' },
-                                    { value: 'zip_code', text: 'Mã bưu chính (Zip)' }, { value: 'currency_code', text: 'Mã tiền tệ' }, { value: 'currency_name', 'text': 'Tên tiền tệ' },
-                                    { value: 'timezone', text: 'Múi giờ' }, { value: 'ipv4', text: 'Địa chỉ IPv4' }, { value: 'ipv6', text: 'Địa chỉ IPv6' },
-                                    { value: 'mac_address', text: 'Địa chỉ MAC' }, { value: 'url', text: 'URL' }, { value: 'user_agent', text: 'User Agent' }
+                                { label: 'Chuỗi & Số', options: [
+                                    { value: 'string.uuid', text: 'UUID' },
+                                    { value: 'string.alphanumeric', text: 'Chuỗi chữ và số' },
+                                    { value: 'string.hexadecimal', text: 'Chuỗi Hex' },
+                                    { value: 'number.int', text: 'Số nguyên ngẫu nhiên' },
+                                    { value: 'number.float', text: 'Số thực ngẫu nhiên' },
+                                ]},
+                                { label: 'Người dùng (Person)', options: [
+                                    { value: 'person.fullName', text: 'Họ và Tên' }, { value: 'person.firstName', text: 'Tên' },
+                                    { value: 'person.lastName', text: 'Họ' }, { value: 'person.jobTitle', text: 'Chức danh' },
+                                    { value: 'person.gender', text: 'Giới tính' }, { value: 'person.bio', text: 'Tiểu sử' },
+                                ]},
+                                { label: 'Địa chỉ (Location)', options: [
+                                    { value: 'location.streetAddress', text: 'Địa chỉ đường' }, { value: 'location.city', text: 'Thành phố' },
+                                    { value: 'location.state', text: 'Tiểu bang' }, { value: 'location.zipCode', text: 'Mã bưu điện' },
+                                    { value: 'location.country', text: 'Quốc gia' }, { value: 'location.latitude', text: 'Vĩ độ' },
+                                    { value: 'location.longitude', text: 'Kinh độ' },
+                                ]},
+                                { label: 'Internet', options: [
+                                    { value: 'internet.email', text: 'Email' }, { value: 'internet.userName', text: 'Tên người dùng' },
+                                    { value: 'internet.url', text: 'URL' }, { value: 'internet.domainName', text: 'Tên miền' },
+                                    { value: 'internet.ip', text: 'Địa chỉ IP' }, { value: 'internet.mac', text: 'Địa chỉ MAC' },
+                                    { value: 'internet.password', text: 'Mật khẩu' }, { value: 'internet.userAgent', text: 'User Agent' },
+                                ]},
+                                 { label: 'Tài chính (Finance)', options: [
+                                    { value: 'finance.accountNumber', text: 'Số tài khoản' }, { value: 'finance.amount', text: 'Số tiền' },
+                                    { value: 'finance.currencyName', text: 'Tên tiền tệ' }, { value: 'finance.currencyCode', text: 'Mã tiền tệ' },
+                                    { value: 'finance.creditCardNumber', text: 'Số thẻ tín dụng' }, { value: 'finance.bic', text: 'Mã BIC' },
+                                ]},
+                                { label: 'Công ty (Company)', options: [
+                                    { value: 'company.name', text: 'Tên công ty' }, { value: 'company.buzzPhrase', text: 'Khẩu hiệu' },
+                                ]},
+                                { label: 'Điện thoại (Phone)', options: [
+                                    { value: 'phone.number', text: 'Số điện thoại' },
                                 ]},
                                 { label: 'Dữ liệu có cấu trúc', options: [{ value: 'structured_json', text: 'JSON có cấu trúc' }] }
                             ]
                         },
-                        // *** BẮT ĐẦU THAY ĐỔI: Sử dụng group và col ***
-                        { type: 'group', visibleWhen: { dataField: 'generationType', is: 'random_number' }, controls: [
+                        { type: 'group', visibleWhen: { dataField: 'generationType', is: 'number.int' }, controls: [
                             { type: 'number', label: 'Tối thiểu', dataField: 'min', col: 6 },
                             { type: 'number', label: 'Tối đa', dataField: 'max', col: 6 }
                         ]},
-                        { type: 'group', visibleWhen: { dataField: 'generationType', is: 'random_string' }, controls: [
-                            { type: 'number', label: 'Độ dài', dataField: 'length', col: 6 },
-                            { type: 'select', label: 'Bộ ký tự', dataField: 'charset', col: 6, options: [
-                                { value: 'alphanumeric_lower', text: 'Chữ và số (thường)'}, { value: 'alphanumeric_upper', text: 'Chữ và số (hoa)'},
-                                { value: 'alphanumeric', text: 'Chữ và số (thường + hoa)'}, { value: 'alpha_lower', text: 'Chỉ chữ (thường)'},
-                                { value: 'alpha_upper', text: 'Chỉ chữ (hoa)'}, { value: 'alpha', text: 'Chỉ chữ (thường + hoa)'},
-                                { value: 'numeric', text: 'Chỉ số'}, { value: 'hex', text: 'Hex (0-9, a-f)'}
-                            ]}
+                        { type: 'group', visibleWhen: { dataField: 'generationType', is: 'number.float' }, controls: [
+                            { type: 'number', label: 'Tối thiểu', dataField: 'min', col: 4 },
+                            { type: 'number', label: 'Tối đa', dataField: 'max', col: 4 },
+                            { type: 'number', label: 'Số thập phân', dataField: 'precision', col: 4, placeholder: '2' }
                         ]},
-                        // *** KẾT THÚC THAY ĐỔI ***
+                        { type: 'group', visibleWhen: { dataField: 'generationType', is: 'string.alphanumeric' }, controls: [
+                            { type: 'number', label: 'Độ dài', dataField: 'length', col: 12 },
+                        ]},
+                         { type: 'group', visibleWhen: { dataField: 'generationType', is: 'internet.password' }, controls: [
+                            { type: 'number', label: 'Độ dài', dataField: 'length', col: 12 },
+                        ]},
                         { type: 'group', visibleWhen: { dataField: 'generationType', is: 'structured_json' }, controls: [
                             { type: 'json-builder', dataField: 'jsonStructure' }
                         ]},
@@ -632,66 +667,26 @@ const workflowConfig = {
                         ]}
                     ],
                     execute: (data, logger, context) => {
-                        const { generationType } = data;
-                        if (logger) logger.info(`Đang tạo dữ liệu loại: ${generationType}`);
+                        const { allFakers, Faker } = require('@faker-js/faker');
+                        const { generationType, locale = 'en' } = data;
+                        if (logger) logger.info(`Đang tạo dữ liệu loại: ${generationType} với ngôn ngữ ${locale}`);
+                        
+                        const faker = locale === 'en' ? require('@faker-js/faker').faker : new Faker({ locale: allFakers[locale] });
 
                         const _generateSingleValue = (type, params) => {
-                            const FAKE_DATA = {
-                                firstNames: ['An', 'Bình', 'Cường', 'Dũng', 'Giang', 'Hương', 'Khanh', 'Linh', 'Minh', 'Nam', 'Oanh', 'Phúc', 'Quân', 'Sơn', 'Thảo', 'Uyên', 'Việt', 'Xuân', 'Yến'],
-                                lastNames: ['Nguyễn', 'Trần', 'Lê', 'Phạm', 'Hoàng', 'Huỳnh', 'Võ', 'Vũ', 'Phan', 'Trương', 'Bùi', 'Đặng', 'Đỗ', 'Ngô'],
-                                cities: ['Hà Nội', 'TP. Hồ Chí Minh', 'Đà Nẵng', 'Hải Phòng', 'Cần Thơ', 'Nha Trang', 'Huế'],
-                                companies: ['Vingroup', 'FPT', 'Viettel', 'Masan', 'Vinamilk', 'Techcombank', 'Vietcombank'],
-                                products: ['Laptop', 'Điện thoại', 'Máy tính bảng', 'Tai nghe', 'Chuột', 'Bàn phím'],
-                                domains: ['gmail.com', 'outlook.com', 'yahoo.com', 'icloud.com'],
-                                tlds: ['.com', '.vn', '.net', '.org', '.info'],
-                                streetTypes: ['Đường', 'Phố', 'Đại lộ', 'Ngõ', 'Hẻm'],
-                                streetNames: ['Lê Lợi', 'Trần Hưng Đạo', 'Quang Trung', 'Nguyễn Huệ', 'Lý Thường Kiệt'],
-                            };
-                            const randomEl = (arr) => arr[Math.floor(Math.random() * arr.length)];
-                            const randomNum = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
-                            const slugify = (str) => str.toLowerCase().replace(/\s+/g, '-').normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d");
-
-                            switch (type) {
-                                case 'uuid': return crypto.randomUUID();
-                                case 'random_number': return randomNum(parseInt(params.min, 10), parseInt(params.max, 10));
-                                case 'random_string': {
-                                    const charsets = {
-                                        numeric: '0123456789',
-                                        alpha_lower: 'abcdefghijklmnopqrstuvwxyz',
-                                        alpha_upper: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
-                                        hex: '0123456789abcdef'
-                                    };
-                                    charsets.alpha = charsets.alpha_lower + charsets.alpha_upper;
-                                    charsets.alphanumeric_lower = charsets.alpha_lower + charsets.numeric;
-                                    charsets.alphanumeric_upper = charsets.alpha_upper + charsets.numeric;
-                                    charsets.alphanumeric = charsets.alpha + charsets.numeric;
-                                    const charset = charsets[params.charset] || charsets.alphanumeric;
-                                    let result = '';
-                                    for (let i = 0; i < params.length; i++) {
-                                        result += charset.charAt(Math.floor(Math.random() * charset.length));
-                                    }
-                                    return result;
-                                }
-                                case 'full_name': return `${randomEl(FAKE_DATA.lastNames)} ${randomEl(FAKE_DATA.firstNames)}`;
-                                case 'email': return `${slugify(randomEl(FAKE_DATA.firstNames))}.${randomNum(1,99)}@${randomEl(FAKE_DATA.domains)}`;
-                                case 'address': return `${randomNum(1, 1000)} ${randomEl(FAKE_DATA.streetTypes)} ${randomEl(FAKE_DATA.streetNames)}`;
-                                case 'city': return randomEl(FAKE_DATA.cities);
-                                case 'company': return randomEl(FAKE_DATA.companies);
-                                case 'product_name': return `${randomEl(FAKE_DATA.products)} X${randomNum(100, 900)}`;
-                                case 'credit_card': return [4,4,4,4].map(() => randomNum(1000, 9999)).join(' ');
-                                case 'phone_number': return `0${randomEl([9,8,7,5,3])}${randomNum(10000000, 99999999)}`;
-                                case 'country': return 'Việt Nam';
-                                case 'zip_code': return String(randomNum(10000, 99999));
-                                case 'currency_code': return 'VND';
-                                case 'currency_name': return 'Việt Nam Đồng';
-                                case 'timezone': return 'Asia/Ho_Chi_Minh';
-                                case 'ipv4': return [0,0,0,0].map(() => randomNum(0, 255)).join('.');
-                                case 'ipv6': return Array(8).fill(0).map(() => Math.floor(Math.random() * 65536).toString(16)).join(':');
-                                case 'mac_address': return Array(6).fill(0).map(() => Math.floor(Math.random() * 256).toString(16).padStart(2, '0')).join(':').toUpperCase();
-                                case 'url': return `https://www.${slugify(randomEl(FAKE_DATA.companies))}${randomEl(FAKE_DATA.tlds)}`;
-                                case 'user_agent': return `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${randomNum(90,110)}.0.0.0 Safari/537.36`;
-                                default: throw new Error(`Loại dữ liệu không xác định: ${type}`);
+                            const [module, method] = type.split('.');
+                            if (!module || !method || !faker[module] || !faker[module][method]) {
+                                throw new Error(`Loại dữ liệu không xác định hoặc không hợp lệ: ${type}`);
                             }
+                            
+                            if (type === 'number.int' || type === 'number.float') {
+                                return faker.number[method]({ min: params.min, max: params.max, precision: params.precision });
+                            }
+                            if (type === 'string.alphanumeric' || type === 'internet.password') {
+                                return faker[module][method](params.length);
+                            }
+                            
+                            return faker[module][method]();
                         };
                         
                         const _buildObjectRecursively = (structure, params) => {
