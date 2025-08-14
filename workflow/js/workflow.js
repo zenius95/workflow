@@ -1,7 +1,8 @@
 /** * Main class for the Workflow Builder application. 
  */
-class WorkflowBuilder {
+class WorkflowBuilder extends EventTarget {
     constructor(containerId, config, initialWorkflow = null, initialGlobalVariables = {}) {
+        super(); // Call the EventTarget constructor
         this.container = document.getElementById(containerId);
         if (!this.container) {
             console.error(`Container with id "${containerId}" not found.`);
@@ -84,9 +85,8 @@ class WorkflowBuilder {
         }
 
         if (this.initialWorkflow) {
-            setTimeout(() => this._importWorkflow(JSON.stringify(this.initialWorkflow), false), 0);
+            setTimeout(() => this.loadWorkflow(this.initialWorkflow, false), 0);
         } else {
-            // Start with a clean slate
             this._commitState("Initial State");
         }
         
@@ -94,6 +94,128 @@ class WorkflowBuilder {
         this._hideSettingsPanel();
         this.logger.system("Workflow Builder initialized.");
     }
+
+    // --- Public API Methods ---
+
+    /**
+     * Tải một cấu trúc workflow từ một object.
+     * @param {object} workflowObject - The workflow object to load.
+     * @param {boolean} commit - Whether to add this action to the history.
+     */
+    loadWorkflow(workflowObject, commit = true) {
+        this._importWorkflow(JSON.stringify(workflowObject), commit);
+    }
+
+    /**
+     * Lấy trạng thái hiện tại của workflow dưới dạng object.
+     * @returns {object} The current workflow state.
+     */
+    getWorkflow() {
+        return this._getCurrentState();
+    }
+    
+    /**
+     * Xóa toàn bộ canvas.
+     */
+    clear() {
+        this._clearCanvas(true);
+    }
+    
+    /**
+     * Lấy một node object bằng ID của nó.
+     * @param {string} nodeId - The ID of the node to get.
+     * @returns {object|undefined} The node object or undefined if not found.
+     */
+    getNode(nodeId) {
+        return this.nodes.find(n => n.id === nodeId);
+    }
+    
+    /**
+     * Lấy toàn bộ các node hiện có.
+     * @returns {Array<object>} An array of node objects.
+     */
+    getNodes() {
+        return this.nodes;
+    }
+    
+    /**
+     * Cập nhật dữ liệu cho một node và render lại nó.
+     * @param {string} nodeId - The ID of the node to update.
+     * @param {object} newData - The new data to merge into the node's existing data.
+     */
+    updateNodeData(nodeId, newData) {
+        const node = this.getNode(nodeId);
+        if (node) {
+            Object.assign(node.data, newData);
+            if (node.data.title) {
+                const titleEl = node.element.querySelector('.node-title');
+                if (titleEl) titleEl.textContent = node.data.title;
+            }
+            if (this.selectedNodes.some(n => n.id === nodeId)) {
+                this._updateSettingsPanel();
+            }
+            this._commitState(`Updated data for node ${nodeId}`);
+            this.dispatchEvent(new CustomEvent('node:data:changed', { detail: { node } }));
+        }
+    }
+    
+    /**
+     * Đưa view vào giữa một node cụ thể.
+     * @param {string} nodeId - The ID of the node to center on.
+     */
+    centerOnNode(nodeId) {
+        const node = this.getNode(nodeId);
+        if (!node) return;
+
+        const canvasRect = this.dom.canvasContainer.getBoundingClientRect();
+        const nodeWidth = node.element.offsetWidth;
+        const nodeHeight = node.element.offsetHeight;
+
+        // Calculate the translation needed to center the node
+        this.panState.translateX = (canvasRect.width / 2) - (node.x * this.panState.scale) - (nodeWidth / 2 * this.panState.scale);
+        this.panState.translateY = (canvasRect.height / 2) - (node.y * this.panState.scale) - (nodeHeight / 2 * this.panState.scale);
+        
+        this._applyTransform();
+    }
+    
+    /**
+     * Lấy một kết nối bằng ID của nó.
+     * @param {string} connectionId - The ID of the connection.
+     * @returns {object|undefined}
+     */
+    getConnection(connectionId) {
+        return this.connections.find(c => c.id === connectionId);
+    }
+
+    /**
+     * Lấy toàn bộ các kết nối.
+     * @returns {Array<object>}
+     */
+    getConnections() {
+        return this.connections;
+    }
+    
+    /**
+     * Lấy một biến toàn cục.
+     * @param {string} key - The key of the global variable.
+     * @returns {*} The value of the variable.
+     */
+    getGlobalVariable(key) {
+        return this.globalVariables[key];
+    }
+
+    /**
+     * Thiết lập một biến toàn cục và cập nhật UI.
+     * @param {string} key - The key of the global variable.
+     * @param {*} value - The value to set.
+     */
+    setGlobalVariable(key, value) {
+        this.globalVariables[key] = value;
+        this._updateVariablesPanel();
+        this.dispatchEvent(new CustomEvent('globalvar:changed', { detail: { key, value } }));
+    }
+
+    // --- End of Public API Methods ---
 
     _queryDOMElements() {
         const DOMElements = document.querySelectorAll('[data-ref]');
@@ -249,18 +371,12 @@ class WorkflowBuilder {
         const firstNode = this.nodes.find(n => !this.connections.some(c => c.to === n.id)) || this.nodes[0];
 
         if (firstNode) {
-            const canvasRect = this.dom.canvasContainer.getBoundingClientRect();
-            const nodeWidth = firstNode.element.offsetWidth;
-            const nodeHeight = firstNode.element.offsetHeight;
-
-            this.panState.translateX = (canvasRect.width / 2) - firstNode.x - (nodeWidth / 2);
-            this.panState.translateY = (canvasRect.height / 2) - firstNode.y - (nodeHeight / 2);
+            this.centerOnNode(firstNode.id);
         } else {
             this.panState.translateX = 50;
             this.panState.translateY = 50;
+            this._applyTransform();
         }
-
-        this._applyTransform();
     }
 
     _handleWheel(e) {
@@ -278,7 +394,6 @@ class WorkflowBuilder {
         if (e.target === this.dom.canvasContainer || e.target === this.dom.workflowCanvas || e.target === this.dom.connectorSvg) {
             if (e.button === 0) { // Left click
                 if (e.ctrlKey || e.metaKey) {
-                    // Start selection box
                     this.selectionBox.active = true;
                     const rect = this.dom.canvasContainer.getBoundingClientRect();
                     this.selectionBox.startX = e.clientX - rect.left;
@@ -287,7 +402,6 @@ class WorkflowBuilder {
                     this.selectionBox.element.className = 'selection-box';
                     this.dom.canvasContainer.appendChild(this.selectionBox.element);
                 } else {
-                    // Start panning
                     this._clearSelection();
                     this.panState.isPanning = true;
                     this.panState.startX = e.clientX;
@@ -311,7 +425,7 @@ class WorkflowBuilder {
         } else if (this.activeDrag.isDraggingNode) {
             const canvasRect = this.dom.canvasContainer.getBoundingClientRect();
             this.activeDrag.draggedNodes.forEach(dragged => {
-                const { node, startX, startY, mouseOffsetX, mouseOffsetY } = dragged;
+                const { node, startX, startY } = dragged;
                 const newX = startX + ((e.clientX - this.activeDrag.startMouseX) / this.panState.scale);
                 const newY = startY + ((e.clientY - this.activeDrag.startMouseY) / this.panState.scale);
                 node.x = newX;
@@ -347,6 +461,7 @@ class WorkflowBuilder {
             this.dom.canvasContainer.style.cursor = 'grab';
         }
         if (this.activeDrag.isDraggingNode) {
+            this.dispatchEvent(new CustomEvent('node:drag:end', { detail: { nodes: this.activeDrag.draggedNodes.map(d => d.node) } }));
             this._commitState("Di chuyển khối");
             this.activeDrag.isDraggingNode = false;
             this.activeDrag.draggedNodes = [];
@@ -385,7 +500,7 @@ class WorkflowBuilder {
             e.preventDefault(); this._undo(); return;
         }
         if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
-            e.preventDefault(); this._copySelectedNodes(); return;
+            e.preventDefault(); this._copySelectedItems(); return;
         }
         if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
             e.preventDefault(); this._pasteSelectedNodes(); return;
@@ -406,7 +521,7 @@ class WorkflowBuilder {
         this._clearSelection();
         const newNode = this._createNode(data.type, { x, y });
         this._addNodeToSelection(newNode);
-        this._showSettingsPanel(); // *** MỚI: Tự động mở setting ***
+        this._showSettingsPanel();
         this._commitState("Tạo khối");
     }
 
@@ -463,7 +578,7 @@ class WorkflowBuilder {
         inPort.dataset.portType = 'in';
         nodeElement.appendChild(inPort);
 
-        const outputNames = nodeConfig.outputs || ['success']; // Default to 'success' if not specified
+        const outputNames = nodeConfig.outputs || ['success'];
         const totalOutputs = outputNames.length;
         outputNames.forEach((portName, index) => {
             const outPort = document.createElement('div');
@@ -489,6 +604,8 @@ class WorkflowBuilder {
         
         this.nodes.push(node);
         this._addNodeEventListeners(node);
+        
+        this.dispatchEvent(new CustomEvent('node:added', { detail: { node } }));
         return node;
     }
 
@@ -508,7 +625,7 @@ class WorkflowBuilder {
         const titleEl = element.querySelector('.node-title');
         if (titleEl) {
             titleEl.addEventListener('dblclick', (e) => {
-                e.stopPropagation(); // Prevent opening settings panel when editing title
+                e.stopPropagation();
                 this._enableTitleEdit(node, titleEl);
             });
         }
@@ -546,9 +663,7 @@ class WorkflowBuilder {
         const finishEditing = () => {
             const newTitle = input.value.trim();
             if (newTitle) {
-                this._setProperty(node.data, 'title', newTitle);
-                titleEl.textContent = newTitle;
-                this._commitState("Sửa tiêu đề");
+                this.updateNodeData(node.id, { title: newTitle });
             }
             input.remove();
             titleEl.style.display = '';
@@ -558,7 +673,7 @@ class WorkflowBuilder {
         input.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') finishEditing();
             if (e.key === 'Escape') {
-                input.value = node.data.title; // Revert
+                input.value = node.data.title;
                 finishEditing();
             }
         });
@@ -568,14 +683,9 @@ class WorkflowBuilder {
         e.stopPropagation();
         if (e.button === 2) return;
         
-        // *** MỚI: Logic xử lý chuyển đổi setting panel ***
-        const settingsWereVisible = !this.dom.settingsPanel.classList.contains('hidden');
         const isAlreadySelected = this.selectedNodes.includes(node) && this.selectedNodes.length === 1;
 
-        if (isAlreadySelected) {
-            // If the node is already selected and settings are open, do nothing special yet,
-            // but still prepare for dragging.
-        } else {
+        if (!isAlreadySelected) {
              const isCtrlPressed = e.ctrlKey || e.metaKey;
              const isSelected = this.selectedNodes.includes(node);
 
@@ -587,15 +697,8 @@ class WorkflowBuilder {
              } else if (isCtrlPressed && isSelected) {
                  this._removeNodeFromSelection(node);
              }
-             
              this._updateSettingsPanel();
-
-             // If settings were open before, and we now have a single new node selected, show its settings.
-             if (settingsWereVisible && this.selectedNodes.length === 1) {
-                 this._showSettingsPanel();
-             }
         }
-        // *** KẾT THÚC THAY ĐỔI ***
         
         if (e.target.closest('.port, .node-settings-btn') || e.target.tagName === 'INPUT') return;
 
@@ -607,6 +710,7 @@ class WorkflowBuilder {
             startX: n.x,
             startY: n.y
         }));
+        this.dispatchEvent(new CustomEvent('node:drag:start', { detail: { nodes: this.activeDrag.draggedNodes.map(d => d.node) } }));
     }
     
     _deleteSelectedItems() {
@@ -619,11 +723,13 @@ class WorkflowBuilder {
 
     _deleteSelectedNodes() {
         if (this.selectedNodes.length === 0) return;
-        this.selectedNodes.forEach(node => {
+        const nodesToDelete = [...this.selectedNodes];
+        nodesToDelete.forEach(node => {
             const connectionsToRemove = this.connections.filter(c => c.from === node.id || c.to === node.id);
             connectionsToRemove.forEach(c => this._deleteConnection(c, false));
             node.element.remove();
             this.nodes = this.nodes.filter(n => n.id !== node.id);
+            this.dispatchEvent(new CustomEvent('node:removed', { detail: { nodeId: node.id } }));
         });
         this._clearSelection();
         this._commitState("Xóa khối");
@@ -636,7 +742,14 @@ class WorkflowBuilder {
         if (this.selectedConnection?.id === connToDelete.id) {
             this.selectedConnection = null;
         }
+        this.dispatchEvent(new CustomEvent('connection:removed', { detail: { connection: connToDelete } }));
         if (commit) this._commitState("Xóa kết nối");
+    }
+
+    _copySelectedItems() {
+        if (this.selectedNodes.length > 0) {
+            this._copySelectedNodes();
+        }
     }
 
     _copySelectedNodes() {
@@ -656,7 +769,7 @@ class WorkflowBuilder {
             n.relX = n.x - minX;
             n.relY = n.y - minY;
         });
-        this.logger.system("Copied nodes:", this.clipboard.nodes.length);
+        this.logger.system(`Đã sao chép ${this.clipboard.nodes.length} khối.`);
     }
 
     _pasteSelectedNodes() {
@@ -678,7 +791,6 @@ class WorkflowBuilder {
         
         newNodes.forEach(node => this._addNodeToSelection(node));
         
-        // *** MỚI: Tự động mở setting nếu chỉ paste 1 node ***
         if (newNodes.length === 1) {
             this._showSettingsPanel();
         }
@@ -687,7 +799,10 @@ class WorkflowBuilder {
     }
     
     _clearSelection() {
-        this.selectedNodes.forEach(node => node.element.classList.remove('selected'));
+        this.selectedNodes.forEach(node => {
+            node.element.classList.remove('selected');
+            this.dispatchEvent(new CustomEvent('node:deselected', { detail: { node } }));
+        });
         this.selectedNodes = [];
         this._deselectAllConnections();
         this._updateSettingsPanel();
@@ -697,6 +812,7 @@ class WorkflowBuilder {
         if (!this.selectedNodes.includes(node)) {
             this.selectedNodes.push(node);
             node.element.classList.add('selected');
+            this.dispatchEvent(new CustomEvent('node:selected', { detail: { node } }));
             this._updateSettingsPanel();
         }
     }
@@ -706,6 +822,7 @@ class WorkflowBuilder {
         if (index > -1) {
             this.selectedNodes.splice(index, 1);
             node.element.classList.remove('selected');
+            this.dispatchEvent(new CustomEvent('node:deselected', { detail: { node } }));
             this._updateSettingsPanel();
         }
     }
@@ -714,11 +831,13 @@ class WorkflowBuilder {
         this._clearSelection();
         this.selectedConnection = connToSelect;
         this.selectedConnection.line.classList.add('selected');
+        this.dispatchEvent(new CustomEvent('connection:selected', { detail: { connection: connToSelect } }));
     }
 
     _deselectAllConnections() {
         if (this.selectedConnection) {
             this.selectedConnection.line.classList.remove('selected');
+            this.dispatchEvent(new CustomEvent('connection:deselected', { detail: { connection: this.selectedConnection } }));
             this.selectedConnection = null;
         }
     }
@@ -791,18 +910,22 @@ class WorkflowBuilder {
             
             input.addEventListener('input', (e) => {
                 const newValue = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
-                this._setProperty(node.data, fieldName, newValue);
+                const oldValue = this._getProperty(node.data, fieldName);
+                if (oldValue !== newValue) {
+                    this._setProperty(node.data, fieldName, newValue);
+                    this.dispatchEvent(new CustomEvent('node:data:changed', { detail: { node, field: fieldName, value: newValue } }));
                 
-                if (fieldName === 'title') {
-                    const titleEl = node.element.querySelector('.node-title');
-                    if (titleEl) titleEl.textContent = newValue;
+                    if (fieldName === 'title') {
+                        const titleEl = node.element.querySelector('.node-title');
+                        if (titleEl) titleEl.textContent = newValue;
+                    }
+                    
+                    const controlConfig = this.settingsRenderer._findControlConfig(nodeConfig.settings, fieldName);
+                    if (controlConfig && controlConfig.onChange === 'rerender') {
+                        this._updateSettingsPanel();
+                    }
+                    this._commitState("Sửa cài đặt");
                 }
-                
-                const controlConfig = this.settingsRenderer._findControlConfig(nodeConfig.settings, fieldName);
-                if (controlConfig && controlConfig.onChange === 'rerender') {
-                    this._updateSettingsPanel();
-                }
-                this._commitState("Sửa cài đặt");
             });
         });
 
@@ -852,7 +975,7 @@ class WorkflowBuilder {
         container.querySelectorAll('[data-action="import-curl"]').forEach(btn => {
             btn.addEventListener('click', () => {
                 if (this.curlImportModal) {
-                    document.getElementById('curl-input-textarea').value = ''; // Clear previous input
+                    document.getElementById('curl-input-textarea').value = '';
                     this.curlImportModal.show();
                 }
             });
@@ -945,8 +1068,7 @@ class WorkflowBuilder {
         const startNode = this.nodes.find(n => n.id === connToDetach.from);
         if (!startNode) return;
 
-        this.connections = this.connections.filter(c => c.id !== connToDetach.id);
-        
+        this._deleteConnection(connToDetach, false);
         this._commitState("Bắt đầu gỡ kết nối");
 
         connToDetach.line.classList.remove('selected');
@@ -1018,6 +1140,7 @@ class WorkflowBuilder {
         this.dom.connectorSvg.appendChild(line);
         this.connections.push(connection);
         this._updateConnectionPath(connection);
+        this.dispatchEvent(new CustomEvent('connection:added', { detail: { connection } }));
         return connection;
     }
 
@@ -1046,51 +1169,35 @@ class WorkflowBuilder {
         const dx = x2 - x1;
         const dy = y2 - y1;
         const sCurveThreshold = 20;
-        const baseRadius = 20; // A consistent base radius for all corners
+        const baseRadius = 20;
 
         if (dx < -sCurveThreshold) {
-            // --- LOGIC for backward connections with rounded corners ---
-            const offset = 40; // How far the line goes out horizontally
+            const offset = 40;
             const midY = y1 + dy / 2;
             const ySign = dy >= 0 ? 1 : -1;
-            
-            // Calculate radius based on available space in the S-shape segments
-            // It's limited by half the horizontal offset and a quarter of the vertical distance
             const radius = Math.min(baseRadius, offset / 2, Math.abs(dy) / 4);
 
             const d = [
                 `M ${x1} ${y1}`,
-                // 1. Line out from the start node
                 `L ${x1 + offset - radius} ${y1}`,
-                // 2. Top-right corner
                 `Q ${x1 + offset} ${y1} ${x1 + offset} ${y1 + radius * ySign}`,
-                // 3. Vertical line towards the middle
                 `L ${x1 + offset} ${midY - radius * ySign}`,
-                // 4. Middle-right corner (turning left)
                 `Q ${x1 + offset} ${midY} ${x1 + offset - radius} ${midY}`,
-                // 5. Horizontal line going backwards
                 `L ${x2 - offset + radius} ${midY}`,
-                // 6. Middle-left corner (turning down/up)
                 `Q ${x2 - offset} ${midY} ${x2 - offset} ${midY + radius * ySign}`,
-                // 7. Vertical line to the end-node's y-level
                 `L ${x2 - offset} ${y2 - radius * ySign}`,
-                // 8. Bottom-left corner
                 `Q ${x2 - offset} ${y2} ${x2 - offset + radius} ${y2}`,
-                // 9. Final line into the end node
                 `L ${x2} ${y2}`
             ].join(' ');
-
             path.setAttribute('d', d);
             return;
         }
 
-        // --- LOGIC FOR FORWARD-FACING, ROUNDED-CORNER CONNECTORS ---
         const effectiveRadius = Math.min(baseRadius, Math.abs(dx) / 2, Math.abs(dy) / 2);
         const midX = x1 + dx / 2;
         const xSign = dx >= 0 ? 1 : -1;
         const ySign = dy >= 0 ? 1 : -1;
 
-        // If there's not enough space for a curve, draw a simple right-angle line.
         if (effectiveRadius < 5) { 
             path.setAttribute('d', `M ${x1} ${y1} L ${midX} ${y1} L ${midX} ${y2} L ${x2} ${y2}`);
             return;
@@ -1162,7 +1269,7 @@ class WorkflowBuilder {
             case 'delete': 
                 this._deleteSelectedItems();
                 break;
-            case 'copy': this._copySelectedNodes(); break;
+            case 'copy': this._copySelectedItems(); break;
             case 'paste': this._pasteSelectedNodes(); break;
             case 'undo': this._undo(); break;
             case 'redo': this._redo(); break;
@@ -1185,6 +1292,7 @@ class WorkflowBuilder {
         const state = this._getCurrentState();
         this.history.push(state);
         this.historyIndex++;
+        this.dispatchEvent(new CustomEvent('workflow:changed', { detail: { action: actionName, state } }));
         this._updateHistoryButtons();
     }
 
@@ -1230,6 +1338,7 @@ class WorkflowBuilder {
             }
         });
         this._clearSelection();
+        this.dispatchEvent(new CustomEvent('workflow:loaded', { detail: { workflow: state } }));
     }
 
     _undo() {
@@ -1274,8 +1383,7 @@ class WorkflowBuilder {
 
         try { value = JSON.parse(value); } catch (error) { /* It's just a string */ }
 
-        this.globalVariables[key] = value;
-        this._updateVariablesPanel();
+        this.setGlobalVariable(key, value);
         e.target.reset();
     }
     
@@ -1314,7 +1422,7 @@ class WorkflowBuilder {
             details.id = `tree-details-${nodeId}`;
             if (this.treeViewStates.has(details.id)) {
                 details.open = this.treeViewStates.get(details.id);
-            } else if (!isRunning) { // Default to open if not running and no state saved
+            } else if (!isRunning) {
                 details.open = true;
             }
 
@@ -1386,7 +1494,7 @@ class WorkflowBuilder {
         const root = document.createElement('div');
         
         for (const key in obj) {
-            if (key === '_status') continue; // Hide internal status key
+            if (key === '_status') continue;
             
             const currentPath = parentPath ? `${parentPath}.${key}` : key;
             const detailsId = `tree-details-${currentPath.replace(/\./g, '-')}`;
@@ -1514,14 +1622,12 @@ class WorkflowBuilder {
     _resolveVariables(text, context) {
         if (typeof text !== 'string') return text;
 
-        // First, resolve the entire string if it's ONLY a variable
         const singleVarMatch = text.match(/{{\s*([^}]+)\s*}}/);
         if (singleVarMatch && singleVarMatch[0] === text) {
             const value = this._getProperty(context, singleVarMatch[1].trim());
             return value === undefined ? text : value;
         }
 
-        // Otherwise, replace all occurrences of variables in the string
         return text.replace(/{{\s*(.*?)\s*}}/g, (match, path) => {
             const value = this._getProperty(context, path.trim());
             if (value === undefined) return match; 
@@ -1533,6 +1639,7 @@ class WorkflowBuilder {
     async runSimulation() {
         if (this.isSimulating) return;
         this.isSimulating = true;
+        this.dispatchEvent(new CustomEvent('simulation:started'));
         const runButton = this.container.querySelector('[data-action="run-simulation"]');
         runButton.disabled = true;
         runButton.classList.add('opacity-50');
@@ -1540,9 +1647,8 @@ class WorkflowBuilder {
         this.logger.clear();
         this.logger.system('--- Bắt đầu Mô phỏng ---');
         
-        // Reset states
         this.executionState = {};
-        this.treeViewStates.clear(); // Clear open/close states for a fresh view
+        this.treeViewStates.clear();
         this._updateVariablesPanel();
         this.nodes.forEach(node => this._setNodeState(node, 'idle'));
 
@@ -1550,7 +1656,7 @@ class WorkflowBuilder {
         if (startNodes.length === 0 && this.nodes.length > 0) {
                 this.logger.error('Không tìm thấy khối bắt đầu. Workflow phải có ít nhất một khối không có đầu vào.');
         } else {
-            await Promise.allSettled(startNodes.map(node => this._executeNode(node, []))); // Start with an empty try-catch stack
+            await Promise.allSettled(startNodes.map(node => this._executeNode(node, [])));
         }
         
         this.logger.system('--- Kết thúc Mô phỏng ---');
@@ -1558,6 +1664,7 @@ class WorkflowBuilder {
         this.isSimulating = false;
         runButton.disabled = false;
         runButton.classList.remove('opacity-50');
+        this.dispatchEvent(new CustomEvent('simulation:ended', { detail: { finalState: this.executionState } }));
     }
 
     async _animateConnection(connection) {
@@ -1581,6 +1688,7 @@ class WorkflowBuilder {
         this.executionState[node.id] = { _status: 'running' };
         this._updateVariablesPanel();
         this._setNodeState(node, 'running');
+        this.dispatchEvent(new CustomEvent('simulation:node:start', { detail: { node } }));
         
         const resolvedNodeData = JSON.parse(JSON.stringify(node.data));
         const resolutionContext = { global: this.globalVariables, ...this.executionState };
@@ -1609,18 +1717,17 @@ class WorkflowBuilder {
             }
         };
         
-        // Special handling for Try/Catch node
         if (node.type === 'try_catch') {
             this.logger.info(`Bắt đầu khối Try/Catch: ${node.data.title}`);
             this._setNodeState(node, 'success');
             this.executionState[node.id] = { status: 'try_path_taken' };
             this._updateVariablesPanel();
+            this.dispatchEvent(new CustomEvent('simulation:node:end', { detail: { node, result: this.executionState[node.id] } }));
             await executeNextNodes('try', [...tryCatchStack, node]);
             return;
         }
 
         try {
-            // Special handling for Loop node
             if (node.type === 'loop') {
                 const items = await nodeConfig.execute(resolvedNodeData, this.logger, this);
                 const loopConnection = this.connections.find(c => c.from === node.id && c.fromPort === 'loop');
@@ -1649,27 +1756,31 @@ class WorkflowBuilder {
                 this.logger.success(`Vòng lặp hoàn thành.`);
                 this.executionState[node.id] = { allItems: items, count: items.length };
                 this._setNodeState(node, 'success');
+                this.dispatchEvent(new CustomEvent('simulation:node:end', { detail: { node, result: this.executionState[node.id] } }));
                 await executeNextNodes('done', tryCatchStack);
-                return; // End execution for loop node
+                return;
             }
 
-            // Standard execution for all other nodes
             const result = await nodeConfig.execute(resolvedNodeData, this.logger, this);
             
             if (result && typeof result === 'object' && result.hasOwnProperty('selectedPort')) {
                 this.executionState[node.id] = result.data;
                 this._setNodeState(node, 'success');
+                this.dispatchEvent(new CustomEvent('simulation:node:end', { detail: { node, result: result.data } }));
                 await executeNextNodes(result.selectedPort, tryCatchStack);
             } else {
                 this.executionState[node.id] = result;
                 this._setNodeState(node, 'success');
+                this.dispatchEvent(new CustomEvent('simulation:node:end', { detail: { node, result } }));
                 const successPortName = (nodeConfig.outputs || ['success'])[0];
                 await executeNextNodes(successPortName, tryCatchStack);
             }
         } catch (error) {
             this.logger.error(`Lỗi thực thi khối ${node.data.title}: ${error.message}`);
-            this.executionState[node.id] = { error: error.message, ...error.context };
+            const errorResult = { error: error.message, ...error.context };
+            this.executionState[node.id] = errorResult;
             this._setNodeState(node, 'error');
+            this.dispatchEvent(new CustomEvent('simulation:node:end', { detail: { node, error: errorResult } }));
             this._updateVariablesPanel();
 
             const lastTryCatchNode = tryCatchStack.pop();
@@ -1689,7 +1800,6 @@ class WorkflowBuilder {
                 await executeNextNodes('error', tryCatchStack);
             }
         } finally {
-            // Update panel unless it's a loop node which updates internally
             if (node.type !== 'loop') {
                     this._updateVariablesPanel();
             }
@@ -1712,6 +1822,7 @@ class WorkflowBuilder {
         this.nodeTypeCounts = {};
         this._clearSelection();
         if (commit) this._commitState("Xóa canvas");
+        this.dispatchEvent(new CustomEvent('workflow:cleared'));
     }
 
     _exportWorkflow() {
@@ -1750,17 +1861,21 @@ class WorkflowBuilder {
     }
 
     _importWorkflow(jsonString, commit = true) {
-        const data = JSON.parse(jsonString);
-        if (!data.nodes || !data.connections) {
-            throw new Error('File JSON không hợp lệ. Thiếu thuộc tính "nodes" hoặc "connections".');
+        try {
+            const data = JSON.parse(jsonString);
+            if (!data.nodes || !data.connections) {
+                throw new Error('File JSON không hợp lệ. Thiếu thuộc tính "nodes" hoặc "connections".');
+            }
+            this._loadState(data);
+            if (commit) {
+                this.history = [];
+                this.historyIndex = -1;
+                this._commitState("Import file");
+            }
+            this._resetView();
+        } catch (error) {
+            this.logger.error(`Lỗi khi nhập workflow: ${error.message}`);
         }
-        this._loadState(data);
-        if (commit) {
-            this.history = [];
-            this.historyIndex = -1;
-            this._commitState("Import file");
-        }
-        this._resetView();
     }
 
     _handleVariableContextMenu(e) {
@@ -1770,14 +1885,12 @@ class WorkflowBuilder {
 
         const target = e.currentTarget;
         const key = target.dataset.key;
-        const value = target.dataset.value; // This is a JSON string
+        const value = target.dataset.value;
         const path = target.dataset.path;
 
         if (!key && !path) return;
 
-        // Store this context for the click handler
         this.activeVariableContext = { key, value, path };
-
         const menu = this.dom.variableContextMenu;
         menu.style.display = 'block';
         menu.style.left = `${e.clientX}px`;
@@ -1792,32 +1905,22 @@ class WorkflowBuilder {
         if (!action) return;
 
         const { key, value, path } = this.activeVariableContext;
-
         let textToCopy = '';
         switch (action) {
             case 'copy-value':
                 try {
                     const parsedValue = JSON.parse(value);
-                    if (typeof parsedValue === 'object' && parsedValue !== null) {
-                        textToCopy = JSON.stringify(parsedValue, null, 2);
-                    } else {
-                        textToCopy = String(parsedValue);
-                    }
-                } catch {
-                    textToCopy = value; // Fallback for non-JSON string
-                }
+                    textToCopy = (typeof parsedValue === 'object' && parsedValue !== null) 
+                        ? JSON.stringify(parsedValue, null, 2) 
+                        : String(parsedValue);
+                } catch { textToCopy = value; }
                 break;
-            case 'copy-key':
-                textToCopy = key;
-                break;
-            case 'copy-path':
-                textToCopy = `{{${path}}}`;
-                break;
+            case 'copy-key': textToCopy = key; break;
+            case 'copy-path': textToCopy = `{{${path}}}`; break;
         }
 
-        if (textToCopy) {
-            await this._copyToClipboard(textToCopy);
-        }
+        if (textToCopy) await this._copyToClipboard(textToCopy);
+        
         this._hideAllContextMenus();
         this.activeVariableContext = null;
     }
@@ -1827,30 +1930,7 @@ class WorkflowBuilder {
             await navigator.clipboard.writeText(text);
             this.logger.system(`Đã sao chép: ${text.substring(0, 50)}...`);
         } catch (err) {
-            this.logger.system('Clipboard API không thành công, sử dụng phương pháp dự phòng (execCommand).', err);
-            const textArea = document.createElement("textarea");
-            textArea.value = text;
-            
-            textArea.style.position = "fixed";
-            textArea.style.top = "-9999px";
-            textArea.style.left = "-9999px";
-            textArea.setAttribute("readonly", "");
-
-            document.body.appendChild(textArea);
-            textArea.select();
-
-            try {
-                const successful = document.execCommand('copy');
-                if (successful) {
-                    this.logger.system(`Đã sao chép (dự phòng): ${text.substring(0, 50)}...`);
-                } else {
-                    this.logger.error('Lỗi: Sao chép bằng phương pháp dự phòng thất bại.');
-                }
-            } catch (execErr) {
-                this.logger.error('Lỗi: Không thể sao chép vào clipboard.', execErr);
-            }
-
-            document.body.removeChild(textArea);
+            this.logger.error('Không thể sao chép vào clipboard.', err);
         }
     }
     
@@ -1863,23 +1943,19 @@ class WorkflowBuilder {
 
         try {
             const parsedData = this._parseCurlCommand(curlString);
-
-            // Update node data
-            this._setProperty(node.data, 'url', parsedData.url);
-            this._setProperty(node.data, 'method', parsedData.method);
-            this._setProperty(node.data, 'headers', parsedData.headers);
             
-            // Reset body before setting new values
-            this._setProperty(node.data, 'body', { type: 'none', json: '', formUrlEncoded: [] });
-            this._setProperty(node.data, 'body.type', parsedData.body.type);
-            if (parsedData.body.type === 'json') {
-                this._setProperty(node.data, 'body.json', parsedData.body.content);
-            } else if (parsedData.body.type === 'form-urlencoded') {
-                this._setProperty(node.data, 'body.formUrlEncoded', parsedData.body.content);
-            }
+            this.updateNodeData(node.id, {
+                url: parsedData.url,
+                method: parsedData.method,
+                headers: parsedData.headers,
+                body: { 
+                    type: parsedData.body.type,
+                    json: parsedData.body.type === 'json' ? parsedData.body.content : '',
+                    formUrlEncoded: parsedData.body.type === 'form-urlencoded' ? parsedData.body.content : []
+                }
+            });
 
             this.logger.success("Lệnh cURL đã được import thành công.");
-            this._updateSettingsPanel();
             this._commitState("Import from cURL");
             this.curlImportModal.hide();
         } catch (error) {
@@ -1896,7 +1972,6 @@ class WorkflowBuilder {
         };
 
         let singleLineCurl = curlString.replace(/(\r\n|\n|\r|\\| \^)/g, ' ').trim();
-
         const args = [];
         const regex = /'[^']*'|"[^"]*"|\S+/g;
         let match;
@@ -1910,40 +1985,22 @@ class WorkflowBuilder {
             const nextArg = args[i+1];
             const cleanNextArg = () => nextArg ? nextArg.replace(/^['"]|['"]$/g, '') : '';
 
-            if (arg === 'curl') {
-                i++;
-                continue;
+            if (arg === 'curl' || arg.startsWith('http')) {
+                if (!result.url) result.url = arg.replace(/^['"]|['"]$/g, '');
+                i++; continue;
             }
-
-            if (!arg.startsWith('-')) {
-                if (!result.url) {
-                    result.url = arg.replace(/^['"]|['"]$/g, '');
-                }
-                i++;
-                continue;
-            }
+            if (!arg.startsWith('-')) { i++; continue; }
 
             switch(arg) {
-                case '-H':
-                case '--header':
-                    const headerString = cleanNextArg();
-                    const separatorIndex = headerString.indexOf(':');
-                    if (separatorIndex !== -1) {
-                         const key = headerString.substring(0, separatorIndex).trim();
-                         const value = headerString.substring(separatorIndex + 1).trim();
-                         result.headers.push({ key, value });
+                case '-H': case '--header':
+                    const [key, ...valueParts] = cleanNextArg().split(':');
+                    if (key && valueParts.length > 0) {
+                         result.headers.push({ key: key.trim(), value: valueParts.join(':').trim() });
                     }
-                    i += 2;
-                    break;
-                case '-X':
-                case '--request':
-                    result.method = cleanNextArg().toUpperCase();
-                    i += 2;
-                    break;
-                case '-d':
-                case '--data':
-                case '--data-raw':
-                case '--data-binary':
+                    i += 2; break;
+                case '-X': case '--request':
+                    result.method = cleanNextArg().toUpperCase(); i += 2; break;
+                case '-d': case '--data': case '--data-raw': case '--data-binary':
                     const bodyContent = cleanNextArg();
                     try {
                         JSON.parse(bodyContent);
@@ -1951,44 +2008,24 @@ class WorkflowBuilder {
                         result.body.content = bodyContent;
                     } catch(e) {
                         result.body.type = 'form-urlencoded';
-                        const params = new URLSearchParams(bodyContent);
-                        const formArray = [];
-                        for (const [key, value] of params.entries()) {
-                            formArray.push({ key, value });
-                        }
-                        result.body.content = formArray;
+                        result.body.content = Array.from(new URLSearchParams(bodyContent).entries())
+                                                  .map(([key, value]) => ({ key, value }));
                     }
-                    i += 2;
-                    break;
-                case '-b':
-                case '--cookie':
+                    i += 2; break;
+                case '-b': case '--cookie':
                     const cookieValue = cleanNextArg();
                     const existingCookieHeader = result.headers.find(h => h.key.toLowerCase() === 'cookie');
-                    if (existingCookieHeader) {
-                        existingCookieHeader.value += '; ' + cookieValue;
-                    } else {
-                        result.headers.push({ key: 'Cookie', value: cookieValue });
-                    }
-                    i += 2;
-                    break;
+                    if (existingCookieHeader) existingCookieHeader.value += '; ' + cookieValue;
+                    else result.headers.push({ key: 'Cookie', value: cookieValue });
+                    i += 2; break;
                 default:
-                    if (nextArg && !nextArg.startsWith('-')) {
-                        i += 2;
-                    } else {
-                        i++;
-                    }
+                    if (nextArg && !nextArg.startsWith('-')) i += 2;
+                    else i++;
                     break;
             }
         }
-
-        if (result.method === 'GET' && result.body.type !== 'none') {
-            result.method = 'POST';
-        }
-
-        if (!result.url) {
-            throw new Error("Không thể tìm thấy URL hợp lệ trong lệnh.");
-        }
-
+        if (result.method === 'GET' && result.body.type !== 'none') result.method = 'POST';
+        if (!result.url) throw new Error("Không thể tìm thấy URL hợp lệ.");
         return result;
     }
 }
