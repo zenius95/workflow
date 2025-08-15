@@ -30,16 +30,22 @@ class SettingsRenderer {
     }
 
     _renderControl(control, uniqueId, dataObject) {
-        // FIX: Normalize the control object to handle nested components in groups/tabs
         const actualControl = control.config ? control.config : control;
 
         if (actualControl.visibleWhen) {
             const value = this.workflow._getProperty(dataObject, actualControl.visibleWhen.dataField);
-            if (value !== actualControl.visibleWhen.is) return null;
+            if (String(value) !== String(actualControl.visibleWhen.is)) return null;
         }
 
         const colWrapper = document.createElement('div');
-        colWrapper.className = actualControl.col ? `col-md-${actualControl.col}` : 'col-12';
+        const parentHasLayout = control.parentLayout === true;
+        
+        if (parentHasLayout) {
+             colWrapper.className = 'layout-item-wrapper';
+        } else {
+            colWrapper.className = actualControl.col ? `col-md-${actualControl.col}` : 'col-12';
+        }
+
 
         const wrapper = document.createElement('div');
         wrapper.className = 'mb-3';
@@ -290,9 +296,20 @@ class SettingsRenderer {
     
     _renderGroup(control, uniqueId, dataObject) {
         const groupWrapper = document.createElement('div');
-        groupWrapper.className = 'row g-2 border rounded p-3'; 
+        groupWrapper.className = 'border rounded p-3'; 
+
+        const hasLayout = Array.isArray(control.layoutColumns) && control.layoutColumns.length > 0;
+        
+        if (hasLayout) {
+            groupWrapper.classList.add('custom-layout-grid');
+            groupWrapper.style.gridTemplateColumns = control.layoutColumns.map(c => `${c}fr`).join(' ');
+        } else {
+            groupWrapper.classList.add('row', 'g-2');
+        }
+        
         control.controls.forEach(c => {
-            const el = this._renderControl(c, uniqueId, dataObject);
+            const childControl = { ...c, parentLayout: hasLayout };
+            const el = this._renderControl(childControl, uniqueId, dataObject);
             if (el) groupWrapper.appendChild(el);
         });
         return groupWrapper;
@@ -302,43 +319,55 @@ class SettingsRenderer {
         const wrapper = document.createElement('div');
         const container = document.createElement('div');
         wrapper.appendChild(container);
-    
+
         let items = this.workflow._getProperty(dataObject, control.dataField);
-    
-        // <<< FIX START: Handle empty repeater in preview >>>
-        // If items are missing for the preview, create a default item for display purposes.
+        const fieldsToRender = control.controls || [];
+
+        // Handle empty repeater in preview
         if (uniqueId === 'preview' && (!Array.isArray(items) || items.length === 0)) {
-            const newItem = {};
-            (control.fields || []).forEach(field => {
-                // In a repeater, the field's dataField is the key within the item object
-                newItem[field.dataField] = field.defaultValue || '';
-            });
-            items = [newItem];
-            // Also, update the main formData object so that child controls can get the correct values
-            this.workflow._setProperty(dataObject, control.dataField, items);
-            // This is slightly redundant if dataObject is formData, but ensures the main instance is synced
-            this.workflow.setFormData(this.workflow.formData);
+            if (fieldsToRender.length > 0) {
+                 const newItem = {};
+                fieldsToRender.forEach(fieldSource => {
+                    const fieldConf = fieldSource.config ? fieldSource.config : fieldSource;
+                    if (fieldConf.dataField) {
+                         newItem[fieldConf.dataField] = fieldConf.defaultValue || '';
+                    }
+                });
+                items = [newItem];
+                this.workflow._setProperty(dataObject, control.dataField, items);
+                this.workflow.setFormData(this.workflow.formData);
+            } else {
+                // If no fields are defined (dragged in), show a message.
+                const noDataMsg = document.createElement('p');
+                noDataMsg.className = 'text-muted text-center small fst-italic';
+                noDataMsg.textContent = 'Chưa có trường nào được định nghĩa cho Repeater.';
+                container.appendChild(noDataMsg);
+            }
         }
-        // Ensure items is an array to prevent errors
+
         items = Array.isArray(items) ? items : [];
-        // <<< FIX END >>>
-    
+
         items.forEach((itemData, index) => {
             const rowWrapper = document.createElement('div');
-            rowWrapper.className = 'repeater-row d-grid align-items-center gap-2 mb-2';
-            rowWrapper.style.gridTemplateColumns = `repeat(${(control.fields || []).length}, 1fr) auto`;
-    
-            (control.fields || []).forEach(fieldConfig => {
+            rowWrapper.className = 'repeater-row align-items-center mb-2';
+
+            if(fieldsToRender.length > 0) {
+                rowWrapper.style.display = 'grid';
+                rowWrapper.style.gap = '0.5rem';
+                rowWrapper.style.gridTemplateColumns = `repeat(${fieldsToRender.length}, 1fr) auto`;
+            }
+
+            fieldsToRender.forEach(fieldSource => {
+                const fieldConfig = fieldSource.config ? fieldSource.config : fieldSource;
                 const fieldPath = `${control.dataField}.${index}.${fieldConfig.dataField}`;
-                const tempControlConfig = { ...fieldConfig, dataField: fieldPath, col: null }; // col: null to prevent double wrapping
+                const tempControlConfig = { ...fieldConfig, dataField: fieldPath, col: null };
                 const fieldElement = this._renderControl(tempControlConfig, uniqueId, dataObject);
-                
-                // fieldElement is already a .col-div, so we append it directly to the grid
+
                 if (fieldElement) {
                     rowWrapper.appendChild(fieldElement);
                 }
             });
-    
+
             const removeBtn = document.createElement('button');
             removeBtn.className = 'btn btn-sm btn-outline-danger flex-shrink-0 align-self-center';
             removeBtn.innerHTML = '<i class="bi bi-trash"></i>';
@@ -346,17 +375,17 @@ class SettingsRenderer {
             removeBtn.dataset.field = control.dataField;
             removeBtn.dataset.index = index;
             rowWrapper.appendChild(removeBtn);
-    
+
             container.appendChild(rowWrapper);
         });
-    
+
         const addButton = document.createElement('button');
         addButton.className = 'btn btn-sm btn-outline-secondary w-100 mt-2';
-        addButton.innerHTML = control.addButtonText || '+ Thêm';
+        addButton.innerHTML = control.addButtonText || '+ Thêm mục';
         addButton.dataset.action = 'add-repeater-item';
         addButton.dataset.field = control.dataField;
         wrapper.appendChild(addButton);
-    
+
         return wrapper;
     }
 

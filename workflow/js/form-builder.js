@@ -6,20 +6,16 @@ class FormBuilder {
         this.palette = document.getElementById('component-palette');
         this.canvas = document.getElementById('canvas');
         this.propertiesPanel = document.getElementById('properties-panel');
-        this.generateBtn = document.getElementById('generate-btn');
         this.clearCanvasBtn = document.getElementById('clear-canvas-btn');
-        this.outputModal = new bootstrap.Modal(document.getElementById('output-modal'));
-        this.outputCode = document.getElementById('output-code');
-        this.copyCodeBtn = document.getElementById('copy-code-btn');
         this.previewPane = document.getElementById('preview-pane');
 
         // --- State ---
         this.components = [];
         this.selectedComponentId = null;
         this.nextId = 1;
-        this.formData = {}; 
+        this.formData = {};
+        this.activeResize = null;
 
-        // --- Definitions ---
         this.CONTROL_DEFINITIONS = {
             'text': { name: 'Text Input', icon: 'bi-input-cursor-text', props: ['label', 'dataField', 'placeholder', 'helpText', 'variablePicker', 'col', 'visibleWhen'] },
             'number': { name: 'Number Input', icon: 'bi-hash', props: ['label', 'dataField', 'placeholder', 'col', 'visibleWhen'] },
@@ -30,7 +26,7 @@ class FormBuilder {
             'folder-select': { name: 'Folder Select', icon: 'bi-folder-plus', props: ['label', 'dataField', 'helpText', 'col', 'visibleWhen'] },
             'group': { name: 'Group', icon: 'bi-collection', props: ['label', 'helpText', 'visibleWhen'], isContainer: true },
             'tabs': { name: 'Tabs', icon: 'bi-segmented-nav', props: ['label', 'helpText', 'tabs'], isContainer: true, hasTabs: true },
-            'repeater': { name: 'Repeater', icon: 'bi-plus-slash-minus', props: ['label', 'helpText', 'dataField', 'addButtonText', 'fields'], isContainer: true, hasFields: true },
+            'repeater': { name: 'Repeater', icon: 'bi-plus-slash-minus', props: ['label', 'helpText', 'dataField', 'addButtonText'], isContainer: true },
             'button': { name: 'Button', icon: 'bi-hand-index-thumb', props: ['text', 'action', 'class'] },
             'info': { name: 'Info Text', icon: 'bi-info-circle', props: ['text'] },
         };
@@ -47,7 +43,7 @@ class FormBuilder {
                 if (found) return found;
             }
             if (this.CONTROL_DEFINITIONS[comp.type].hasTabs) {
-                 for (const tab of comp.config.tabs) {
+                 for (const tab of (comp.config.tabs || [])) {
                     const found = this.findComponent(id, tab.controls || []);
                     if (found) return found;
                 }
@@ -56,23 +52,22 @@ class FormBuilder {
         return null;
     }
     
-    findComponentByDataField(dataField, componentArray = this.components.map(c => c.config)) {
-        for (const config of componentArray) {
-            if (config.dataField === dataField) return config;
-            if (config.controls) {
-                const found = this.findComponentByDataField(dataField, config.controls);
+    findComponentByDataField(componentArray = this.components, dataField) {
+        for (const comp of componentArray) {
+            if (comp.config && comp.config.dataField === dataField) return comp;
+            if (comp.config && comp.config.controls) {
+                const found = this.findComponentByDataField(comp.config.controls, dataField);
                 if (found) return found;
             }
-            if (config.tabs) {
-                for (const tab of config.tabs) {
-                    const found = this.findComponentByDataField(dataField, tab.controls);
+            if (comp.config && comp.config.tabs) {
+                for (const tab of comp.config.tabs) {
+                    const found = this.findComponentByDataField(tab.controls, dataField);
                     if (found) return found;
                 }
             }
         }
         return null;
     }
-
 
     getComponentPath(id, componentArray = this.components) {
         for (let i = 0; i < componentArray.length; i++) {
@@ -108,14 +103,11 @@ class FormBuilder {
         return fields;
     }
 
-
     // --- Main Functions ---
     initialize() {
         this.renderPalette();
         this.setupDragAndDrop();
-        this.generateBtn.addEventListener('click', () => this.generateOutput());
         this.clearCanvasBtn.addEventListener('click', () => this.clearCanvas());
-        this.copyCodeBtn.addEventListener('click', () => this.copyOutputToClipboard());
 
         this.previewPane.addEventListener('input', (e) => {
             const target = e.target;
@@ -124,31 +116,31 @@ class FormBuilder {
                 const value = target.type === 'checkbox' ? target.checked : target.value;
                 this.workflow._setProperty(this.formData, fieldPath, value);
                 this.workflow.setFormData(this.formData);
-                this.renderPreview(); // FIX: Re-render the preview on input
+                if (this.CONTROL_DEFINITIONS[target.type]?.onChange === 'rerender') {
+                    this.renderPreview();
+                }
             }
         });
         
         this.previewPane.addEventListener('click', (e) => {
             const button = e.target.closest('button');
             if (!button) return;
-
             const action = button.dataset.action;
             const dataField = button.dataset.field;
             const index = parseInt(button.dataset.index, 10);
-
             if (action === 'add-repeater-item') {
-                const componentConfig = this.findComponentByDataField(dataField);
-                if (componentConfig) {
-                    let items = this.workflow._getProperty(this.formData, dataField);
-                    if (!Array.isArray(items)) {
-                        items = [];
-                        this.workflow._setProperty(this.formData, dataField, items);
-                    }
+                const component = this.findComponentByDataField(this.components, dataField);
+                if (component) {
+                    const componentConfig = component.config;
+                    let items = this.workflow._getProperty(this.formData, dataField) || [];
                     const newItem = {};
-                    (componentConfig.fields || []).forEach(field => {
-                        this.workflow._setProperty(newItem, field.dataField, field.defaultValue || '');
+                    const fieldsSource = componentConfig.controls || [];
+                    fieldsSource.forEach(fieldSource => {
+                        const field = fieldSource.config ? fieldSource.config : fieldSource;
+                        if (field.dataField) newItem[field.dataField] = field.defaultValue || '';
                     });
                     items.push(newItem);
+                    this.workflow._setProperty(this.formData, dataField, items);
                     this.workflow.setFormData(this.formData);
                     this.renderPreview();
                 }
@@ -162,6 +154,8 @@ class FormBuilder {
             }
         });
 
+        document.addEventListener('mousemove', this.handleColumnResizeMove.bind(this));
+        document.addEventListener('mouseup', this.handleColumnResizeEnd.bind(this));
 
         this.renderCanvas();
     }
@@ -183,23 +177,35 @@ class FormBuilder {
     }
 
     makeSortable(containerElement, group) {
-        new Sortable(containerElement, {
+        return new Sortable(containerElement, {
             group: 'builder', animation: 150,
             onAdd: (evt) => {
                 const type = evt.item.dataset.type;
                 if (!type || !this.CONTROL_DEFINITIONS[type]) {
-                    evt.item.remove();
-                    return;
+                    evt.item.remove(); return;
                 }
                 const newComponent = this.createComponent(type);
+
+                // If added to a group column, assign the column index
+                const parentCol = evt.to.closest('[data-col-index]');
+                if(parentCol) {
+                    newComponent.config.colIndex = parseInt(parentCol.dataset.colIndex, 10);
+                }
+
                 evt.item.remove();
-                group.splice(evt.newIndex, 0, newComponent);
+                group.push(newComponent);
                 this.renderCanvas();
                 this.selectComponent(newComponent.id);
             },
             onUpdate: (evt) => {
                 const movedItem = group.splice(evt.oldIndex, 1)[0];
                 group.splice(evt.newIndex, 0, movedItem);
+                
+                const parentCol = evt.to.closest('[data-col-index]');
+                if(parentCol) {
+                    movedItem.config.colIndex = parseInt(parentCol.dataset.colIndex, 10);
+                }
+
                 this.renderCanvas();
             }
         });
@@ -209,23 +215,15 @@ class FormBuilder {
         const id = `comp-${this.nextId++}`;
         const def = this.CONTROL_DEFINITIONS[type];
         const component = { id, type, config: { type } };
-        if (def.props.includes('dataField')) {
-            component.config.dataField = `field_${this.nextId}`;
-        }
+        if (def.props.includes('dataField')) component.config.dataField = `field_${this.nextId}`;
         if (def.props.includes('label')) component.config.label = def.name;
-        if (type === 'tabs') {
-            component.config.tabs = [{ title: 'Tab 1', controls: [] }];
-            component.config.activeTabIndex = 0;
-        }
-        if (type === 'repeater') {
-            component.config.addButtonText = "+ Thêm mục";
-            component.config.fields = [{ type: 'text', dataField: 'key', placeholder: 'Key', label: 'Key' }];
-        }
-        if (def.isContainer) component.config.controls = component.config.controls || [];
+        if (type === 'tabs') component.config.tabs = [{ title: 'Tab 1', controls: [] }];
+        if (type === 'group') component.config.layoutColumns = [1, 1]; 
+        if (type === 'repeater') component.config.addButtonText = "+ Thêm mục";
+        if (def.isContainer) component.config.controls = [];
         return component;
     }
     
-    // --- Rendering Functions ---
     renderCanvas() {
         this.canvas.innerHTML = '';
         if (this.components.length === 0) {
@@ -235,6 +233,7 @@ class FormBuilder {
         }
         this.renderPropertiesPanel();
         this.renderPreview();
+        this.workflow._commitState("Form Builder Changed");
     }
 
     createComponentElement(component) {
@@ -244,54 +243,58 @@ class FormBuilder {
         wrapper.dataset.id = component.id;
         if (component.id === this.selectedComponentId) wrapper.classList.add('selected');
         
-        wrapper.innerHTML = `<div class="d-flex justify-content-between align-items-start"><div class="pe-4"><div class="component-label"><i class="bi ${def.icon} me-2"></i>${component.config.label || def.name}</div><div class="component-type">${component.config.dataField || `ID: ${component.id}`}</div></div><div class="component-actions btn-group"><button class="btn btn-sm btn-outline-danger btn-delete"><i class="bi bi-trash"></i></button></div></div>`;
+        const header = `<div class="d-flex justify-content-between align-items-start"><div class="pe-4"><div class="component-label"><i class="bi ${def.icon} me-2"></i>${component.config.label || def.name}</div><div class="component-type">${component.config.dataField || `ID: ${component.id}`}</div></div><div class="component-actions btn-group"><button class="btn btn-sm btn-outline-danger btn-delete"><i class="bi bi-trash"></i></button></div></div>`;
+        wrapper.innerHTML = header;
         
-        if (def.isContainer && !def.hasTabs && component.config.controls) {
-            const containerDiv = document.createElement('div');
-            containerDiv.className = 'component-container mt-3 p-3 border rounded bg-body-secondary';
-            component.config.controls.forEach(child => containerDiv.appendChild(this.createComponentElement(child)));
-            this.makeSortable(containerDiv, component.config.controls);
-            wrapper.appendChild(containerDiv);
-        }
+        if (component.type === 'group') {
+            const layoutContainer = document.createElement('div');
+            layoutContainer.className = 'component-layout-container mt-3';
+            const cols = component.config.layoutColumns || [1];
+            layoutContainer.style.gridTemplateColumns = cols.map(c => `${c}fr`).join(' ');
 
-        if (def.hasTabs) {
-            const tabContainer = document.createElement('div');
-            tabContainer.className = 'mt-3';
-            const nav = document.createElement('ul');
-            nav.className = 'nav nav-tabs';
-            const tabContent = document.createElement('div');
-            tabContent.className = 'tab-content';
-            
-            (component.config.tabs || []).forEach((tab, index) => {
-                const isActive = index === (component.config.activeTabIndex || 0);
-                
-                const navItem = document.createElement('li');
-                navItem.className = 'nav-item';
-                const navLink = document.createElement('button');
-                navLink.className = `nav-link ${isActive ? 'active' : ''}`;
-                navLink.textContent = tab.title;
-
-                const pane = document.createElement('div');
-                pane.className = `tab-pane fade component-container border border-top-0 rounded-bottom bg-body-secondary p-3 ${isActive ? 'show active' : ''}`;
-                pane.style.minHeight = '50px';
-
-                navLink.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation(); 
-                    this.updateComponentConfig(component.id, 'activeTabIndex', index);
-                });
-                
-                navItem.appendChild(navLink);
-                nav.appendChild(navItem);
-                
-                (tab.controls || []).forEach(child => pane.appendChild(this.createComponentElement(child)));
-                this.makeSortable(pane, tab.controls);
-                tabContent.appendChild(pane);
+            const childrenByCol = cols.map(() => []);
+            (component.config.controls || []).forEach(child => {
+                const colIndex = child.config.colIndex || 0;
+                if(childrenByCol[colIndex]) childrenByCol[colIndex].push(child);
+                else childrenByCol[0].push(child);
             });
 
-            tabContainer.appendChild(nav);
-            tabContainer.appendChild(tabContent);
-            wrapper.appendChild(tabContainer);
+            cols.forEach((_, index) => {
+                const columnWrapper = document.createElement('div');
+                columnWrapper.className = 'component-layout-column';
+                const columnContent = document.createElement('div');
+                columnContent.className = 'component-container';
+                columnContent.dataset.colIndex = index;
+
+                childrenByCol[index].forEach(child => columnContent.appendChild(this.createComponentElement(child)));
+                
+                this.makeSortable(columnContent, childrenByCol[index]);
+                
+                columnWrapper.appendChild(columnContent);
+                layoutContainer.appendChild(columnWrapper);
+
+                if (index < cols.length - 1) {
+                    const resizeHandle = document.createElement('div');
+                    resizeHandle.className = 'resize-handle';
+                    resizeHandle.addEventListener('mousedown', (e) => this.handleColumnResizeStart(e, component, index));
+                    layoutContainer.appendChild(resizeHandle);
+                }
+            });
+
+            const colActions = document.createElement('div');
+            colActions.className = 'layout-actions';
+            colActions.innerHTML = `<button class="btn btn-sm btn-light btn-add-col" title="Thêm cột"><i class="bi bi-plus-lg"></i></button><button class="btn btn-sm btn-light btn-remove-col" title="Xóa cột cuối"><i class="bi bi-dash-lg"></i></button>`;
+            colActions.querySelector('.btn-add-col').addEventListener('click', () => this.addColumnToGroup(component));
+            colActions.querySelector('.btn-remove-col').addEventListener('click', () => this.removeColumnFromGroup(component));
+
+            wrapper.appendChild(layoutContainer);
+            wrapper.appendChild(colActions);
+        } else if (def.isContainer && !def.hasTabs) {
+            const containerDiv = document.createElement('div');
+            containerDiv.className = 'component-container mt-3 p-3 border rounded bg-body-secondary';
+            (component.config.controls || []).forEach(child => containerDiv.appendChild(this.createComponentElement(child)));
+            this.makeSortable(containerDiv, component.config.controls);
+            wrapper.appendChild(containerDiv);
         }
 
         wrapper.addEventListener('click', e => {
@@ -308,19 +311,14 @@ class FormBuilder {
             this.previewPane.innerHTML = '<p class="text-muted text-center">Chưa có gì để xem trước</p>';
             return;
         }
-
         const finalConfig = this.components.map(c => c.config);
         const formContent = this.workflow.settingsRenderer.render(finalConfig, 'preview', this.formData);
         
         const tabTriggers = formContent.querySelectorAll('[data-bs-toggle="tab"]');
         tabTriggers.forEach(tabTriggerEl => {
              const tab = new bootstrap.Tab(tabTriggerEl);
-             tabTriggerEl.addEventListener('click', event => {
-                event.preventDefault();
-                tab.show();
-             });
+             tabTriggerEl.addEventListener('click', event => { event.preventDefault(); tab.show(); });
         });
-        
         this.previewPane.appendChild(formContent);
     }
     
@@ -331,7 +329,6 @@ class FormBuilder {
             this.propertiesPanel.innerHTML = '<p class="text-muted p-3">Chưa có thành phần nào được chọn.</p>';
             return;
         }
-
         const def = this.CONTROL_DEFINITIONS[component.type];
         def.props.forEach(prop => this.propertiesPanel.appendChild(this.createPropertyInput(component, prop)));
     }
@@ -341,150 +338,25 @@ class FormBuilder {
         const wrapper = document.createElement('div');
         wrapper.className = 'mb-3 prop-wrapper';
         const propName = prop.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
-        
         let inputHtml = '';
-        
-        if (prop === 'fields') {
-            const fieldTypes = `<option value="text">Text</option><option value="number">Number</option><option value="password">Password</option>`;
-            let fieldsHtml = (value || []).map((field, i) => `
-                <div class="repeater-field-row" data-index="${i}">
-                    <input type="text" class="form-control form-control-sm" placeholder="Label" data-field-prop="label" value="${field.label || ''}">
-                    <input type="text" class="form-control form-control-sm" placeholder="Data Field" data-field-prop="dataField" value="${field.dataField || ''}">
-                    <select class="form-select form-select-sm" data-field-prop="type">${fieldTypes.replace(`value="${field.type}"`, `value="${field.type}" selected`)}</select>
-                    <input type="text" class="form-control form-control-sm" placeholder="Placeholder" data-field-prop="placeholder" value="${field.placeholder || ''}">
-                    <button class="btn btn-outline-danger btn-sm btn-remove-field" type="button">✖</button>
-                </div>`).join('');
-            inputHtml = `
-                <div class="fields-builder">
-                    <div class="repeater-field-header">
-                        <label>Label</label>
-                        <label>Data Field</label>
-                        <label>Type</label>
-                        <label>Placeholder</label>
-                    </div>
-                    ${fieldsHtml}
-                </div>
-                <button class="btn btn-sm btn-outline-primary w-100 mt-1 btn-add-field">+ Thêm Field</button>`;
-        } else if (prop === 'tabs') {
-            let tabsHtml = (value || []).map((tab, i) => `
-                <div class="input-group input-group-sm mb-1" data-index="${i}">
-                    <input type="text" class="form-control" placeholder="Tab Title" data-tab-prop="title" value="${tab.title || ''}">
-                    <button class="btn btn-outline-danger btn-sm btn-remove-tab" type="button">✖</button>
-                </div>`).join('');
-            inputHtml = `<div class="tabs-builder">${tabsHtml}</div><button class="btn btn-sm btn-outline-primary w-100 mt-1 btn-add-tab">+ Thêm Tab</button>`;
-        } else if (prop === 'visibleWhen') {
-            const vw = value || {};
-            const allFields = this.getAllFields(component.id);
-            const optionsHtml = allFields.map(f => `<option value="${f.value}" ${f.value === vw.dataField ? 'selected' : ''}>${f.text}</option>`).join('');
-            inputHtml = `<div class="visible-when-builder p-2 border rounded bg-white"><div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" id="vw-enabled-${component.id}" ${value ? 'checked' : ''}><label class="form-check-label" for="vw-enabled-${component.id}">Bật điều kiện hiển thị</label></div><div class="vw-controls ${value ? '' : 'd-none'}"><label class="form-label small">Khi trường</label><select class="form-select form-select-sm mb-1" data-vw-prop="dataField"><option value="">-- Chọn trường --</option>${optionsHtml}</select><label class="form-label small">có giá trị</label><input type="text" class="form-control form-control-sm" data-vw-prop="is" value="${vw.is || ''}" placeholder="ví dụ: bearer"></div></div>`;
-        } else if (prop === 'options') {
-            let optionsHtml = (value || []).map((opt, i) => `<div class="input-group input-group-sm mb-1" data-index="${i}"><input type="text" class="form-control" placeholder="Text" data-opt-prop="text" value="${opt.text || ''}"><input type="text" class="form-control" placeholder="Value" data-opt-prop="value" value="${opt.value || ''}"><button class="btn btn-outline-danger btn-sm btn-remove-option" type="button">✖</button></div>`).join('');
-            inputHtml = `<div class="options-builder">${optionsHtml}</div><button class="btn btn-sm btn-outline-primary w-100 mt-1 btn-add-option">+ Thêm lựa chọn</button>`;
+
+        const isCheck = ['variablePicker', 'onChange'].includes(prop);
+        const type = ['col', 'rows'].includes(prop) ? 'number' : 'text';
+
+        if(isCheck) {
+            inputHtml = `<div class="form-check"><input class="form-check-input" type="checkbox" data-prop="${prop}" ${value ? 'checked' : ''}></div>`;
         } else {
-             const type = (prop === 'col' || prop === 'rows') ? 'number' : 'text';
-             const isCheck = (prop === 'variablePicker' || prop === 'onChange');
-             if(isCheck) inputHtml = `<div class="form-check"><input class="form-check-input" type="checkbox" data-prop="${prop}" ${value ? 'checked' : ''}></div>`;
-             else inputHtml = `<input type="${type}" class="form-control form-control-sm" data-prop="${prop}" value="${value || ''}">`;
+            inputHtml = `<input type="${type}" class="form-control form-control-sm" data-prop="${prop}" value="${value || ''}">`;
         }
         
         wrapper.innerHTML = `<label class="form-label">${propName}</label>${inputHtml}`;
-        
-        const fieldsBuilder = wrapper.querySelector('.fields-builder');
-        if (fieldsBuilder) {
-            wrapper.querySelector('.btn-add-field').addEventListener('click', () => {
-                const newFields = [...(component.config.fields || []), { type: 'text', dataField: '', placeholder: '', label: '' }];
-                this.updateComponentConfig(component.id, 'fields', newFields);
-                this.renderPropertiesPanel();
-            });
-            fieldsBuilder.addEventListener('click', e => {
-                 if(e.target.classList.contains('btn-remove-field')) {
-                    const index = parseInt(e.target.closest('.repeater-field-row').dataset.index, 10);
-                    const currentFields = component.config.fields || [];
-                    currentFields.splice(index, 1);
-                    this.updateComponentConfig(component.id, 'fields', currentFields);
-                    this.renderPropertiesPanel();
-                 }
-            });
-            fieldsBuilder.querySelectorAll('input, select').forEach(input => input.addEventListener('input', e => {
-                 const index = parseInt(e.target.closest('.repeater-field-row').dataset.index, 10);
-                 const prop = e.target.dataset.fieldProp;
-                 const currentFields = [...(component.config.fields || [])];
-                 currentFields[index][prop] = e.target.value;
-                 this.updateComponentConfig(component.id, 'fields', currentFields);
-            }));
-        }
-
-        const tabsBuilder = wrapper.querySelector('.tabs-builder');
-        if (tabsBuilder) {
-            wrapper.querySelector('.btn-add-tab').addEventListener('click', () => {
-                const newTabs = [...(component.config.tabs || []), { title: `Tab ${component.config.tabs.length + 1}`, controls: [] }];
-                this.updateComponentConfig(component.id, 'tabs', newTabs);
-                this.renderPropertiesPanel();
-            });
-            tabsBuilder.addEventListener('click', e => {
-                 if(e.target.classList.contains('btn-remove-tab')) {
-                    const index = parseInt(e.target.parentElement.dataset.index, 10);
-                    const currentTabs = component.config.tabs || [];
-                    currentTabs.splice(index, 1);
-                    this.updateComponentConfig(component.id, 'tabs', currentTabs);
-                    this.renderPropertiesPanel();
-                 }
-            });
-            tabsBuilder.querySelectorAll('input').forEach(input => input.addEventListener('input', e => {
-                 const index = parseInt(e.target.parentElement.dataset.index, 10);
-                 const prop = e.target.dataset.tabProp;
-                 const currentTabs = [...(component.config.tabs || [])];
-                 currentTabs[index][prop] = e.target.value;
-                 this.updateComponentConfig(component.id, 'tabs', currentTabs);
-            }));
-        }
-        
-        const vwBuilder = wrapper.querySelector('.visible-when-builder');
-        if (vwBuilder) {
-            const enabledSwitch = vwBuilder.querySelector('.form-check-input');
-            const controls = vwBuilder.querySelector('.vw-controls');
-            enabledSwitch.addEventListener('change', () => {
-                controls.classList.toggle('d-none', !enabledSwitch.checked);
-                this.updateComponentConfig(component.id, 'visibleWhen', enabledSwitch.checked ? { dataField: '', is: '' } : undefined);
-                this.renderPropertiesPanel();
-            });
-            controls.querySelectorAll('input, select').forEach(input => input.addEventListener('input', () => {
-                const newVw = { dataField: controls.querySelector('[data-vw-prop="dataField"]').value, is: controls.querySelector('[data-vw-prop="is"]').value };
-                this.updateComponentConfig(component.id, 'visibleWhen', newVw);
-            }));
-        }
-        
-        const optionsBuilder = wrapper.querySelector('.options-builder');
-        if (optionsBuilder) {
-            wrapper.querySelector('.btn-add-option').addEventListener('click', () => {
-                this.updateComponentConfig(component.id, 'options', [...(component.config.options || []), { text: '', value: '' }]);
-                this.renderPropertiesPanel();
-            });
-            optionsBuilder.addEventListener('click', e => {
-                 if(e.target.classList.contains('btn-remove-option')) {
-                    const index = parseInt(e.target.parentElement.dataset.index, 10);
-                    const currentOptions = component.config.options || [];
-                    currentOptions.splice(index, 1);
-                    this.updateComponentConfig(component.id, 'options', currentOptions);
-                    this.renderPropertiesPanel();
-                 }
-            });
-            optionsBuilder.querySelectorAll('input').forEach(input => input.addEventListener('input', e => {
-                 const index = parseInt(e.target.parentElement.dataset.index, 10);
-                 const prop = e.target.dataset.optProp;
-                 const currentOptions = [...(component.config.options || [])];
-                 currentTabs[index][prop] = e.target.value;
-                 this.updateComponentConfig(component.id, 'options', currentOptions);
-            }));
-        }
-
         wrapper.querySelectorAll('[data-prop]').forEach(input => input.addEventListener('input', e => {
-            this.updateComponentConfig(component.id, e.target.dataset.prop, e.target.type === 'checkbox' ? e.target.checked : e.target.value);
+            const val = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+            this.updateComponentConfig(component.id, e.target.dataset.prop, val);
         }));
         return wrapper;
     }
     
-    // --- State Update and Action Functions ---
     selectComponent(id) {
         if (this.selectedComponentId === id) return;
         this.selectedComponentId = id;
@@ -496,27 +368,91 @@ class FormBuilder {
         const component = this.findComponent(id);
         if (!component) return;
 
-        try {
-            if (prop === 'options' && typeof value === 'string' && value.trim().startsWith('[')) {
-                component.config[prop] = JSON.parse(value);
-            } else if (['col', 'rows', 'activeTabIndex'].includes(prop) && value !== '') {
-                component.config[prop] = parseInt(value, 10);
-            } else if (value === '' || value === false) {
-                 delete component.config[prop];
-            } else {
-                component.config[prop] = value;
-            }
-        } catch (e) { /* Ignore JSON errors */ }
+        const activeElement = document.activeElement;
+        const selectionStart = activeElement.selectionStart;
+        const selectionEnd = activeElement.selectionEnd;
+
+        component.config[prop] = value;
         
-        const componentElement = this.canvas.querySelector(`.canvas-component[data-id="${id}"]`);
-        if (componentElement) {
-            const def = this.CONTROL_DEFINITIONS[component.type];
-            const labelEl = componentElement.querySelector('.component-label');
-            const typeEl = componentElement.querySelector('.component-type');
-            if (labelEl) labelEl.innerHTML = `<i class="bi ${def.icon} me-2"></i>${component.config.label || def.name}`;
-            if (typeEl) typeEl.textContent = component.config.dataField || `ID: ${id}`;
-        }
+        this.renderPreview();
+
+        requestAnimationFrame(() => {
+            const newActiveElement = this.propertiesPanel.querySelector(`[data-prop="${prop}"]`);
+            if(newActiveElement) {
+                newActiveElement.focus();
+                try {
+                    newActiveElement.setSelectionRange(selectionStart, selectionEnd);
+                } catch(e) {}
+            }
+        });
+    }
+
+    addColumnToGroup(groupComponent) {
+        groupComponent.config.layoutColumns.push(1);
         this.renderCanvas();
+    }
+
+    removeColumnFromGroup(groupComponent) {
+        const cols = groupComponent.config.layoutColumns;
+        if (cols.length <= 1) return; 
+        
+        const lastColIndex = cols.length - 1;
+        const targetColIndex = lastColIndex - 1;
+
+        (groupComponent.config.controls || []).forEach(child => {
+            if (child.config.colIndex === lastColIndex) {
+                child.config.colIndex = targetColIndex;
+            }
+        });
+
+        cols.pop();
+        this.renderCanvas();
+    }
+
+    handleColumnResizeStart(e, component, columnIndex) {
+        e.preventDefault();
+        this.activeResize = {
+            componentId: component.id,
+            columnIndex,
+            startX: e.clientX,
+            containerWidth: e.target.closest('.component-layout-container').offsetWidth
+        };
+    }
+
+    handleColumnResizeMove(e) {
+        if (!this.activeResize) return;
+        const { componentId, startX, containerWidth, columnIndex } = this.activeResize;
+        
+        const component = this.findComponent(componentId);
+        if (!component) return;
+        
+        const dx = e.clientX - startX;
+        const ratios = component.config.layoutColumns;
+        const currentSum = ratios[columnIndex] + ratios[columnIndex + 1];
+        
+        // Convert pixel delta to ratio delta
+        const ratioDelta = (dx / containerWidth) * currentSum;
+
+        let newLeftRatio = ratios[columnIndex] + ratioDelta;
+        let newRightRatio = ratios[columnIndex + 1] - ratioDelta;
+        
+        // Prevent collapsing
+        if (newLeftRatio / currentSum < 0.1 || newRightRatio / currentSum < 0.1) {
+            return;
+        }
+
+        ratios[columnIndex] = newLeftRatio;
+        ratios[columnIndex+1] = newRightRatio;
+        
+        // Re-render canvas for visual feedback
+        this.renderCanvas();
+        this.activeResize.startX = e.clientX; // Update startX for next move event
+    }
+
+    handleColumnResizeEnd() {
+        if (!this.activeResize) return;
+        this.activeResize = null;
+        this.renderCanvas(); // Final render
     }
     
     deleteComponent(id) {
@@ -535,19 +471,5 @@ class FormBuilder {
             this.renderCanvas();
             this.makeSortable(this.canvas, this.components);
         }
-    }
-
-    generateOutput() {
-        if (this.components.length === 0) return alert('Chưa có thành phần nào trên vùng làm việc!');
-        const finalConfig = this.components.map(c => c.config);
-        this.outputCode.textContent = JSON.stringify(finalConfig, null, 4);
-        this.outputModal.show();
-    }
-    
-    copyOutputToClipboard() {
-        navigator.clipboard.writeText(this.outputCode.textContent).then(() => {
-            this.copyCodeBtn.innerHTML = '<i class="bi bi-check-lg me-1"></i> Đã copy!';
-            setTimeout(() => this.copyCodeBtn.innerHTML = '<i class="bi bi-clipboard me-1"></i> Copy Code', 2000);
-        });
     }
 }

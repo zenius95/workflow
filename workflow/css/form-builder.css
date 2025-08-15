@@ -75,9 +75,7 @@
 }
 
 /* Preview Pane */
-#preview-pane {
-    background-color: #f8f9fa;
-}
+
 #preview-pane fieldset {
     pointer-events: none;
     opacity: 0.8;

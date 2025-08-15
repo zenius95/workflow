@@ -2,7 +2,7 @@
  */
 class WorkflowBuilder extends EventTarget {
     constructor(containerId, config, initialWorkflow = null, initialGlobalVariables = {}) {
-        super(); // Call the EventTarget constructor
+        super();
         this.container = document.getElementById(containerId);
         if (!this.container) {
             console.error(`Container with id "${containerId}" not found.`);
@@ -10,10 +10,10 @@ class WorkflowBuilder extends EventTarget {
         }
         this.config = config;
         this.initialWorkflow = initialWorkflow;
-        this.initialGlobalVariables = JSON.parse(JSON.stringify(initialGlobalVariables)); // Store initial state
+        this.initialGlobalVariables = JSON.parse(JSON.stringify(initialGlobalVariables));
         this.globalVariables = JSON.parse(JSON.stringify(initialGlobalVariables));
-        this.formData = {}; // <<< DỮ LIỆU MỚI: Lưu input từ Form Builder Preview
-        this.executionState = {}; // Stores outputs of nodes during simulation
+        this.formData = {};
+        this.executionState = {};
         this.nodes = [];
         this.connections = [];
         this.nodeTypeCounts = {};
@@ -27,8 +27,8 @@ class WorkflowBuilder extends EventTarget {
         this.isSimulating = false;
         this.dom = {};
         this.activeVariablePicker = { targetInput: null };
-        this.activeVariableContext = null; // For the variable context menu
-        this.treeViewStates = new Map(); // To preserve open/close state
+        this.activeVariableContext = null;
+        this.treeViewStates = new Map();
         this.selectionBox = { active: false, element: null, startX: 0, startY: 0 };
         
         this.history = [];
@@ -101,21 +101,10 @@ class WorkflowBuilder extends EventTarget {
         this.logger.system("Workflow Builder initialized.");
     }
 
-    // --- Public API Methods ---
-
-    /**
-     * Tải một cấu trúc workflow từ một object.
-     * @param {object} workflowObject - The workflow object to load.
-     * @param {boolean} commit - Whether to add this action to the history.
-     */
     loadWorkflow(workflowObject, commit = true) {
         this._importWorkflow(JSON.stringify(workflowObject), commit);
     }
 
-    /**
-     * Lấy trạng thái hiện tại của workflow dưới dạng object.
-     * @returns {object} The current workflow state.
-     */
     getWorkflow() {
         return this._getCurrentState();
     }

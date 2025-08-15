@@ -267,4 +267,18 @@
     }
     .spinner {
         animation: spin 1s linear infinite;
-}
+    }
+
+    /* === START CHANGE: DYNAMIC GROUP LAYOUT STYLES === */
+    .custom-layout-grid {
+        display: grid;
+        gap: 0 1rem; /* Column gap only */
+    }
+
+    /* Override Bootstrap's col-12 when inside our custom grid */
+    .custom-layout-grid > .layout-item-wrapper {
+        width: auto;
+        flex: 1;
+        padding: 0 !important; /* Remove padding from Bootstrap's .g-2 */
+    }
+    /* === END CHANGE === */
