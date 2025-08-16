@@ -30,7 +30,7 @@ const createWindow = () => {
   // *** KẾT THÚC THAY ĐỔI ***
 
   // Tải file index.html từ thư mục workflow của sếp.
-  win.loadFile('workflow/index.html');
+  win.loadFile('workflow/app.html');
 
   // Mở công cụ phát triển (DevTools) để debug nếu cần.
   // win.webContents.openDevTools();
