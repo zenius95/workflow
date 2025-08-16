@@ -142,7 +142,11 @@ body { font-family: 'Poppins', sans-serif; overflow: hidden; background-color: #
     transition: transform 0.3s ease-in-out;
     z-index: 30; overflow-y: auto;
 }
-.settings-panel.hidden {  }
+/* *** START FIX: Added rule to hide the panel *** */
+.settings-panel.hidden {
+    transform: translateX(calc(100% + 30px));
+}
+/* *** END FIX *** */
 
 .tree-view { font-family: monospace; font-size: 14px; }
 .tree-view summary { cursor: pointer; list-style: none; display: flex; align-items: center; }
