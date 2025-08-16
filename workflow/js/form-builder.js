@@ -32,6 +32,34 @@ class FormBuilder {
         
         this.initialize();
     }
+    
+    _notifyWorkflowChanged() {
+        this.workflow.setFormBuilderData(this.components);
+    }
+
+    loadComponents(components) {
+        this.components = JSON.parse(JSON.stringify(components || []));
+        
+        this.nextId = (this.components.reduce((maxId, comp) => {
+            const findMaxId = (c, currentMax) => {
+                const idNum = parseInt(c.id.split('-')[1], 10);
+                let max = Math.max(currentMax, isNaN(idNum) ? 0 : idNum);
+                if (c.config.controls) {
+                    max = c.config.controls.reduce((m, child) => findMaxId(child, m), max);
+                }
+                if (c.config.tabs) {
+                    max = c.config.tabs.reduce((m, tab) => tab.controls.reduce((m2, child) => findMaxId(child, m2), m), max);
+                }
+                return max;
+            };
+            return findMaxId(comp, maxId);
+        }, 0)) + 1;
+
+        this.renderCanvas();
+        this.selectComponent(null);
+        this._notifyWorkflowChanged();
+    }
+
 
     // --- Helper Functions ---
     findComponent(id, componentArray = this.components) {
@@ -128,6 +156,7 @@ class FormBuilder {
                 if (parentCol) movedItem.config.colIndex = parseInt(parentCol.dataset.colIndex, 10);
                 this.renderCanvas(activeTabId);
             }
+            this._notifyWorkflowChanged();
         };
     
         return new Sortable(containerElement, {
@@ -157,6 +186,10 @@ class FormBuilder {
         } else {
             this.components.forEach(comp => this.canvas.appendChild(this.createComponentElement(comp)));
         }
+
+        // *** BẮT ĐẦU SỬA LỖI: Tái khởi tạo Sortable cho canvas chính ***
+        this.makeSortable(this.canvas, this.components);
+        // *** KẾT THÚC SỬA LỖI ***
 
         if (activeTabIdToRestore) {
             const newTabButton = this.canvas.querySelector(`a.nav-link[href="${activeTabIdToRestore}"]`);
@@ -196,9 +229,7 @@ class FormBuilder {
                 columnContent.className = 'component-container component-layout-column';
                 columnContent.dataset.colIndex = index;
                 childrenByCol[index].forEach(child => columnContent.appendChild(this.createComponentElement(child)));
-                // <<< START CHANGE: Make each column a sortable area >>>
                 this.makeSortable(columnContent, component.config.controls);
-                // <<< END CHANGE >>>
                 layoutContainer.appendChild(columnContent);
             });
             wrapper.appendChild(layoutContainer);
@@ -294,6 +325,7 @@ class FormBuilder {
                 const newValue = parseFloat(e.target.value) || 1;
                 component.config.layoutColumns[index] = newValue;
                 this.renderCanvas();
+                this._notifyWorkflowChanged();
             });
             const removeBtn = item.querySelector('.btn-remove-col');
             if (component.config.layoutColumns.length <= 1) removeBtn.disabled = true;
@@ -308,6 +340,7 @@ class FormBuilder {
         addBtn.addEventListener('click', () => {
             component.config.layoutColumns.push(1);
             this.renderCanvas();
+            this._notifyWorkflowChanged();
         });
         wrapper.append(layoutContainer, addBtn);
         return wrapper;
@@ -328,6 +361,7 @@ class FormBuilder {
             input.addEventListener('input', (e) => {
                 tab.title = e.target.value;
                 this.renderCanvas();
+                this._notifyWorkflowChanged();
             });
             const removeBtn = document.createElement('button');
             removeBtn.className = 'btn btn-sm btn-outline-danger btn-remove-tab';
@@ -336,6 +370,7 @@ class FormBuilder {
             removeBtn.addEventListener('click', () => {
                 component.config.tabs.splice(index, 1);
                 this.renderCanvas();
+                this._notifyWorkflowChanged();
             });
             tabItem.append(input, removeBtn);
             tabsContainer.appendChild(tabItem);
@@ -347,6 +382,7 @@ class FormBuilder {
             const newIndex = component.config.tabs.length + 1;
             component.config.tabs.push({ title: `Tab ${newIndex}`, controls: [] });
             this.renderCanvas();
+            this._notifyWorkflowChanged();
         });
         wrapper.append(tabsContainer, addBtn);
         return wrapper;
@@ -374,7 +410,6 @@ class FormBuilder {
     }
     
     selectComponent(id) {
-        if (this.selectedComponentId === id) return;
         this.selectedComponentId = id;
         document.querySelectorAll('.canvas-component').forEach(el => el.classList.toggle('selected', el.dataset.id === id));
         this.renderPropertiesPanel();
@@ -388,6 +423,7 @@ class FormBuilder {
         const selectionEnd = activeElement ? activeElement.selectionEnd : 0;
         component.config[prop] = value;
         this.renderCanvas();
+        this._notifyWorkflowChanged();
         requestAnimationFrame(() => {
             const newActiveElement = this.propertiesPanel.querySelector(`[data-prop="${prop}"]`);
             if(newActiveElement && document.activeElement !== newActiveElement) {
@@ -411,6 +447,7 @@ class FormBuilder {
         });
         cols.splice(colIndexToRemove, 1);
         this.renderCanvas();
+        this._notifyWorkflowChanged();
     }
     
     deleteComponent(id) {
@@ -419,17 +456,29 @@ class FormBuilder {
             path.parent.splice(path.index, 1);
             if (this.selectedComponentId === id) this.selectedComponentId = null;
             this.renderCanvas();
+            this._notifyWorkflowChanged();
         }
     }
     
-    clearCanvas() {
-        if (confirm('Sếp có chắc muốn xóa toàn bộ form không?')) {
+    clearCanvas(notify = true) {
+        const doClear = () => {
             this.components = [];
             this.selectedComponentId = null;
             this.formData = {};
             this.workflow.setFormData(this.formData);
             this.renderCanvas();
             this.makeSortable(this.canvas, this.components);
+            if (notify) {
+                this._notifyWorkflowChanged();
+            }
+        };
+
+        if (notify) {
+            if (confirm('Sếp có chắc muốn xóa toàn bộ form không?')) {
+                doClear();
+            }
+        } else {
+            doClear();
         }
     }
 }

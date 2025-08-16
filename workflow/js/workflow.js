@@ -13,6 +13,7 @@ class WorkflowBuilder extends EventTarget {
         this.initialGlobalVariables = JSON.parse(JSON.stringify(initialGlobalVariables));
         this.globalVariables = JSON.parse(JSON.stringify(initialGlobalVariables));
         this.formData = {};
+        this.formBuilderData = []; // *** NEW: Store Form Builder component structure
         this.executionState = {};
         this.nodes = [];
         this.connections = [];
@@ -152,6 +153,12 @@ class WorkflowBuilder extends EventTarget {
     setFormData(newData) {
         this.formData = newData;
         this._updateVariablesPanel();
+    }
+    // *** NEW: Method to update form builder data from FormBuilder instance
+    setFormBuilderData(data) {
+        this.formBuilderData = JSON.parse(JSON.stringify(data));
+        // We don't commit this to history to avoid cluttering undo/redo with minor form changes.
+        // The form state is considered part of the overall workflow state saved at major actions.
     }
 
     // --- INTERNAL METHODS ---
@@ -947,11 +954,13 @@ class WorkflowBuilder extends EventTarget {
     }
 
     _getCurrentState() {
+        // *** MODIFIED: Include form builder data in the state
         return {
             nodes: this.nodes.map(n => ({ 
                 id: n.id, type: n.type, x: n.x, y: n.y, data: JSON.parse(JSON.stringify(n.data)) 
             })),
-            connections: this.connections.map(c => ({ from: c.from, fromPort: c.fromPort, to: c.to }))
+            connections: this.connections.map(c => ({ from: c.from, fromPort: c.fromPort, to: c.to })),
+            formBuilder: this.formBuilderData 
         };
     }
     
@@ -959,7 +968,9 @@ class WorkflowBuilder extends EventTarget {
         this._clearCanvas(false);
         const idMap = new Map();
         this.nodeTypeCounts = {};
-        state.nodes.forEach(nodeInfo => {
+        
+        // Load nodes
+        (state.nodes || []).forEach(nodeInfo => {
             const newNode = this._createNode(nodeInfo.type, { x: nodeInfo.x, y: nodeInfo.y }, nodeInfo.data, nodeInfo.id);
             if (newNode) {
                 idMap.set(nodeInfo.id, newNode);
@@ -972,13 +983,23 @@ class WorkflowBuilder extends EventTarget {
                 }
             }
         });
-        state.connections.forEach(connInfo => {
+
+        // Load connections
+        (state.connections || []).forEach(connInfo => {
             const startNode = idMap.get(connInfo.from);
             const endNode = idMap.get(connInfo.to);
             if (startNode && endNode) {
                 this._createConnection(startNode, connInfo.fromPort || 'out', endNode);
             }
         });
+
+        // *** MODIFIED: Load form builder data
+        if (this.formBuilder && state.formBuilder) {
+            this.formBuilder.loadComponents(state.formBuilder);
+        } else if (this.formBuilder) {
+            this.formBuilder.clearCanvas(false); // Clear form if loading an old workflow without form data
+        }
+
         this._clearSelection();
         this.dispatchEvent(new CustomEvent('workflow:loaded', { detail: { workflow: state } }));
     }
@@ -1335,6 +1356,7 @@ class WorkflowBuilder extends EventTarget {
         this.dom.connectorSvg.innerHTML = '';
         this.nodes.forEach(node => node.element.remove());
         this.nodes = []; this.connections = []; this.nodeTypeCounts = {}; this._clearSelection();
+        if (this.formBuilder) { this.formBuilder.clearCanvas(false); } // *** MODIFIED: Clear form builder as well
         if (commit) this._commitState("Xóa canvas");
         this.dispatchEvent(new CustomEvent('workflow:cleared'));
     }
@@ -1365,7 +1387,8 @@ class WorkflowBuilder extends EventTarget {
     _importWorkflow(jsonString, commit = true) {
         try {
             const data = JSON.parse(jsonString);
-            if (!data.nodes || !data.connections) throw new Error('File JSON không hợp lệ.');
+            // *** MODIFIED: Looser validation to support older formats
+            if (!data.nodes || !data.connections) throw new Error('File JSON không chứa các trường "nodes" và "connections" bắt buộc.');
             this._loadState(data);
             if (commit) { this.history = []; this.historyIndex = -1; this._commitState("Import file"); }
             this._resetView();

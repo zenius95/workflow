@@ -137,7 +137,7 @@ body { font-family: 'Poppins', sans-serif; overflow: hidden; background-color: #
 .context-menu-shortcut { font-size: 0.75rem; color: #6c757d; }
 
 .side-panel {
-    position: absolute; top: 70px; right: 20px; width: 400px;
+    position: absolute; top: 80px; bottom: 1rem; right: 20px; width: 400px;
     background-color: #ffffff;
     transition: transform 0.3s ease-in-out;
     z-index: 30; overflow-y: auto;

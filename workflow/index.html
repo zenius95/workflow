@@ -20,7 +20,7 @@
                 <ul class="nav nav-tabs nav-pills border-0" id="left-panel-tabs" role="tablist">
                    
                     <li class="nav-item w-100" role="presentation">
-                        <a href="javascript:;" class="text-black fw-medium text-decoration-none p-0 d-flex align-items-center justify-content-center  w-100 active" style="width: 60px; height: 60px;" id="nodes-tab" data-bs-toggle="tab" data-bs-target="#tab-pane-nodes" role="tab" aria-controls="tab-pane-nodes" aria-selected="true">
+                        <a href="javascript:;" class="text-black fw-medium text-decoration-none p-0 d-flex align-items-center justify-content-center w-100 active" style="width: 60px; height: 60px;" id="nodes-tab" data-bs-toggle="tab" data-bs-target="#tab-pane-nodes" role="tab" aria-controls="tab-pane-nodes" aria-selected="true">
                             <span class="d-flex flex-column align-items-center">
                                 <i class="ri-function-add-line fs-5"></i>
                                 Khối
@@ -28,7 +28,7 @@
                         </a>
                     </li>
                     <li class="nav-item w-100" role="presentation">
-                        <a href="javascript:;" class="text-black fw-medium text-decoration-none p-0 d-flex align-items-center justify-content-center  w-100" style="width: 60px; height: 60px;" id="variables-tab" data-bs-toggle="tab" data-bs-target="#tab-pane-variables" role="tab" aria-controls="tab-pane-variables" aria-selected="false">
+                        <a href="javascript:;" class="text-black fw-medium text-decoration-none p-0 d-flex align-items-center justify-content-center w-100" style="width: 60px; height: 60px;" id="variables-tab" data-bs-toggle="tab" data-bs-target="#tab-pane-variables" role="tab" aria-controls="tab-pane-variables" aria-selected="false">
                             <span class="d-flex flex-column align-items-center">
                                 <i class="ri-braces-line fs-5"></i>
                                 Biến
@@ -36,7 +36,15 @@
                         </a>
                     </li>
                     <li class="nav-item w-100" role="presentation">
-                        <a href="javascript:;" class="text-black fw-medium text-decoration-none p-0 d-flex align-items-center justify-content-center  w-100" style="width: 60px; height: 60px;" data-bs-toggle="modal" data-bs-target="#form-builder-modal">
+                        <a href="javascript:;" class="text-black fw-medium text-decoration-none p-0 d-flex align-items-center justify-content-center w-100" style="width: 60px; height: 60px;" id="history-tab" data-bs-toggle="tab" data-bs-target="#tab-pane-history" role="tab" aria-controls="tab-pane-history" aria-selected="false">
+                            <span class="d-flex flex-column align-items-center">
+                                <i class="ri-history-line fs-5"></i>
+                                Lịch sử
+                            </span>
+                        </a>
+                    </li>
+                    <li class="nav-item w-100" role="presentation">
+                        <a href="javascript:;" class="text-black fw-medium text-decoration-none p-0 d-flex align-items-center justify-content-center w-100" style="width: 60px; height: 60px;" data-bs-toggle="modal" data-bs-target="#form-builder-modal">
                             <span class="d-flex flex-column align-items-center">
                                 <i class="ri-list-indefinite fs-5"></i>
                                 Form
@@ -47,7 +55,7 @@
             </nav>
 
             <aside class="d-flex flex-column flex-shrink-0 border-end bg-white h-100" style="width: 380px;">
-                <div class="tab-content overflow-auto" id="left-panel-tab-content">
+                <div class="tab-content overflow-auto h-100" id="left-panel-tab-content">
                     <div class="tab-pane show active p-3" id="tab-pane-nodes" role="tabpanel" aria-labelledby="nodes-tab">
                         <input type="search" data-ref="palette-search" placeholder="Tìm kiếm khối..." class="form-control form-control-sm mb-3">
                         <div data-ref="palette-content"></div>
@@ -68,7 +76,15 @@
                             <div data-ref="node-outputs-container" class="tree-view p-2 bg-light rounded border"></div>
                         </div>
                     </div>
-                </div>
+                    <div class="tab-pane p-0" id="tab-pane-history" role="tabpanel" aria-labelledby="history-tab">
+                         <div class="p-3">
+                             <h3 class="h5 fw-bold text-dark">Lịch sử Phiên bản</h3>
+                             <p class="text-muted small mb-0">Tự động lưu mỗi 10 giây. Chọn một phiên bản để khôi phục.</p>
+                         </div>
+                         <div id="workflow-versions-list" class="list-group list-group-flush">
+                            </div>
+                        </div>
+                    </div>
             </aside>
             <div class="d-flex flex-column w-100">
                 <div data-ref="canvas-container" class="canvas-container position-relative">
@@ -76,7 +92,7 @@
 
                         <button id="save-workflow-btn" class="btn btn-primary me-2"><i class="ri-save-line me-1"></i> Lưu</button>
                         <button id="load-workflow-btn" class="btn btn-secondary me-2"><i class="ri-folder-open-line me-1"></i> Mở...</button>
-
+                        
                         <button data-action="import-json" class="btn btn-info text-white me-2">Import JSON</button>
                         <button data-action="export-json" class="btn btn-dark me-2">Export JSON</button>
                     
@@ -116,10 +132,10 @@
                     <div data-ref="workflow-canvas" class="workflow-canvas">
                         <svg data-ref="connector-svg" class="connector-svg"></svg>
                     </div>
-                    <aside data-ref="settings-panel" class="rounded-3 shadow-sm side-panel settings-panel"></aside>
+                    <aside data-ref="settings-panel" class="rounded border side-panel settings-panel"></aside>
                 </div>
-                <footer data-ref="console-panel" class="bg-white border-top d-flex flex-column flex-shrink-0" style="height: 200px;">
-                    <div data-ref="console-resizer" class="w-100" style="height: 3px; cursor: ns-resize; background-color: #e9ecef;"></div>
+                <footer data-ref="console-panel" class="bg-white border-top d-flex flex-column flex-shrink-0 m-3 mt-0 rounded-3 overflow-hidden" style="height: 200px;">
+                    <div data-ref="console-resizer" class="w-100" style="height: 3px; cursor: ns-resize; background-color: #000;"></div>
                     <div class="p-2 d-flex justify-content-between align-items-center bg-dark flex-shrink-0">
                         <small class="mb-0 text-light fw-medium">Workflow Log</small>
                         <button data-action="clear-console" class="btn btn-sm btn-light">

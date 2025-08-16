@@ -30,6 +30,35 @@ const Workflow = sequelize.define('Workflow', {
     timestamps: true // Tự động thêm createdAt và updatedAt
 });
 
+// *** BẮT ĐẦU THAY ĐỔI: Model mới cho Version History ***
+const WorkflowVersion = sequelize.define('WorkflowVersion', {
+    id: {
+        type: DataTypes.INTEGER,
+        autoIncrement: true,
+        primaryKey: true
+    },
+    workflowId: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        references: {
+            model: Workflow,
+            key: 'id'
+        },
+        onDelete: 'CASCADE' // Tự động xóa version nếu workflow bị xóa
+    },
+    data: {
+        type: DataTypes.JSON,
+        allowNull: false
+    }
+}, {
+    timestamps: true,
+    updatedAt: false // Chỉ cần biết thời điểm tạo
+});
+
+Workflow.hasMany(WorkflowVersion, { foreignKey: 'workflowId' });
+WorkflowVersion.belongsTo(Workflow, { foreignKey: 'workflowId' });
+// *** KẾT THÚC THAY ĐỔI ***
+
 /**
  * Lớp quản lý Database cho Workflow
  */
@@ -37,6 +66,8 @@ class DatabaseManager {
     constructor() {
         this.db = sequelize;
         this.Workflow = Workflow;
+        this.WorkflowVersion = WorkflowVersion; // *** NEW ***
+        this.MAX_VERSIONS = 100; // *** NEW: Giới hạn số lượng version
     }
 
     /**
@@ -93,6 +124,49 @@ class DatabaseManager {
             where: { id }
         });
     }
+
+    // *** BẮT ĐẦU THAY ĐỔI: Các hàm mới cho Version History ***
+    
+    /**
+     * Lưu một phiên bản của workflow
+     * @param {number} workflowId ID của workflow chính
+     * @param {object} data Dữ liệu workflow để lưu lại
+     * @returns {Promise<WorkflowVersion>}
+     */
+    async saveWorkflowVersion(workflowId, data) {
+        if (!workflowId) {
+            throw new Error('Cần có ID của workflow để lưu phiên bản.');
+        }
+
+        const newVersion = await this.WorkflowVersion.create({ workflowId, data });
+        
+        // Cắt bớt các phiên bản cũ nếu vượt quá giới hạn
+        const versions = await this.WorkflowVersion.findAll({
+            where: { workflowId },
+            order: [['createdAt', 'DESC']],
+            attributes: ['id', 'createdAt']
+        });
+
+        if (versions.length > this.MAX_VERSIONS) {
+            const idsToDelete = versions.slice(this.MAX_VERSIONS).map(v => v.id);
+            await this.WorkflowVersion.destroy({ where: { id: idsToDelete } });
+        }
+        
+        return newVersion;
+    }
+
+    /**
+     * Lấy tất cả các phiên bản của một workflow
+     * @param {number} workflowId
+     * @returns {Promise<WorkflowVersion[]>}
+     */
+    async getWorkflowVersions(workflowId) {
+        return this.WorkflowVersion.findAll({
+            where: { workflowId },
+            order: [['createdAt', 'DESC']]
+        });
+    }
+    // *** KẾT THÚC THAY ĐỔI ***
 }
 
 // Export một instance duy nhất của class
