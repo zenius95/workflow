@@ -842,7 +842,7 @@ const workflowConfig = {
                             { type: 'number', label: 'Bắt đầu', dataField: 'params.start', variablePicker: true }, { type: 'number', label: 'Kết thúc', dataField: 'params.end', variablePicker: true }
                         ]},
                         { type: 'group', controls: [
-                            { type: 'button', text: '<i class="bi bi-play-circle"></i> Test Thao tác', action: 'test-operation', class: 'btn-outline-secondary' },
+                            { type: 'button', text: '<i class="bi bi-play-circle"></i> Test Thao tác', action: 'test-operation', class: 'btn-info text-white' },
                             { type: 'output-display', label: 'Kết quả Test:', ref: 'test-output-container' }
                         ]}
                     ],

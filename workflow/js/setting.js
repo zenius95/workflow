@@ -181,10 +181,92 @@ class SettingsRenderer {
             btn.addEventListener('click', () => {
                 if (this.workflow.curlImportModal) {
                     document.getElementById('curl-input-textarea').value = '';
+                    const processBtn = document.getElementById('process-curl-import-btn');
+                    const newProcessBtn = processBtn.cloneNode(true);
+                    processBtn.parentNode.replaceChild(newProcessBtn, processBtn);
+                    newProcessBtn.addEventListener('click', () => this.workflow._handleProcessCurlImport());
                     this.workflow.curlImportModal.show();
                 }
             });
         });
+
+        // --- BẮT ĐẦU THAY ĐỔI: Thêm event listener cho các nút Test ---
+        container.querySelectorAll('[data-action="test-data-generation"]').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const node = this.workflow.selectedNodes[0];
+                if (!node) return;
+                const nodeConfig = this.workflow._findNodeConfig('generate_data');
+                if (!nodeConfig || !nodeConfig.execute) return;
+
+                const outputContainer = btn.closest('.row, .custom-layout-grid, .p-3').querySelector('[data-ref="test-output-container"]');
+                if (outputContainer) outputContainer.textContent = 'Đang tạo...';
+
+                try {
+                    const mockLogger = {
+                        info: (m) => console.log('[TEST INFO]', m),
+                        success: (m) => console.log('[TEST SUCCESS]', m),
+                        error: (m) => console.log('[TEST ERROR]', m),
+                    };
+                    const result = await nodeConfig.execute(node.data, mockLogger, this.workflow);
+                    if (outputContainer) {
+                        outputContainer.textContent = JSON.stringify(result, null, 2);
+                    }
+                } catch (error) {
+                    if (outputContainer) {
+                        outputContainer.textContent = `Lỗi: ${error.message}`;
+                    }
+                    console.error(error);
+                }
+            });
+        });
+
+        container.querySelectorAll('[data-action="test-operation"]').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const node = this.workflow.selectedNodes[0];
+                if (!node) return;
+
+                const nodeConfig = this.workflow._findNodeConfig('data_processing');
+                if (!nodeConfig || !nodeConfig.execute) return;
+
+                const outputContainer = btn.closest('.row, .custom-layout-grid, .p-3').querySelector('[data-ref="test-output-container"]');
+                if (outputContainer) outputContainer.textContent = 'Đang xử lý...';
+                
+                try {
+                    const mockLogger = {
+                        info: (m) => console.log('[TEST INFO]', m),
+                        success: (m) => console.log('[TEST SUCCESS]', m),
+                        error: (m) => console.log('[TEST ERROR]', m),
+                    };
+
+                    const resolvedData = JSON.parse(JSON.stringify(node.data));
+                    const resolutionContext = { global: this.workflow.globalVariables, form: this.workflow.formData, ...this.workflow.executionState };
+                    
+                    if (typeof resolvedData.input === 'string') {
+                         resolvedData.input = this.workflow._resolveVariables(resolvedData.input, resolutionContext);
+                    }
+                    if (resolvedData.params) {
+                        for (const key in resolvedData.params) {
+                            if (typeof resolvedData.params[key] === 'string') {
+                                 resolvedData.params[key] = this.workflow._resolveVariables(resolvedData.params[key], resolutionContext);
+                            }
+                        }
+                    }
+                    
+                    const result = await nodeConfig.execute(resolvedData, mockLogger);
+
+                    if (outputContainer) {
+                        outputContainer.textContent = JSON.stringify(result, null, 2);
+                    }
+
+                } catch (error) {
+                    if (outputContainer) {
+                        outputContainer.textContent = `Lỗi: ${error.message}`;
+                    }
+                    console.error(error);
+                }
+            });
+        });
+        // --- KẾT THÚC THAY ĐỔI ---
     }
 
      _renderSpecialType(control, uniqueId, dataObject) {
