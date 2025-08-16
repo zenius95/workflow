@@ -1,5 +1,10 @@
+// workflow/js/app.js
+
+// Thêm dòng này vào đầu file để sử dụng API giao tiếp của Electron
+const { ipcRenderer } = require('electron');
+
 document.addEventListener('DOMContentLoaded', () => {
-    // --- LẤY THÔNG TIN TỪ URL CỦA IFRAME ---
+    // --- LẤY THÔNG TIN TỪ URL CỦA WEBVIEW ---
     const urlParams = new URLSearchParams(window.location.search);
     const initialWorkflowId = urlParams.get('workflowId') ? parseInt(urlParams.get('workflowId'), 10) : null;
     const tabId = urlParams.get('tabId');
@@ -61,13 +66,14 @@ document.addEventListener('DOMContentLoaded', () => {
             saveWorkflowModal.hide();
             workflowBuilder.logger.success(`Đã lưu workflow "${name}" thành công!`);
             
-            // Gửi thông điệp lên cho shell để cập nhật tên tab
+            // *** THAY ĐỔI: Gửi thông điệp cho shell để cập nhật tên tab ***
+            // Sử dụng ipcRenderer.sendToHost thay vì window.parent.postMessage
             if (tabId) {
-                window.parent.postMessage({
-                    action: 'updateTabTitle',
+                ipcRenderer.sendToHost('updateTabTitle', {
                     tabId: tabId,
-                    title: name
-                }, '*');
+                    title: name,
+                    workflowId: currentWorkflowId
+                });
             }
             
             if (isNewSave) {
@@ -119,12 +125,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const id = parseInt(openBtn.dataset.id, 10);
             const wfName = openBtn.closest('.list-group-item').querySelector('.workflow-name').textContent;
             
-            // Gửi message cho parent (shell.html) để mở tab mới
-            window.parent.postMessage({
-                action: 'openWorkflowInNewTab',
+            // *** THAY ĐỔI: Gửi message cho shell để mở/cập nhật tab ***
+            ipcRenderer.sendToHost('openWorkflowInNewTab', {
                 workflowId: id,
-                name: wfName
-            }, '*');
+                name: wfName,
+                sourceTabId: tabId // Báo cho shell biết tab nào đã yêu cầu mở
+            });
 
             loadWorkflowModal.hide();
         }

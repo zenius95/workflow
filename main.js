@@ -18,7 +18,8 @@ const createWindow = () => {
     webPreferences: {
       // preload: path.join(__dirname, 'preload.js'), // Sẽ dùng cho các tính năng nâng cao
       nodeIntegration: true, // Cho phép code trong renderer truy cập Node.js
-      contextIsolation: false // Tắt context isolation để dễ dàng hơn cho các ví dụ ban đầu
+      contextIsolation: false, // Tắt context isolation để dễ dàng hơn cho các ví dụ ban đầu
+      webviewTag: true
     }
   });
 
@@ -30,7 +31,7 @@ const createWindow = () => {
   // *** KẾT THÚC THAY ĐỔI ***
 
   // Tải file index.html từ thư mục workflow của sếp.
-  win.loadFile('workflow/index.html');
+  win.loadFile('workflow/shell.html');
 
   // Mở công cụ phát triển (DevTools) để debug nếu cần.
   // win.webContents.openDevTools();

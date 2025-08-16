@@ -1,0 +1,112 @@
+/* shell.css */
+body {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+    font-family: sans-serif;
+    background-color: #f0f2f5;
+}
+
+.tab-manager {
+    display: flex;
+    align-items: center;
+    background-color: #e9ecef;
+    padding: 5px 5px 0 5px;
+    flex-shrink: 0;
+}
+
+.tab-bar {
+    display: flex;
+    flex-grow: 1;
+    overflow-x: auto;
+}
+/* Ẩn thanh cuộn của tab bar */
+.tab-bar::-webkit-scrollbar { display: none; }
+
+.tab-item {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    border-radius: 8px 8px 0 0;
+    cursor: pointer;
+    background-color: #ced4da;
+    border: 1px solid #adb5bd;
+    border-bottom: none;
+    margin-right: 2px;
+    max-width: 200px;
+    transition: background-color 0.2s;
+}
+.tab-item:hover {
+    background-color: #dee2e6;
+}
+.tab-item.active {
+    background-color: #fff;
+    border-color: #dee2e6;
+}
+
+.tab-title {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-right: 8px;
+    font-size: 14px;
+}
+
+.close-tab-btn {
+    border: none;
+    background: transparent;
+    padding: 2px;
+    border-radius: 50%;
+    cursor: pointer;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.close-tab-btn:hover {
+    background-color: rgba(0,0,0,0.1);
+}
+
+.add-tab-btn {
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    border: none;
+    background-color: #adb5bd;
+    margin-left: 5px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.add-tab-btn:hover {
+    background-color: #6c757d;
+    color: white;
+}
+
+.webview-container {
+    flex-grow: 1;
+    position: relative;
+    background-color: #fff;
+}
+
+.workflow-webview {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border: none;
+    display: none; /* Mặc định ẩn, chỉ hiển thị webview active */
+}
+
+/* Class 'active' sẽ buộc webview phải hiển thị */
+.workflow-webview.active {
+    display: flex !important; /* Dùng flex để đảm bảo layout bên trong co giãn tốt */
+}
+
+/* Kiểu cho ghost khi kéo tab */
+.tab-ghost {
+    opacity: 0.5;
+    background: #c8ebfb;
+}
