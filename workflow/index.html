@@ -8,59 +8,51 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="css/form-builder.css">
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@4.6.0/fonts/remixicon.min.css" rel="stylesheet">
     </head>
 <body class="bg-light">
 
     <div id="app-container" class="vw-100 vh-100 d-flex flex-column">
-        <header class="bg-white bg-opacity-75 p-3 d-flex align-items-center gap-4 border-bottom shadow-sm z-3" style="backdrop-filter: blur(10px);">
-            <h1 class="h4 fw-bold text-dark my-0">Workflow Builder</h1>
-            <div class="mx-auto"></div>
-            <div class="btn-group">
-                 <button data-action="undo" class="btn btn-outline-secondary d-flex align-items-center gap-2">
-                     <i class="bi bi-arrow-counterclockwise"></i> Undo
-                 </button>
-                 <button data-action="redo" class="btn btn-outline-secondary d-flex align-items-center gap-2">
-                     <i class="bi bi-arrow-clockwise"></i> Redo
-                 </button>
-            </div>
-            <div class="d-flex align-items-center gap-2">
-                <button class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#form-builder-modal">
-                    <i class="bi bi-tools me-1"></i> Form Builder
-                </button>
-                <button data-action="import-json" class="btn btn-info text-white">Import JSON</button>
-                <button data-action="export-json" class="btn btn-dark">Export JSON</button>
-            </div>
-            <div class="d-flex align-items-center gap-1 bg-light p-1 rounded-3 border">
-                <button data-action="zoom-out" class="btn btn-sm btn-light border">
-                    <i class="bi bi-zoom-out"></i>
-                </button>
-                <span data-ref="zoom-level" class="fw-monospace" style="width: 50px; text-align: center;">100%</span>
-                <button data-action="zoom-in" class="btn btn-sm btn-light border">
-                    <i class="bi bi-zoom-in"></i>
-                </button>
-            </div>
-            <button data-action="reset-view" class="btn btn-outline-secondary">Reset View</button>
-            <button data-action="run-simulation" class="btn btn-success d-flex align-items-center gap-2">
-                <i class="bi bi-play-fill"></i> Chạy Mô phỏng
-            </button>
-        </header>
 
         <main class="d-flex flex-grow-1 position-relative overflow-hidden">
-            <aside class="d-flex flex-column flex-shrink-0 border-end" style="width: 380px; height: 100%; background-color: #fff;">
-                <ul class="nav nav-tabs nav-fill p-2" id="left-panel-tabs" role="tablist">
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link active" id="nodes-tab" data-bs-toggle="tab" data-bs-target="#tab-pane-nodes" type="button" role="tab" aria-controls="tab-pane-nodes" aria-selected="true">Khối</button>
+            
+            <nav class="h-100 border-end bg-white" style="width: 100px; padding: 10px">
+                <ul class="nav nav-tabs nav-pills border-0" id="left-panel-tabs" role="tablist">
+                   
+                    <li class="nav-item w-100" role="presentation">
+                        <a href="javascript:;" class="text-black fw-medium text-decoration-none p-0 d-flex align-items-center justify-content-center  w-100 active" style="width: 60px; height: 60px;" id="nodes-tab" data-bs-toggle="tab" data-bs-target="#tab-pane-nodes" role="tab" aria-controls="tab-pane-nodes" aria-selected="true">
+                            <span class="d-flex flex-column align-items-center">
+                                <i class="ri-function-add-line fs-5"></i>
+                                Khối
+                            </span>
+                        </a>
                     </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="variables-tab" data-bs-toggle="tab" data-bs-target="#tab-pane-variables" type="button" role="tab" aria-controls="tab-pane-variables" aria-selected="false">Biến</button>
+                    <li class="nav-item w-100" role="presentation">
+                        <a href="javascript:;" class="text-black fw-medium text-decoration-none p-0 d-flex align-items-center justify-content-center  w-100" style="width: 60px; height: 60px;" id="variables-tab" data-bs-toggle="tab" data-bs-target="#tab-pane-variables" role="tab" aria-controls="tab-pane-variables" aria-selected="false">
+                            <span class="d-flex flex-column align-items-center">
+                                <i class="ri-braces-line fs-5"></i>
+                                Biến
+                            </span>
+                        </a>
+                    </li>
+                    <li class="nav-item w-100" role="presentation">
+                        <a href="javascript:;" class="text-black fw-medium text-decoration-none p-0 d-flex align-items-center justify-content-center  w-100" style="width: 60px; height: 60px;" data-bs-toggle="modal" data-bs-target="#form-builder-modal">
+                            <span class="d-flex flex-column align-items-center">
+                                <i class="ri-list-indefinite fs-5"></i>
+                                Form
+                            </span>
+                        </a>
                     </li>
                 </ul>
+            </nav>
+
+            <aside class="d-flex flex-column flex-shrink-0 border-end bg-white h-100" style="width: 380px;">
                 <div class="tab-content overflow-auto" id="left-panel-tab-content">
-                    <div class="tab-pane fade show active p-3" id="tab-pane-nodes" role="tabpanel" aria-labelledby="nodes-tab">
+                    <div class="tab-pane show active p-3" id="tab-pane-nodes" role="tabpanel" aria-labelledby="nodes-tab">
                         <input type="search" data-ref="palette-search" placeholder="Tìm kiếm khối..." class="form-control form-control-sm mb-3">
                         <div data-ref="palette-content"></div>
                     </div>
-                    <div class="tab-pane fade p-3" id="tab-pane-variables" role="tabpanel" aria-labelledby="variables-tab" data-ref="variables-panel">
+                    <div class="tab-pane p-3" id="tab-pane-variables" role="tabpanel" aria-labelledby="variables-tab" data-ref="variables-panel">
                         <h3 class="h5 fw-bold text-dark mb-4">Biến</h3>
                         <div class="mb-4">
                             <h4 class="h6 fw-semibold text-secondary mb-2 border-bottom pb-1">Toàn cục (Global)</h4>
@@ -78,21 +70,63 @@
                     </div>
                 </div>
             </aside>
-            <div data-ref="canvas-container" class="canvas-container">
-                <div data-ref="workflow-canvas" class="workflow-canvas">
-                    <svg data-ref="connector-svg" class="connector-svg"></svg>
+            <div class="d-flex flex-column w-100">
+                <div data-ref="canvas-container" class="canvas-container position-relative">
+                    <div class="position-absolute end-0 d-flex top-0 m-3" style="z-index: 998;">
+
+                        <button data-action="import-json" class="btn btn-info text-white me-2">Import JSON</button>
+                        <button data-action="export-json" class="btn btn-dark me-2">Export JSON</button>
+                    
+                        <button data-action="run-simulation" class="btn btn-success d-flex align-items-center gap-2">
+                            <i class="bi bi-play-fill"></i> Chạy Mô phỏng
+                        </button>
+                    </div>
+                    <div class="position-absolute start-0 d-flex bottom-0 m-3" style="z-index: 998;">
+                        <div class="shadow-sm border rounded bg-white overflow-hidden me-2 d-flex">
+                            <button data-action="undo" class="border-0 border-end bg-transparent" style="width: 30px; height: 30px;">
+                                <i class="ri-arrow-go-back-line"></i>
+                            </button>
+                            <button data-action="redo" class="border-0 bg-transparent" style="width: 30px; height: 30px;">
+                                <i class="ri-arrow-go-forward-line"></i>
+                            </button>
+                        </div>
+                        <div class="shadow-sm border rounded bg-white me-2 overflow-hidden">
+                            <button data-action="zoom-out" class="border-0 border-end bg-transparent" style="width: 30px; height: 30px;">
+                                <i class="ri-zoom-out-line"></i>
+                            </button>
+                            <span data-ref="zoom-level" class="d-inline-block" style="width: 50px; text-align: center;">100%</span>
+                            <button data-action="zoom-in" class="border-0 border-start bg-transparent" style="width: 30px; height: 30px;">
+                                <i class="ri-zoom-in-line"></i>
+                            </button>
+                        </div>
+                        <div class="shadow-sm border rounded bg-white me-2 overflow-hidden d-flex">
+                            <button data-action="reset-view" class="border-0 border-end bg-transparent" style="width: 30px; height: 30px;">
+                                <i class="ri-reset-left-line"></i>
+                            </button>
+                        </div>
+                        <div class="shadow-sm border rounded bg-white overflow-hidden d-flex">
+                            <button data-action="reset-view" class="border-0 border-end bg-transparent" style="width: 30px; height: 30px;">
+                                <i class="ri-terminal-box-line"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div data-ref="workflow-canvas" class="workflow-canvas">
+                        <svg data-ref="connector-svg" class="connector-svg"></svg>
+                    </div>
+                    <aside data-ref="settings-panel" class="rounded-3 shadow-sm side-panel settings-panel"></aside>
                 </div>
+                <footer data-ref="console-panel" class="bg-white border-top d-flex flex-column flex-shrink-0" style="height: 200px;">
+                    <div data-ref="console-resizer" class="w-100" style="height: 8px; cursor: ns-resize; background-color: #e9ecef;"></div>
+                    <div class="p-2 d-flex justify-content-between align-items-center bg-dark flex-shrink-0">
+                        <small class="mb-0 text-light fw-medium">Workflow Log</small>
+                        <button data-action="clear-console" class="btn btn-sm btn-light">
+                            <i class="ri-delete-bin-line"></i> Clear
+                        </button>
+                    </div>
+                    <div data-ref="console-output" class="console-output flex-grow-1 p-2 font-monospace small bg-dark text-white overflow-auto"></div>
+                </footer>
             </div>
-            <aside data-ref="settings-panel" class="side-panel settings-panel hidden"></aside>
         </main>
-        <footer data-ref="console-panel" class="bg-white border-top d-flex flex-column flex-shrink-0" style="height: 200px;">
-            <div data-ref="console-resizer" class="w-100" style="height: 8px; cursor: ns-resize; background-color: #e9ecef;"></div>
-            <div class="p-2 d-flex justify-content-between align-items-center border-bottom bg-light flex-shrink-0">
-                <h3 class="h6 mb-0 fw-semibold text-secondary">Workflow Log</h3>
-                <button data-action="clear-console" class="btn btn-sm btn-outline-secondary">Dọn dẹp</button>
-            </div>
-            <div data-ref="console-output" class="console-output flex-grow-1 p-2 font-monospace small bg-dark text-white overflow-auto"></div>
-        </footer>
     </div>
 
     <input type="file" id="json-import-input" accept="application/json" class="d-none">
@@ -122,7 +156,7 @@
     </div>
 
     <div class="modal fade" id="form-builder-modal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-fullscreen">
+        <div class="modal-dialog modal-xl">
             <div class="modal-content d-flex flex-column">
                 <div class="modal-header">
                     <h5 class="modal-title h4 fw-bold"><i class="bi bi-tools me-2"></i> Settings Node Generator</h5>
@@ -165,7 +199,6 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
-                    <button type="button" id="generate-btn" class="btn btn-success"><i class="bi bi-code-slash me-2"></i> Tạo Cấu hình</button>
                 </div>
             </div>
         </div>

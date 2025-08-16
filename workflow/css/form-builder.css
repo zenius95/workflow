@@ -55,6 +55,19 @@
 .component-container {
     min-height: 50px;
 }
+.component-layout-column {
+    background-color: #f8f9fa;
+    border: 1px dashed #ced4da;
+    border-radius: .25rem;
+    padding: 0.5rem;
+}
+
+/* Group Layout */
+.component-layout-container {
+    position: relative;
+    display: grid;
+    gap: 0.5rem;
+}
 
 /* Properties Panel */
 .properties-panel {
@@ -67,15 +80,21 @@
     text-transform: uppercase;
     margin-bottom: 0.25rem;
 }
-.visible-when-builder .form-check-label {
-    font-size: 0.9rem;
+.tabs-editor .tab-item, .group-layout-editor .layout-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
 }
-.visible-when-builder .form-label {
-    margin-bottom: 0.1rem;
+.tabs-editor .tab-item .form-control, .group-layout-editor .layout-item .form-control {
+    flex-grow: 1;
 }
+.group-layout-editor .btn-remove-col {
+    padding: 0.25rem 0.5rem;
+}
+
 
 /* Preview Pane */
-
 #preview-pane fieldset {
     pointer-events: none;
     opacity: 0.8;

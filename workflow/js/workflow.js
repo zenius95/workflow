@@ -36,6 +36,7 @@ class WorkflowBuilder extends EventTarget {
         
         this.curlImportModal = null;
         this.templates = this._getDefaultTemplates();
+        this.isFormBuilderOpen = false; 
 
         this._init();
     }
@@ -76,8 +77,17 @@ class WorkflowBuilder extends EventTarget {
         this.logger = new Logger(this.dom.consoleOutput);
         this.settingsRenderer = new SettingsRenderer(this);
         
-        if (document.getElementById('form-builder-modal')) {
+        const formBuilderModalEl = document.getElementById('form-builder-modal');
+        if (formBuilderModalEl) {
             this.formBuilder = new FormBuilder(this);
+            formBuilderModalEl.addEventListener('show.bs.modal', () => {
+                this.isFormBuilderOpen = true;
+                this._updateHistoryButtons();
+            });
+            formBuilderModalEl.addEventListener('hide.bs.modal', () => {
+                this.isFormBuilderOpen = false;
+                this._updateHistoryButtons();
+            });
         }
 
         this._populatePalette();
@@ -87,7 +97,6 @@ class WorkflowBuilder extends EventTarget {
         const modalElement = document.getElementById('curl-import-modal');
         if (modalElement) {
             this.curlImportModal = new bootstrap.Modal(modalElement);
-            document.getElementById('process-curl-import-btn').addEventListener('click', () => this._handleProcessCurlImport());
         }
 
         if (this.initialWorkflow) {
@@ -101,43 +110,12 @@ class WorkflowBuilder extends EventTarget {
         this.logger.system("Workflow Builder initialized.");
     }
 
-    loadWorkflow(workflowObject, commit = true) {
-        this._importWorkflow(JSON.stringify(workflowObject), commit);
-    }
-
-    getWorkflow() {
-        return this._getCurrentState();
-    }
-    
-    /**
-     * Xóa toàn bộ canvas.
-     */
-    clear() {
-        this._clearCanvas(true);
-    }
-    
-    /**
-     * Lấy một node object bằng ID của nó.
-     * @param {string} nodeId - The ID of the node to get.
-     * @returns {object|undefined} The node object or undefined if not found.
-     */
-    getNode(nodeId) {
-        return this.nodes.find(n => n.id === nodeId);
-    }
-    
-    /**
-     * Lấy toàn bộ các node hiện có.
-     * @returns {Array<object>} An array of node objects.
-     */
-    getNodes() {
-        return this.nodes;
-    }
-    
-    /**
-     * Cập nhật dữ liệu cho một node và render lại nó.
-     * @param {string} nodeId - The ID of the node to update.
-     * @param {object} newData - The new data to merge into the node's existing data.
-     */
+    // --- PUBLIC API ---
+    loadWorkflow(workflowObject, commit = true) { this._importWorkflow(JSON.stringify(workflowObject), commit); }
+    getWorkflow() { return this._getCurrentState(); }
+    clear() { this._clearCanvas(true); }
+    getNode(nodeId) { return this.nodes.find(n => n.id === nodeId); }
+    getNodes() { return this.nodes; }
     updateNodeData(nodeId, newData) {
         const node = this.getNode(nodeId);
         if (node) {
@@ -153,74 +131,30 @@ class WorkflowBuilder extends EventTarget {
             this.dispatchEvent(new CustomEvent('node:data:changed', { detail: { node } }));
         }
     }
-    
-    /**
-     * Đưa view vào giữa một node cụ thể.
-     * @param {string} nodeId - The ID of the node to center on.
-     */
     centerOnNode(nodeId) {
         const node = this.getNode(nodeId);
         if (!node) return;
-
         const canvasRect = this.dom.canvasContainer.getBoundingClientRect();
         const nodeWidth = node.element.offsetWidth;
         const nodeHeight = node.element.offsetHeight;
-
-        // Calculate the translation needed to center the node
         this.panState.translateX = (canvasRect.width / 2) - (node.x * this.panState.scale) - (nodeWidth / 2 * this.panState.scale);
         this.panState.translateY = (canvasRect.height / 2) - (node.y * this.panState.scale) - (nodeHeight / 2 * this.panState.scale);
-        
         this._applyTransform();
     }
-    
-    /**
-     * Lấy một kết nối bằng ID của nó.
-     * @param {string} connectionId - The ID of the connection.
-     * @returns {object|undefined}
-     */
-    getConnection(connectionId) {
-        return this.connections.find(c => c.id === connectionId);
-    }
-
-    /**
-     * Lấy toàn bộ các kết nối.
-     * @returns {Array<object>}
-     */
-    getConnections() {
-        return this.connections;
-    }
-    
-    /**
-     * Lấy một biến toàn cục.
-     * @param {string} key - The key of the global variable.
-     * @returns {*} The value of the variable.
-     */
-    getGlobalVariable(key) {
-        return this.globalVariables[key];
-    }
-
-    /**
-     * Thiết lập một biến toàn cục và cập nhật UI.
-     * @param {string} key - The key of the global variable.
-     * @param {*} value - The value to set.
-     */
+    getConnection(connectionId) { return this.connections.find(c => c.id === connectionId); }
+    getConnections() { return this.connections; }
+    getGlobalVariable(key) { return this.globalVariables[key]; }
     setGlobalVariable(key, value) {
         this.globalVariables[key] = value;
         this._updateVariablesPanel();
         this.dispatchEvent(new CustomEvent('globalvar:changed', { detail: { key, value } }));
     }
-
-    /**
-     * Thiết lập dữ liệu từ Form Builder Preview
-     * @param {object} newData - The complete data object from the form.
-     */
     setFormData(newData) {
         this.formData = newData;
-        this._updateVariablesPanel(); // Cập nhật lại bảng biến
+        this._updateVariablesPanel();
     }
 
-    // --- End of Public API Methods ---
-
+    // --- INTERNAL METHODS ---
     _queryDOMElements() {
         const DOMElements = document.querySelectorAll('[data-ref]');
         DOMElements.forEach(el => {
@@ -235,30 +169,18 @@ class WorkflowBuilder extends EventTarget {
         this.config.nodeCategories.forEach(category => {
             const categoryDiv = document.createElement('div');
             categoryDiv.className = 'palette-category';
-            
             const title = document.createElement('h6');
             title.className = 'text-muted small fw-bold text-uppercase mb-2 mt-3';
             title.textContent = category.name;
             categoryDiv.appendChild(title);
-
             const gridDiv = document.createElement('div');
             gridDiv.className = 'palette-grid';
-
             category.nodes.forEach(nodeConfig => {
                 const nodeEl = document.createElement('div');
                 nodeEl.className = 'palette-node';
                 nodeEl.draggable = true;
                 nodeEl.dataset.type = nodeConfig.type;
-                
-                const iconSpan = document.createElement('span');
-                iconSpan.className = 'text-secondary';
-                iconSpan.innerHTML = nodeConfig.icon;
-                nodeEl.appendChild(iconSpan);
-
-                const textSpan = document.createElement('span');
-                textSpan.textContent = nodeConfig.displayName;
-                nodeEl.appendChild(textSpan);
-
+                nodeEl.innerHTML = `<span class="text-secondary">${nodeConfig.icon}</span><span>${nodeConfig.displayName}</span>`;
                 nodeEl.addEventListener('dragstart', (e) => {
                     e.dataTransfer.setData('application/json', JSON.stringify({ type: e.target.dataset.type }));
                 });
@@ -322,7 +244,6 @@ class WorkflowBuilder extends EventTarget {
             isResizing = true;
             document.body.style.cursor = 'ns-resize';
             document.body.style.userSelect = 'none';
-            
             const onMouseMove = (moveEvent) => {
                 if (!isResizing) return;
                 const newHeight = window.innerHeight - moveEvent.clientY;
@@ -330,7 +251,6 @@ class WorkflowBuilder extends EventTarget {
                     consolePanel.style.height = `${newHeight}px`;
                 }
             };
-
             const onMouseUp = () => {
                 isResizing = false;
                 document.body.style.cursor = '';
@@ -338,7 +258,6 @@ class WorkflowBuilder extends EventTarget {
                 window.removeEventListener('mousemove', onMouseMove);
                 window.removeEventListener('mouseup', onMouseUp);
             };
-
             window.addEventListener('mousemove', onMouseMove);
             window.addEventListener('mouseup', onMouseUp);
         });
@@ -371,9 +290,7 @@ class WorkflowBuilder extends EventTarget {
 
     _resetView() {
         this.panState.scale = 1;
-        
         const firstNode = this.nodes.find(n => !this.connections.some(c => c.to === n.id)) || this.nodes[0];
-
         if (firstNode) {
             this.centerOnNode(firstNode.id);
         } else {
@@ -427,7 +344,6 @@ class WorkflowBuilder extends EventTarget {
             this.panState.startY = e.clientY;
             this._applyTransform();
         } else if (this.activeDrag.isDraggingNode) {
-            const canvasRect = this.dom.canvasContainer.getBoundingClientRect();
             this.activeDrag.draggedNodes.forEach(dragged => {
                 const { node, startX, startY } = dragged;
                 const newX = startX + ((e.clientX - this.activeDrag.startMouseX) / this.panState.scale);
@@ -446,10 +362,7 @@ class WorkflowBuilder extends EventTarget {
             const y = Math.min(this.selectionBox.startY, currentY);
             const width = Math.abs(this.selectionBox.startX - currentX);
             const height = Math.abs(this.selectionBox.startY - currentY);
-            this.selectionBox.element.style.left = `${x}px`;
-            this.selectionBox.element.style.top = `${y}px`;
-            this.selectionBox.element.style.width = `${width}px`;
-            this.selectionBox.element.style.height = `${height}px`;
+            Object.assign(this.selectionBox.element.style, { left: `${x}px`, top: `${y}px`, width: `${width}px`, height: `${height}px` });
         } else if (this.connectionState.isDrawing) {
             const rect = this.dom.workflowCanvas.getBoundingClientRect();
             const endX = (e.clientX - rect.left) / this.panState.scale;
@@ -494,25 +407,14 @@ class WorkflowBuilder extends EventTarget {
     }
 
     _handleKeyDown(e) {
+        if (this.isFormBuilderOpen) return;
         const activeEl = document.activeElement;
         if (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA') return;
-
-        if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'Z' || e.key === 'z')) {
-            e.preventDefault(); this._redo(); return;
-        }
-        if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
-            e.preventDefault(); this._undo(); return;
-        }
-        if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
-            e.preventDefault(); this._copySelectedItems(); return;
-        }
-        if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
-            e.preventDefault(); this._pasteSelectedNodes(); return;
-        }
-
-        if (e.key === 'Delete' || e.key === 'Backspace') {
-            this._deleteSelectedItems();
-        }
+        if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'Z' || e.key === 'z')) { e.preventDefault(); this._redo(); return; }
+        if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); this._undo(); return; }
+        if ((e.ctrlKey || e.metaKey) && e.key === 'c') { e.preventDefault(); this._copySelectedItems(); return; }
+        if ((e.ctrlKey || e.metaKey) && e.key === 'v') { e.preventDefault(); this._pasteSelectedNodes(); return; }
+        if (e.key === 'Delete' || e.key === 'Backspace') { this._deleteSelectedItems(); }
     }
 
     _handleDrop(e) {
@@ -536,13 +438,9 @@ class WorkflowBuilder extends EventTarget {
             let hasVisibleNode = false;
             const nodes = category.querySelectorAll('.palette-node');
             nodes.forEach(node => {
-                const nodeDisplayName = node.textContent.toLowerCase();
-                if (nodeDisplayName.includes(searchTerm)) {
-                    node.style.display = 'flex';
-                    hasVisibleNode = true;
-                } else {
-                    node.style.display = 'none';
-                }
+                const isVisible = node.textContent.toLowerCase().includes(searchTerm);
+                node.style.display = isVisible ? 'flex' : 'none';
+                if (isVisible) hasVisibleNode = true;
             });
             category.style.display = hasVisibleNode ? '' : 'none';
         });
@@ -554,78 +452,58 @@ class WorkflowBuilder extends EventTarget {
             console.error(`Không tìm thấy cấu hình cho khối loại "${type}".`);
             return null;
         }
-
         const nodeType = nodeConfig.type;
         const nodeId = forcedId ? forcedId : (() => {
             const index = this.nodeTypeCounts[nodeType] || 0;
             this.nodeTypeCounts[nodeType] = index + 1;
             return `${nodeType}_${index}`;
         })();
-        
         const nodeElement = document.createElement('div');
         nodeElement.id = nodeId;
         nodeElement.className = 'node';
-        
         nodeElement.style.left = `${position.x}px`;
         nodeElement.style.top = `${position.y}px`;
-        
         const nodeData = initialData ? JSON.parse(JSON.stringify(initialData)) : JSON.parse(JSON.stringify(nodeConfig.defaultData || {}));
         nodeData.title = nodeData.title || nodeConfig.title;
-        
         nodeElement.innerHTML = this.templates.nodeContent
             .replace(/{{icon}}/g, nodeConfig.icon || '')
             .replace(/{{title}}/g, nodeData.title)
             .replace(/{{id}}/g, nodeId);
-        
         const inPort = document.createElement('div');
         inPort.className = 'port in';
         inPort.dataset.portType = 'in';
         nodeElement.appendChild(inPort);
-
         const outputNames = nodeConfig.outputs || ['success'];
-        const totalOutputs = outputNames.length;
         outputNames.forEach((portName, index) => {
             const outPort = document.createElement('div');
             outPort.className = 'port out';
             outPort.dataset.portType = 'out';
             outPort.dataset.portName = portName;
-            
-            const topPercentage = (index + 1) * (100 / (totalOutputs + 1));
-            outPort.style.top = `${topPercentage}%`;
+            outPort.style.top = `${(index + 1) * (100 / (outputNames.length + 1))}%`;
             outPort.style.transform = 'translateY(-50%)';
-
-            if (totalOutputs > 1) {
-                const label = document.createElement('span');
-                label.className = 'port-label';
-                label.textContent = portName;
-                outPort.appendChild(label);
+            if (outputNames.length > 1) {
+                outPort.innerHTML = `<span class="port-label">${portName}</span>`;
             }
             nodeElement.appendChild(outPort);
         });
-
         this.dom.workflowCanvas.appendChild(nodeElement);
         const node = { id: nodeId, type, x: position.x, y: position.y, element: nodeElement, data: nodeData };
-        
         this.nodes.push(node);
         this._addNodeEventListeners(node);
-        
         this.dispatchEvent(new CustomEvent('node:added', { detail: { node } }));
         return node;
     }
-
 
     _addNodeEventListeners(node) {
         const { element } = node;
         element.addEventListener('mousedown', (e) => this._handleNodeMouseDown(e, node));
         element.addEventListener('contextmenu', (e) => this._handleNodeContextMenu(e, node));
-        
         element.addEventListener('dblclick', (e) => {
             e.stopPropagation();
             this._clearSelection();
             this._addNodeToSelection(node);
             this._showSettingsPanel();
         });
-
         const titleEl = element.querySelector('.node-title');
         if (titleEl) {
             titleEl.addEventListener('dblclick', (e) => {
@@ -633,17 +511,15 @@ class WorkflowBuilder extends EventTarget {
                 this._enableTitleEdit(node, titleEl);
             });
         }
-
         const settingsBtn = element.querySelector('.node-settings-btn');
         if (settingsBtn) {
-                settingsBtn.addEventListener('click', (e) => {
+            settingsBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 this._clearSelection();
                 this._addNodeToSelection(node);
                 this._showSettingsPanel();
             });
         }
-
         element.querySelectorAll('.port').forEach(port => {
             if (port.dataset.portType === 'out') {
                 port.addEventListener('mousedown', (e) => this._handlePortMouseDown(e, node, port));
@@ -663,7 +539,6 @@ class WorkflowBuilder extends EventTarget {
         titleEl.parentNode.insertBefore(input, titleEl.nextSibling);
         input.focus();
         input.select();
-
         const finishEditing = () => {
             const newTitle = input.value.trim();
             if (newTitle) {
@@ -672,7 +547,6 @@ class WorkflowBuilder extends EventTarget {
             input.remove();
             titleEl.style.display = '';
         };
-
         input.addEventListener('blur', finishEditing);
         input.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') finishEditing();
@@ -686,34 +560,20 @@ class WorkflowBuilder extends EventTarget {
     _handleNodeMouseDown(e, node) {
         e.stopPropagation();
         if (e.button === 2) return;
-        
         const isAlreadySelected = this.selectedNodes.includes(node) && this.selectedNodes.length === 1;
-
         if (!isAlreadySelected) {
              const isCtrlPressed = e.ctrlKey || e.metaKey;
              const isSelected = this.selectedNodes.includes(node);
-
-             if (!isCtrlPressed && !isSelected) {
-                 this._clearSelection();
-                 this._addNodeToSelection(node);
-             } else if (isCtrlPressed && !isSelected) {
-                 this._addNodeToSelection(node);
-             } else if (isCtrlPressed && isSelected) {
-                 this._removeNodeFromSelection(node);
-             }
+             if (!isCtrlPressed && !isSelected) { this._clearSelection(); this._addNodeToSelection(node); }
+             else if (isCtrlPressed && !isSelected) { this._addNodeToSelection(node); }
+             else if (isCtrlPressed && isSelected) { this._removeNodeFromSelection(node); }
              this._updateSettingsPanel();
         }
-        
         if (e.target.closest('.port, .node-settings-btn') || e.target.tagName === 'INPUT') return;
-
         this.activeDrag.isDraggingNode = true;
         this.activeDrag.startMouseX = e.clientX;
         this.activeDrag.startMouseY = e.clientY;
-        this.activeDrag.draggedNodes = this.selectedNodes.map(n => ({
-            node: n,
-            startX: n.x,
-            startY: n.y
-        }));
+        this.activeDrag.draggedNodes = this.selectedNodes.map(n => ({ node: n, startX: n.x, startY: n.y }));
         this.dispatchEvent(new CustomEvent('node:drag:start', { detail: { nodes: this.activeDrag.draggedNodes.map(d => d.node) } }));
     }
     
@@ -761,18 +621,12 @@ class WorkflowBuilder extends EventTarget {
         this.clipboard = {
             type: 'nodes',
             nodes: this.selectedNodes.map(node => ({
-                type: node.type,
-                data: JSON.parse(JSON.stringify(node.data)),
-                x: node.x,
-                y: node.y
+                type: node.type, data: JSON.parse(JSON.stringify(node.data)), x: node.x, y: node.y
             }))
         };
         const minX = Math.min(...this.clipboard.nodes.map(n => n.x));
         const minY = Math.min(...this.clipboard.nodes.map(n => n.y));
-        this.clipboard.nodes.forEach(n => {
-            n.relX = n.x - minX;
-            n.relY = n.y - minY;
-        });
+        this.clipboard.nodes.forEach(n => { n.relX = n.x - minX; n.relY = n.y - minY; });
         this.logger.system(`Đã sao chép ${this.clipboard.nodes.length} khối.`);
     }
 
@@ -782,23 +636,11 @@ class WorkflowBuilder extends EventTarget {
         const rect = this.dom.canvasContainer.getBoundingClientRect();
         const pasteX = (this.lastMousePosition.x - rect.left - this.panState.translateX) / this.panState.scale;
         const pasteY = (this.lastMousePosition.y - rect.top - this.panState.translateY) / this.panState.scale;
-
-        const newNodes = [];
-        this.clipboard.nodes.forEach(nodeInfo => {
-            const newNode = this._createNode(
-                nodeInfo.type, 
-                { x: pasteX + nodeInfo.relX, y: pasteY + nodeInfo.relY },
-                nodeInfo.data
-            );
-            newNodes.push(newNode);
-        });
-        
+        const newNodes = this.clipboard.nodes.map(nodeInfo => 
+            this._createNode(nodeInfo.type, { x: pasteX + nodeInfo.relX, y: pasteY + nodeInfo.relY }, nodeInfo.data)
+        );
         newNodes.forEach(node => this._addNodeToSelection(node));
-        
-        if (newNodes.length === 1) {
-            this._showSettingsPanel();
-        }
-        
+        if (newNodes.length === 1) { this._showSettingsPanel(); }
         this._commitState("Dán khối");
     }
     
@@ -850,10 +692,7 @@ class WorkflowBuilder extends EventTarget {
     _hideSettingsPanel() { this.dom.settingsPanel.classList.add('hidden'); }
 
     _getProperty(obj, path) {
-        // <<< VÁ LỖI: Thêm kiểm tra để tránh lỗi 'split' of undefined >>>
-        if (typeof path !== 'string' || !path) {
-            return undefined;
-        }
+        if (typeof path !== 'string' || !path) return undefined;
         return path.split('.').reduce((o, i) => (o && typeof o === 'object' && i in o) ? o[i] : undefined, obj);
     }
 
@@ -876,33 +715,47 @@ class WorkflowBuilder extends EventTarget {
             return;
         }
 
+        // <<< START CHANGE: Remember active tab >>>
         let activeTabId = null;
         const activeTabButton = content.querySelector('.nav-tabs .nav-link.active');
         if (activeTabButton) {
             activeTabId = activeTabButton.getAttribute('data-bs-target');
         }
+        // <<< END CHANGE >>>
         
         const node = this.selectedNodes[0];
         const nodeConfig = this._findNodeConfig(node.type);
         
         const panelTemplate = this.templates.settingsPanel;
         const titleValue = this._getProperty(node.data, 'title') || '';
-        const panelHTML = panelTemplate
-            .replace(/{{id}}/g, node.id)
-            .replace('{{title}}', titleValue);
-        content.innerHTML = panelHTML;
+        content.innerHTML = panelTemplate.replace(/{{id}}/g, node.id).replace('{{title}}', titleValue);
 
         const titleInput = content.querySelector('#settings-title-input');
-        if(titleInput) titleInput.value = titleValue;
+        if(titleInput) {
+            titleInput.value = titleValue;
+            titleInput.addEventListener('input', (e) => {
+                const newTitle = e.target.value;
+                this._setProperty(node.data, 'title', newTitle);
+                 const titleEl = node.element.querySelector('.node-title');
+                if (titleEl) titleEl.textContent = newTitle;
+                this._commitState("Sửa tiêu đề");
+            });
+        }
+        
+        content.querySelector('[data-action="close-settings"]')?.addEventListener('click', () => this._hideSettingsPanel());
 
         const fieldsContainer = content.querySelector('[data-ref="fields-container"]');
         if (fieldsContainer && nodeConfig.settings) {
-            const formElements = this.settingsRenderer.render(nodeConfig.settings, node.id, node.data);
+            const formElements = this.settingsRenderer.renderAndBind(
+                nodeConfig.settings, 
+                node.id, 
+                node.data,
+                nodeConfig
+            );
             fieldsContainer.appendChild(formElements);
         }
 
-        this._bindSettingsPanelListeners(content, node, nodeConfig);
-
+        // <<< START CHANGE: Restore active tab >>>
         if (activeTabId) {
             const newTabButton = content.querySelector(`[data-bs-target="${activeTabId}"]`);
             if (newTabButton) {
@@ -910,195 +763,32 @@ class WorkflowBuilder extends EventTarget {
                 tab.show();
             }
         }
-    }
-
-    _bindSettingsPanelListeners(container, node, nodeConfig) {
-        container.querySelectorAll('[data-field]').forEach(input => {
-            const fieldName = input.dataset.field;
-            
-            input.addEventListener('input', (e) => {
-                const newValue = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
-                const oldValue = this._getProperty(node.data, fieldName);
-                if (oldValue !== newValue) {
-                    this._setProperty(node.data, fieldName, newValue);
-                    this.dispatchEvent(new CustomEvent('node:data:changed', { detail: { node, field: fieldName, value: newValue } }));
-                
-                    if (fieldName === 'title') {
-                        const titleEl = node.element.querySelector('.node-title');
-                        if (titleEl) titleEl.textContent = newValue;
-                    }
-                    
-                    const controlConfig = this.settingsRenderer._findControlConfig(nodeConfig.settings, fieldName);
-                    if (controlConfig && controlConfig.onChange === 'rerender') {
-                        this._updateSettingsPanel();
-                    }
-                    this._commitState("Sửa cài đặt");
-                }
-            });
-        });
-
-        container.querySelector('[data-action="close-settings"]')?.addEventListener('click', () => this._hideSettingsPanel());
-        
-        container.querySelectorAll('.variable-picker-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const targetInputId = e.currentTarget.dataset.targetInput;
-                const targetInput = document.getElementById(targetInputId);
-                this._showVariablePicker(targetInput, e.currentTarget);
-            });
-        });
-
-        container.querySelectorAll('[data-action="select-file"]').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const targetInputId = e.currentTarget.dataset.targetInput;
-                const targetInput = document.getElementById(targetInputId);
-                this.settingsRenderer.handleFileSelect(targetInput);
-            });
-        });
-        container.querySelectorAll('[data-action="select-folder"]').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const targetInputId = e.currentTarget.dataset.targetInput;
-                const targetInput = document.getElementById(targetInputId);
-                this.settingsRenderer.handleFolderSelect(targetInput);
-            });
-        });
-
-        container.querySelectorAll('[data-action="add-condition-group"]').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                e.preventDefault();
-                const conditionGroups = this._getProperty(this.selectedNodes[0].data, 'conditionGroups');
-                conditionGroups.push([{ inputValue: '', operator: '==', comparisonValue: '' }]);
-                this._updateSettingsPanel();
-                this._commitState("Thêm nhóm điều kiện");
-            });
-        });
-
-        container.querySelectorAll('[data-action="test-operation"]').forEach(btn => {
-            btn.addEventListener('click', () => this._handleTestOperationClick());
-        });
-
-        container.querySelectorAll('[data-action="test-data-generation"]').forEach(btn => {
-            btn.addEventListener('click', () => this._handleTestDataGenerationClick());
-        });
-        
-        container.querySelectorAll('[data-action="import-curl"]').forEach(btn => {
-            btn.addEventListener('click', () => {
-                if (this.curlImportModal) {
-                    document.getElementById('curl-input-textarea').value = '';
-                    this.curlImportModal.show();
-                }
-            });
-        });
-    }
-
-    async _handleTestOperationClick() {
-        const node = this.selectedNodes[0];
-        const outputContainer = this.dom.settingsPanel.querySelector('[data-ref="test-output-container"]');
-        if (!node || !outputContainer) return;
-
-        try {
-            const resolvedData = JSON.parse(JSON.stringify(node.data));
-            const executionContext = { global: this.globalVariables, ...this.executionState, form: this.formData };
-            
-            const resolveRecursively = (obj) => {
-                for (const key in obj) {
-                    if (typeof obj[key] === 'string') obj[key] = this._resolveVariables(obj[key], executionContext);
-                    else if (typeof obj[key] === 'object' && obj[key] !== null) resolveRecursively(obj[key]);
-                }
-            };
-            resolveRecursively(resolvedData);
-
-            const { input, operation, params } = resolvedData;
-            
-            if (!operation) throw new Error("Chưa chọn thao tác.");
-            const [operationType, operationKey] = operation.split('.');
-            const opConfig = DATA_OPERATIONS[operationType]?.[operationKey];
-            if (!opConfig?.execute) throw new Error(`Thao tác không hợp lệ: ${operation}`);
-
-            let processedInput = input;
-            if (operationType !== 'json' && typeof input === 'string') {
-                try { processedInput = JSON.parse(input); } catch (e) { /* It's just a string */ }
-            }
-
-            const result = opConfig.execute(processedInput, params);
-            
-            outputContainer.classList.remove('text-danger');
-            outputContainer.classList.add('text-success');
-            if (typeof result === 'object') {
-                outputContainer.textContent = JSON.stringify(result, null, 2);
-            } else {
-                outputContainer.textContent = result;
-            }
-
-        } catch (error) {
-            outputContainer.classList.remove('text-success');
-            outputContainer.classList.add('text-danger');
-            outputContainer.textContent = `Lỗi: ${error.message}`;
-        }
-    }
-
-    async _handleTestDataGenerationClick() {
-        const node = this.selectedNodes[0];
-        const settingsPanel = this.dom.settingsPanel;
-        const outputContainer = settingsPanel.querySelector('[data-ref="test-output-container"]');
-        const testBtn = settingsPanel.querySelector('[data-action="test-data-generation"]');
-        if (!node || !outputContainer || !testBtn) return;
-
-        const originalBtnContent = testBtn.innerHTML;
-        testBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Đang test...';
-        testBtn.disabled = true;
-
-        try {
-            const nodeConfig = this._findNodeConfig(node.type);
-            const result = await nodeConfig.execute(node.data, null, this);
-
-            outputContainer.classList.remove('text-danger');
-            outputContainer.classList.add('text-success');
-            if (typeof result.result === 'object') {
-                outputContainer.textContent = JSON.stringify(result.result, null, 2);
-            } else {
-                outputContainer.textContent = result.result;
-            }
-        } catch (error) {
-            outputContainer.classList.remove('text-success');
-            outputContainer.classList.add('text-danger');
-            outputContainer.textContent = `Lỗi: ${error.message}`;
-        } finally {
-            testBtn.innerHTML = originalBtnContent;
-            testBtn.disabled = false;
-        }
+        // <<< END CHANGE >>>
     }
 
     _handleInputPortMouseDown(e, endNode, endPort) {
         e.stopPropagation();
         const connToDetach = this.connections.find(c => c.to === endNode.id);
         if (!connToDetach) return;
-
         const startNode = this.nodes.find(n => n.id === connToDetach.from);
         if (!startNode) return;
-
         this._deleteConnection(connToDetach, false);
         this._commitState("Bắt đầu gỡ kết nối");
-
         connToDetach.line.classList.remove('selected');
         connToDetach.line.classList.add('connector-line-drawing');
-        
-        this.connectionState = {
-            isDrawing: true,
-            startNode: startNode,
-            startPortName: connToDetach.fromPort,
-            line: connToDetach.line,
-        };
+        this.connectionState = { isDrawing: true, startNode: startNode, startPortName: connToDetach.fromPort, line: connToDetach.line };
     }
 
     _handlePortMouseDown(e, node, port) {
         e.stopPropagation();
         if (port.dataset.portType === 'out') {
             this.connectionState = { isDrawing: true, startNode: node, startPortName: port.dataset.portName };
-            this.connectionState.line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-            this.connectionState.line.setAttribute('class', 'connector-line-drawing');
-            this.connectionState.line.setAttribute('stroke-linejoin', 'round');
-            this.connectionState.line.setAttribute('stroke-linecap', 'round');
-            this.dom.connectorSvg.appendChild(this.connectionState.line);
+            const line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            line.setAttribute('class', 'connector-line-drawing');
+            line.setAttribute('stroke-linejoin', 'round');
+            line.setAttribute('stroke-linecap', 'round');
+            this.connectionState.line = line;
+            this.dom.connectorSvg.appendChild(line);
         }
     }
 
@@ -1110,7 +800,6 @@ class WorkflowBuilder extends EventTarget {
                 this._commitState("Tạo kết nối");
             }
         }
-        
         if (this.connectionState.isDrawing) {
             if (this.connectionState.line?.parentNode) {
                 this.dom.connectorSvg.removeChild(this.connectionState.line);
@@ -1125,26 +814,13 @@ class WorkflowBuilder extends EventTarget {
         if (existingInConnection) {
             this._deleteConnection(existingInConnection, false);
         }
-        
         const line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         line.setAttribute('class', 'connector-line');
         line.dataset.fromPort = startPortName;
         line.setAttribute('stroke-linejoin', 'round');
         line.setAttribute('stroke-linecap', 'round');
-        
-        const connection = { 
-            id: `conn-${startNode.id}:${startPortName}-${endNode.id}`, 
-            from: startNode.id, 
-            fromPort: startPortName,
-            to: endNode.id, 
-            line 
-        };
-        
-        line.addEventListener('click', (e) => {
-            e.stopPropagation();
-            this._selectConnection(connection);
-        });
-
+        const connection = { id: `conn-${startNode.id}:${startPortName}-${endNode.id}`, from: startNode.id, fromPort: startPortName, to: endNode.id, line };
+        line.addEventListener('click', (e) => { e.stopPropagation(); this._selectConnection(connection); });
         this.dom.connectorSvg.appendChild(line);
         this.connections.push(connection);
         this._updateConnectionPath(connection);
@@ -1155,7 +831,6 @@ class WorkflowBuilder extends EventTarget {
     _getPortPosition(node, portNameOrType) {
         const portElement = node.element.querySelector(`.port[data-port-name="${portNameOrType}"]`) || node.element.querySelector(`.port[data-port-type="${portNameOrType}"]`);
         if (!portElement) return { x: 0, y: 0 };
-
         const portRect = portElement.getBoundingClientRect();
         const canvasRect = this.dom.workflowCanvas.getBoundingClientRect();
         return {
@@ -1178,47 +853,24 @@ class WorkflowBuilder extends EventTarget {
         const dy = y2 - y1;
         const sCurveThreshold = 20;
         const baseRadius = 20;
-
         if (dx < -sCurveThreshold) {
             const offset = 40;
             const midY = y1 + dy / 2;
             const ySign = dy >= 0 ? 1 : -1;
             const radius = Math.min(baseRadius, offset / 2, Math.abs(dy) / 4);
-
-            const d = [
-                `M ${x1} ${y1}`,
-                `L ${x1 + offset - radius} ${y1}`,
-                `Q ${x1 + offset} ${y1} ${x1 + offset} ${y1 + radius * ySign}`,
-                `L ${x1 + offset} ${midY - radius * ySign}`,
-                `Q ${x1 + offset} ${midY} ${x1 + offset - radius} ${midY}`,
-                `L ${x2 - offset + radius} ${midY}`,
-                `Q ${x2 - offset} ${midY} ${x2 - offset} ${midY + radius * ySign}`,
-                `L ${x2 - offset} ${y2 - radius * ySign}`,
-                `Q ${x2 - offset} ${y2} ${x2 - offset + radius} ${y2}`,
-                `L ${x2} ${y2}`
-            ].join(' ');
+            const d = [`M ${x1} ${y1}`,`L ${x1 + offset - radius} ${y1}`,`Q ${x1 + offset} ${y1} ${x1 + offset} ${y1 + radius * ySign}`,`L ${x1 + offset} ${midY - radius * ySign}`,`Q ${x1 + offset} ${midY} ${x1 + offset - radius} ${midY}`,`L ${x2 - offset + radius} ${midY}`,`Q ${x2 - offset} ${midY} ${x2 - offset} ${midY + radius * ySign}`,`L ${x2 - offset} ${y2 - radius * ySign}`,`Q ${x2 - offset} ${y2} ${x2 - offset + radius} ${y2}`,`L ${x2} ${y2}`].join(' ');
             path.setAttribute('d', d);
             return;
         }
-
         const effectiveRadius = Math.min(baseRadius, Math.abs(dx) / 2, Math.abs(dy) / 2);
         const midX = x1 + dx / 2;
         const xSign = dx >= 0 ? 1 : -1;
         const ySign = dy >= 0 ? 1 : -1;
-
         if (effectiveRadius < 5) { 
             path.setAttribute('d', `M ${x1} ${y1} L ${midX} ${y1} L ${midX} ${y2} L ${x2} ${y2}`);
             return;
         }
-        
-        const d = [
-            `M ${x1} ${y1}`,
-            `L ${midX - effectiveRadius * xSign} ${y1}`,
-            `Q ${midX} ${y1} ${midX} ${y1 + effectiveRadius * ySign}`,
-            `L ${midX} ${y2 - effectiveRadius * ySign}`,
-            `Q ${midX} ${y2} ${midX + effectiveRadius * xSign} ${y2}`,
-            `L ${x2} ${y2}`
-        ].join(' ');
+        const d = [`M ${x1} ${y1}`,`L ${midX - effectiveRadius * xSign} ${y1}`,`Q ${midX} ${y1} ${midX} ${y1 + effectiveRadius * ySign}`,`L ${midX} ${y2 - effectiveRadius * ySign}`,`Q ${midX} ${y2} ${midX + effectiveRadius * xSign} ${y2}`,`L ${x2} ${y2}`].join(' ');
         path.setAttribute('d', d);
     }
 
@@ -1235,13 +887,9 @@ class WorkflowBuilder extends EventTarget {
             e.preventDefault();
             this._hideAllContextMenus();
             const menu = this.dom.canvasContextMenu;
-            
             menu.querySelector('[data-action="paste"]').classList.toggle('disabled', !this.clipboard);
             this._updateHistoryButtons();
-            
-            menu.style.display = 'block';
-            menu.style.left = `${e.clientX}px`;
-            menu.style.top = `${e.clientY}px`;
+            Object.assign(menu.style, { display: 'block', left: `${e.clientX}px`, top: `${e.clientY}px` });
         }
     }
 
@@ -1255,9 +903,7 @@ class WorkflowBuilder extends EventTarget {
         this._hideAllContextMenus();
         const menu = this.dom.nodeContextMenu;
         menu.querySelector('[data-action="paste"]').classList.toggle('disabled', !this.clipboard);
-        menu.style.display = 'block';
-        menu.style.left = `${e.clientX}px`;
-        menu.style.top = `${e.clientY}px`;
+        Object.assign(menu.style, { display: 'block', left: `${e.clientX}px`, top: `${e.clientY}px` });
     }
 
     _hideAllContextMenus() {
@@ -1269,14 +915,10 @@ class WorkflowBuilder extends EventTarget {
     _handleContextMenuClick(e) {
         const item = e.target.closest('.context-menu-item');
         if (!item || item.classList.contains('disabled')) return;
-        
         const action = item.dataset.action;
         if (!action) return;
-
         switch (action) {
-            case 'delete': 
-                this._deleteSelectedItems();
-                break;
+            case 'delete': this._deleteSelectedItems(); break;
             case 'copy': this._copySelectedItems(); break;
             case 'paste': this._pasteSelectedNodes(); break;
             case 'undo': this._undo(); break;
@@ -1307,11 +949,7 @@ class WorkflowBuilder extends EventTarget {
     _getCurrentState() {
         return {
             nodes: this.nodes.map(n => ({ 
-                id: n.id, 
-                type: n.type, 
-                x: n.x, 
-                y: n.y, 
-                data: JSON.parse(JSON.stringify(n.data)) 
+                id: n.id, type: n.type, x: n.x, y: n.y, data: JSON.parse(JSON.stringify(n.data)) 
             })),
             connections: this.connections.map(c => ({ from: c.from, fromPort: c.fromPort, to: c.to }))
         };
@@ -1320,9 +958,7 @@ class WorkflowBuilder extends EventTarget {
     _loadState(state) {
         this._clearCanvas(false);
         const idMap = new Map();
-
         this.nodeTypeCounts = {};
-
         state.nodes.forEach(nodeInfo => {
             const newNode = this._createNode(nodeInfo.type, { x: nodeInfo.x, y: nodeInfo.y }, nodeInfo.data, nodeInfo.id);
             if (newNode) {
@@ -1336,13 +972,11 @@ class WorkflowBuilder extends EventTarget {
                 }
             }
         });
-
         state.connections.forEach(connInfo => {
             const startNode = idMap.get(connInfo.from);
             const endNode = idMap.get(connInfo.to);
             if (startNode && endNode) {
-                const fromPort = connInfo.fromPort || 'out';
-                this._createConnection(startNode, fromPort, endNode);
+                this._createConnection(startNode, connInfo.fromPort || 'out', endNode);
             }
         });
         this._clearSelection();
@@ -1352,16 +986,14 @@ class WorkflowBuilder extends EventTarget {
     _undo() {
         if (this.historyIndex <= 0) return;
         this.historyIndex--;
-        const stateToLoad = JSON.parse(JSON.stringify(this.history[this.historyIndex]));
-        this._loadState(stateToLoad);
+        this._loadState(JSON.parse(JSON.stringify(this.history[this.historyIndex])));
         this._updateHistoryButtons();
     }
 
     _redo() {
         if (this.historyIndex >= this.history.length - 1) return;
         this.historyIndex++;
-        const stateToLoad = JSON.parse(JSON.stringify(this.history[this.historyIndex]));
-        this._loadState(stateToLoad);
+        this._loadState(JSON.parse(JSON.stringify(this.history[this.historyIndex])));
         this._updateHistoryButtons();
     }
 
@@ -1370,13 +1002,11 @@ class WorkflowBuilder extends EventTarget {
         const redoBtn = this.container.querySelector('[data-action="redo"]');
         const undoMenuItem = this.dom.canvasContextMenu.querySelector('[data-action="undo"]');
         const redoMenuItem = this.dom.canvasContextMenu.querySelector('[data-action="redo"]');
-
-        const canUndo = this.historyIndex > 0;
-        const canRedo = this.historyIndex < this.history.length - 1;
-
+        const isDisabled = this.isFormBuilderOpen;
+        const canUndo = this.historyIndex > 0 && !isDisabled;
+        const canRedo = this.historyIndex < this.history.length - 1 && !isDisabled;
         undoBtn.disabled = !canUndo;
         redoBtn.disabled = !canRedo;
-        
         if(undoMenuItem) undoMenuItem.classList.toggle('disabled', !canUndo);
         if(redoMenuItem) redoMenuItem.classList.toggle('disabled', !canRedo);
     }
@@ -1387,15 +1017,8 @@ class WorkflowBuilder extends EventTarget {
         const valueInput = e.target.querySelector('input[name="value"]');
         const key = keyInput.value.trim();
         let value = valueInput.value.trim();
-
         if (!key) return;
-
-        try {
-            value = JSON.parse(value);
-        } catch (error) {
-            // It's just a string, which is fine
-        }
-
+        try { value = JSON.parse(value); } catch (error) { /* It's just a string */ }
         this.setGlobalVariable(key, value);
         e.target.reset();
         keyInput.focus();
@@ -1403,165 +1026,82 @@ class WorkflowBuilder extends EventTarget {
     
     _updateVariablesPanel() {
         if (!this.dom.variablesPanel) return;
-
-        this.dom.variablesPanel.querySelectorAll('details').forEach(d => {
-            this.treeViewStates.set(d.id, d.open);
-        });
-
+        this.dom.variablesPanel.querySelectorAll('details').forEach(d => { this.treeViewStates.set(d.id, d.open); });
         const panelContent = this.dom.variablesPanel;
-        panelContent.innerHTML = ''; // Clear everything
-
-        // --- Global Variables Section ---
-        const globalSection = document.createElement('div');
-        globalSection.className = 'mb-4';
-        globalSection.innerHTML = `
-            <h4 class="h6 fw-semibold text-secondary mb-2 border-bottom pb-1">Toàn cục (Global)</h4>
-            <div data-ref="global-variables-container" class="tree-view p-2 bg-light rounded mb-3 border"></div>
-        `;
-        const globalTreeContainer = globalSection.querySelector('[data-ref="global-variables-container"]');
-        globalTreeContainer.appendChild(this._createTreeView(this.globalVariables, 'global'));
-        globalSection.appendChild(this.dom.addGlobalVarForm);
-        panelContent.appendChild(globalSection);
-
-        // --- Form Data Section ---
-        const formSection = document.createElement('div');
-        formSection.className = 'mb-4';
-        formSection.innerHTML = `
-            <h4 class="h6 fw-semibold text-secondary mb-2 border-bottom pb-1">Dữ liệu Form (Preview)</h4>
-            <div data-ref="form-data-container" class="tree-view p-2 bg-light rounded border"></div>
-        `;
-        const formTreeContainer = formSection.querySelector('[data-ref="form-data-container"]');
-        formTreeContainer.appendChild(this._createTreeView(this.formData, 'form'));
-        panelContent.appendChild(formSection);
-
-        // --- Node Outputs Section ---
-        const outputSection = document.createElement('div');
-        outputSection.innerHTML = `
-            <h4 class="h6 fw-semibold text-secondary mb-2 border-bottom pb-1">Đầu ra các Khối (Node Outputs)</h4>
-            <div data-ref="node-outputs-container" class="tree-view p-2 bg-light rounded border"></div>
-        `;
-        const outputTreeContainer = outputSection.querySelector('[data-ref="node-outputs-container"]');
-        outputTreeContainer.appendChild(this._createNodeOutputsTreeView(this.executionState));
-        panelContent.appendChild(outputSection);
+        panelContent.innerHTML = ''; 
+        const createSection = (title, data, prefix) => {
+            const section = document.createElement('div');
+            section.className = 'mb-4';
+            section.innerHTML = `<h4 class="h6 fw-semibold text-secondary mb-2 border-bottom pb-1">${title}</h4><div class="tree-view p-2 bg-light rounded border"></div>`;
+            section.querySelector('.tree-view').appendChild(this._createTreeView(data, prefix));
+            return section;
+        };
+        panelContent.appendChild(createSection('Toàn cục (Global)', this.globalVariables, 'global'));
+        panelContent.querySelector('.tree-view').parentElement.appendChild(this.dom.addGlobalVarForm);
+        panelContent.appendChild(createSection('Dữ liệu Form (Preview)', this.formData, 'form'));
+        panelContent.appendChild(createSection('Đầu ra các Khối (Node Outputs)', this.executionState, ''));
     }
 
-
     _createNodeOutputsTreeView(executionState) {
-        if (executionState === null || typeof executionState !== 'object' || Object.keys(executionState).length === 0) {
-            const emptyEl = document.createElement('span');
-            emptyEl.className = 'text-muted fst-italic';
-            emptyEl.textContent = 'Chưa có đầu ra nào';
-            return emptyEl;
+        if (!executionState || Object.keys(executionState).length === 0) {
+            return Object.assign(document.createElement('span'), { className: 'text-muted fst-italic', textContent: 'Chưa có đầu ra nào' });
         }
-
         const root = document.createElement('div');
         for (const nodeId in executionState) {
             const node = this.nodes.find(n => n.id === nodeId);
             if (!node) continue;
-
             const nodeConfig = this._findNodeConfig(node.type);
             const nodeOutputData = executionState[nodeId];
-            const isRunning = nodeOutputData && nodeOutputData._status === 'running';
-
+            const isRunning = nodeOutputData?._status === 'running';
             const details = document.createElement('details');
             details.id = `tree-details-${nodeId}`;
-            if (this.treeViewStates.has(details.id)) {
-                details.open = this.treeViewStates.get(details.id);
-            } else if (!isRunning) {
-                details.open = true;
-            }
-
+            details.open = this.treeViewStates.get(details.id) ?? !isRunning;
             const summary = document.createElement('summary');
             summary.className = 'd-flex align-items-center gap-2 p-1 rounded';
-            summary.dataset.key = nodeId;
-            summary.dataset.value = JSON.stringify(nodeOutputData);
-            summary.dataset.path = nodeId;
+            Object.assign(summary.dataset, { key: nodeId, value: JSON.stringify(nodeOutputData), path: nodeId });
             summary.addEventListener('contextmenu', (e) => this._handleVariableContextMenu(e));
-            
-            const isErrorObject = !isRunning && nodeOutputData && typeof nodeOutputData === 'object' && nodeOutputData.hasOwnProperty('error');
-            
+            const isErrorObject = !isRunning && typeof nodeOutputData === 'object' && nodeOutputData?.hasOwnProperty('error');
             const togglerSpan = document.createElement('span');
             togglerSpan.className = 'w-4 h-4 d-flex align-items-center justify-content-center flex-shrink-0 me-2';
-            
             if (isRunning) {
-                togglerSpan.innerHTML = `<svg class="spinner" style="width: 1em; height: 1em;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                            </svg>`;
-            } else {
-                togglerSpan.classList.add('tree-toggler');
-            }
-
-            const nodeIconSpan = document.createElement('span');
-            nodeIconSpan.className = `flex-shrink-0 ${isErrorObject ? 'text-danger' : 'text-secondary'}`;
-            nodeIconSpan.innerHTML = nodeConfig.icon;
-
-            const titleSpan = document.createElement('span');
-            titleSpan.className = 'fw-semibold text-dark text-truncate';
-            titleSpan.textContent = node.data.title;
-
-            const idSpan = document.createElement('span');
-            idSpan.className = 'small text-muted font-monospace ms-auto';
-            idSpan.textContent = node.id;
-
-            summary.appendChild(togglerSpan);
-            summary.appendChild(nodeIconSpan);
-            summary.appendChild(titleSpan);
-            summary.appendChild(idSpan);
-            
+                togglerSpan.innerHTML = `<svg class="spinner" style="width: 1em; height: 1em;" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none" class="opacity-25"></circle><path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" class="opacity-75"></path></svg>`;
+            } else { togglerSpan.classList.add('tree-toggler'); }
+            const nodeIconSpan = Object.assign(document.createElement('span'), { className: `flex-shrink-0 ${isErrorObject ? 'text-danger' : 'text-secondary'}`, innerHTML: nodeConfig.icon });
+            const titleSpan = Object.assign(document.createElement('span'), { className: 'fw-semibold text-dark text-truncate', textContent: node.data.title });
+            const idSpan = Object.assign(document.createElement('span'), { className: 'small text-muted font-monospace ms-auto', textContent: node.id });
+            summary.append(togglerSpan, nodeIconSpan, titleSpan, idSpan);
             details.appendChild(summary);
-
             if (isRunning) {
-                const runningText = document.createElement('div');
-                runningText.className = 'ps-5 text-muted fst-italic';
-                runningText.textContent = 'Đang chạy...';
-                details.appendChild(runningText);
+                details.appendChild(Object.assign(document.createElement('div'), { className: 'ps-5 text-muted fst-italic', textContent: 'Đang chạy...' }));
             } else {
-                const contentDiv = document.createElement('div');
-                contentDiv.className = 'ps-4';
+                const contentDiv = Object.assign(document.createElement('div'), { className: 'ps-4' });
                 contentDiv.appendChild(this._createTreeView(nodeOutputData, nodeId));
                 details.appendChild(contentDiv);
             }
-
             root.appendChild(details);
         }
         return root;
     }
 
     _createTreeView(obj, parentPath = '') {
-        if (obj === null || typeof obj !== 'object' || Object.keys(obj).length === 0) {
-            const emptyEl = document.createElement('span');
-            emptyEl.className = 'text-muted fst-italic ps-3';
-            emptyEl.textContent = 'Không có dữ liệu';
-            return emptyEl;
+        if (!obj || typeof obj !== 'object' || Object.keys(obj).length === 0) {
+            return Object.assign(document.createElement('span'), { className: 'text-muted fst-italic ps-3', textContent: 'Không có dữ liệu' });
         }
-
         const root = document.createElement('div');
-        
         for (const key in obj) {
             if (key === '_status') continue;
-            
             const currentPath = parentPath ? `${parentPath}.${key}` : key;
-            const detailsId = `tree-details-${currentPath.replace(/\./g, '-')}`;
             const value = obj[key];
-
             if (typeof value === 'object' && value !== null) {
                 const details = document.createElement('details');
-                details.id = detailsId;
+                details.id = `tree-details-${currentPath.replace(/\./g, '-')}`;
                 details.style.paddingLeft = '1.5em';
-                if (this.treeViewStates.has(detailsId)) {
-                    details.open = this.treeViewStates.get(detailsId);
-                }
-
+                details.open = this.treeViewStates.get(details.id) ?? false;
                 const summary = document.createElement('summary');
                 const isErrorObject = value.hasOwnProperty('error');
                 summary.innerHTML = `<span class="tree-toggler me-2"></span><span class="tree-key">${key}</span>: ${isErrorObject ? `<span class="tree-value-error">Error</span>` : Array.isArray(value) ? `Array(${value.length})` : 'Object'}`;
-                
-                summary.dataset.key = key;
-                summary.dataset.value = JSON.stringify(value);
-                summary.dataset.path = currentPath;
+                Object.assign(summary.dataset, { key, value: JSON.stringify(value), path: currentPath });
                 summary.addEventListener('contextmenu', (e) => this._handleVariableContextMenu(e));
-
                 details.appendChild(summary);
                 details.appendChild(this._createTreeView(value, currentPath));
                 root.appendChild(details);
@@ -1572,21 +1112,15 @@ class WorkflowBuilder extends EventTarget {
                 if (typeof value === 'string') valueClass = 'tree-value-string';
                 else if (typeof value === 'number') valueClass = 'tree-value-number';
                 else if (typeof value === 'boolean') valueClass = 'tree-value-boolean';
-                
                 const formattedValue = typeof value === 'string' ? `"${value}"` : `${value}`;
                 p.innerHTML = `<span class="tree-key">${key}</span>: <span class="${valueClass}">${formattedValue}</span>`;
-                
-                p.dataset.key = key;
-                p.dataset.value = JSON.stringify(value);
-                p.dataset.path = currentPath;
+                Object.assign(p.dataset, { key, value: JSON.stringify(value), path: currentPath });
                 p.addEventListener('contextmenu', (e) => this._handleVariableContextMenu(e));
-
                 root.appendChild(p);
             }
         }
         return root;
     }
-
 
     _createPickerTreeView(obj, prefix) {
         const fragment = document.createDocumentFragment();
@@ -1594,13 +1128,11 @@ class WorkflowBuilder extends EventTarget {
             if (key === '_status') continue;
             const path = prefix ? `${prefix}.${key}` : key;
             const value = obj[key];
-
             if (typeof value === 'object' && value !== null) {
                 const details = document.createElement('details');
                 const summary = document.createElement('summary');
                 summary.textContent = key;
-                details.appendChild(summary);
-                details.appendChild(this._createPickerTreeView(value, path));
+                details.append(summary, this._createPickerTreeView(value, path));
                 fragment.appendChild(details);
             } else {
                 const item = document.createElement('div');
@@ -1618,36 +1150,22 @@ class WorkflowBuilder extends EventTarget {
         this.activeVariablePicker.targetInput = targetInput;
         const popup = this.dom.variablePickerPopup;
         popup.innerHTML = '';
-
-        const globalsHeader = document.createElement('h6');
-        globalsHeader.className = "small text-uppercase text-muted fw-bold p-1";
-        globalsHeader.textContent = 'Biến Toàn Cục';
-        popup.appendChild(globalsHeader);
-        popup.appendChild(this._createPickerTreeView(this.globalVariables, 'global'));
-        
-        const formDataHeader = document.createElement('h6');
-        formDataHeader.className = "small text-uppercase text-muted fw-bold p-1 mt-2";
-        formDataHeader.textContent = 'Dữ liệu Form';
-        popup.appendChild(formDataHeader);
-        popup.appendChild(this._createPickerTreeView(this.formData, 'form'));
-
-        const nodesHeader = document.createElement('h6');
-        nodesHeader.className = "small text-uppercase text-muted fw-bold p-1 mt-2";
-        nodesHeader.textContent = 'Đầu ra các Khối';
-        popup.appendChild(nodesHeader);
-        popup.appendChild(this._createPickerTreeView(this.executionState, ''));
-        
+        const createSection = (title, data, prefix) => {
+            const header = Object.assign(document.createElement('h6'), { className: "small text-uppercase text-muted fw-bold p-1 mt-2", textContent: title });
+            popup.appendChild(header);
+            popup.appendChild(this._createPickerTreeView(data, prefix));
+        };
+        createSection('Biến Toàn Cục', this.globalVariables, 'global');
+        createSection('Dữ liệu Form', this.formData, 'form');
+        createSection('Đầu ra các Khối', this.executionState, '');
         const btnRect = button.getBoundingClientRect();
         popup.style.display = 'block';
         const popupRect = popup.getBoundingClientRect();
-
         let top = btnRect.bottom + 4;
         if (top + popupRect.height > window.innerHeight) top = btnRect.top - popupRect.height - 4;
         let left = btnRect.left;
         if (left + popupRect.width > window.innerWidth) left = btnRect.right - popupRect.width;
-
-        popup.style.top = `${top}px`;
-        popup.style.left = `${left}px`;
+        Object.assign(popup.style, { top: `${top}px`, left: `${left}px` });
     }
 
     _hideVariablePicker() {
@@ -1658,27 +1176,21 @@ class WorkflowBuilder extends EventTarget {
     _handleVariablePick(e) {
         const item = e.target.closest('.variable-picker-item');
         if (!item || !this.activeVariablePicker.targetInput) return;
-
         const path = item.dataset.path;
         const variableString = `{{${path}}}`;
-        
         const input = this.activeVariablePicker.targetInput;
         input.value = variableString;
-        
         input.dispatchEvent(new Event('input', { bubbles: true }));
-
         this._hideVariablePicker();
     }
 
     _resolveVariables(text, context) {
         if (typeof text !== 'string') return text;
-
         const singleVarMatch = text.match(/{{\s*([^}]+)\s*}}/);
         if (singleVarMatch && singleVarMatch[0] === text) {
             const value = this._getProperty(context, singleVarMatch[1].trim());
             return value === undefined ? text : value;
         }
-
         return text.replace(/{{\s*(.*?)\s*}}/g, (match, path) => {
             const value = this._getProperty(context, path.trim());
             if (value === undefined) return match; 
@@ -1694,24 +1206,19 @@ class WorkflowBuilder extends EventTarget {
         const runButton = this.container.querySelector('[data-action="run-simulation"]');
         runButton.disabled = true;
         runButton.classList.add('opacity-50');
-
         this.logger.clear();
         this.logger.system('--- Bắt đầu Mô phỏng ---');
-        
         this.executionState = {};
         this.treeViewStates.clear();
         this._updateVariablesPanel();
         this.nodes.forEach(node => this._setNodeState(node, 'idle'));
-
         const startNodes = this.nodes.filter(n => !this.connections.some(c => c.to === n.id));
         if (startNodes.length === 0 && this.nodes.length > 0) {
-                this.logger.error('Không tìm thấy khối bắt đầu. Workflow phải có ít nhất một khối không có đầu vào.');
+            this.logger.error('Không tìm thấy khối bắt đầu. Workflow phải có ít nhất một khối không có đầu vào.');
         } else {
             await Promise.allSettled(startNodes.map(node => this._executeNode(node, [])));
         }
-        
         this.logger.system('--- Kết thúc Mô phỏng ---');
-        
         this.isSimulating = false;
         runButton.disabled = false;
         runButton.classList.remove('opacity-50');
@@ -1720,17 +1227,12 @@ class WorkflowBuilder extends EventTarget {
 
     async _animateConnection(connection) {
         const pulse = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        Object.assign(pulse.style, { stroke: window.getComputedStyle(connection.line).stroke, strokeDasharray: `20 ${connection.line.getTotalLength()}` });
         pulse.setAttribute('d', connection.line.getAttribute('d'));
         pulse.setAttribute('class', 'connector-pulse');
-        pulse.style.stroke = window.getComputedStyle(connection.line).stroke;
         pulse.setAttribute('stroke-linejoin', 'round');
         pulse.setAttribute('stroke-linecap', 'round');
-        
-        const length = connection.line.getTotalLength();
-        pulse.style.strokeDasharray = `20 ${length}`;
-
         this.dom.connectorSvg.appendChild(pulse);
-        
         setTimeout(() => { pulse.remove(); }, 600);
     }
 
@@ -1740,34 +1242,23 @@ class WorkflowBuilder extends EventTarget {
         this._updateVariablesPanel();
         this._setNodeState(node, 'running');
         this.dispatchEvent(new CustomEvent('simulation:node:start', { detail: { node } }));
-        
         const resolvedNodeData = JSON.parse(JSON.stringify(node.data));
         const resolutionContext = { global: this.globalVariables, form: this.formData, ...this.executionState };
-        
         const resolveRecursively = (obj) => {
             for (const key in obj) {
-                if (typeof obj[key] === 'string') {
-                    obj[key] = this._resolveVariables(obj[key], resolutionContext);
-                } else if (typeof obj[key] === 'object' && obj[key] !== null) {
-                    resolveRecursively(obj[key]);
-                }
+                if (typeof obj[key] === 'string') obj[key] = this._resolveVariables(obj[key], resolutionContext);
+                else if (typeof obj[key] === 'object' && obj[key] !== null) resolveRecursively(obj[key]);
             }
         };
         resolveRecursively(resolvedNodeData);
-
         const executeNextNodes = async (portName, newTryCatchStack, callingNodeId = node.id) => {
             const nextConnections = this.connections.filter(c => c.from === callingNodeId && c.fromPort === portName);
-            if (nextConnections.length > 0) {
-                await Promise.all(nextConnections.map(async (conn) => {
-                    await this._animateConnection(conn);
-                    const nextNode = this.nodes.find(n => n.id === conn.to);
-                    if (nextNode) {
-                        await this._executeNode(nextNode, newTryCatchStack);
-                    }
-                }));
+            for (const conn of nextConnections) {
+                await this._animateConnection(conn);
+                const nextNode = this.nodes.find(n => n.id === conn.to);
+                if (nextNode) await this._executeNode(nextNode, newTryCatchStack);
             }
         };
-        
         if (node.type === 'try_catch') {
             this.logger.info(`Bắt đầu khối Try/Catch: ${node.data.title}`);
             this._setNodeState(node, 'success');
@@ -1777,33 +1268,23 @@ class WorkflowBuilder extends EventTarget {
             await executeNextNodes('try', [...tryCatchStack, node]);
             return;
         }
-
         try {
             if (node.type === 'loop') {
                 const items = await nodeConfig.execute(resolvedNodeData, this.logger, this);
                 const loopConnection = this.connections.find(c => c.from === node.id && c.fromPort === 'loop');
-                
                 if (loopConnection) {
                     const loopBodyStartNode = this.nodes.find(n => n.id === loopConnection.to);
                     if (loopBodyStartNode) {
                         for (let i = 0; i < items.length; i++) {
                             const item = items[i];
                             this.logger.info(`Vòng lặp ${i + 1}/${items.length}: item = ${JSON.stringify(item)}`);
-                            
-                            this.executionState[node.id] = {
-                                currentItem: item,
-                                currentIndex: i,
-                                totalItems: items.length,
-                                _status: 'running'
-                            };
+                            this.executionState[node.id] = { currentItem: item, currentIndex: i, totalItems: items.length, _status: 'running' };
                             this._updateVariablesPanel();
-                            
                             await this._animateConnection(loopConnection);
                             await this._executeNode(loopBodyStartNode, [...tryCatchStack]); 
                         }
                     }
                 }
-
                 this.logger.success(`Vòng lặp hoàn thành.`);
                 this.executionState[node.id] = { allItems: items, count: items.length };
                 this._setNodeState(node, 'success');
@@ -1811,10 +1292,8 @@ class WorkflowBuilder extends EventTarget {
                 await executeNextNodes('done', tryCatchStack);
                 return;
             }
-
             const result = await nodeConfig.execute(resolvedNodeData, this.logger, this);
-            
-            if (result && typeof result === 'object' && result.hasOwnProperty('selectedPort')) {
+            if (result?.hasOwnProperty('selectedPort')) {
                 this.executionState[node.id] = result.data;
                 this._setNodeState(node, 'success');
                 this.dispatchEvent(new CustomEvent('simulation:node:end', { detail: { node, result: result.data } }));
@@ -1823,55 +1302,39 @@ class WorkflowBuilder extends EventTarget {
                 this.executionState[node.id] = result;
                 this._setNodeState(node, 'success');
                 this.dispatchEvent(new CustomEvent('simulation:node:end', { detail: { node, result } }));
-                const successPortName = (nodeConfig.outputs || ['success'])[0];
-                await executeNextNodes(successPortName, tryCatchStack);
+                await executeNextNodes((nodeConfig.outputs || ['success'])[0], tryCatchStack);
             }
         } catch (error) {
-            this.logger.error(`Lỗi thực thi khối ${node.data.title}: ${error.message}`);
             const errorResult = { error: error.message, ...error.context };
+            this.logger.error(`Lỗi thực thi khối ${node.data.title}: ${error.message}`);
             this.executionState[node.id] = errorResult;
             this._setNodeState(node, 'error');
             this.dispatchEvent(new CustomEvent('simulation:node:end', { detail: { node, error: errorResult } }));
             this._updateVariablesPanel();
-
             const lastTryCatchNode = tryCatchStack.pop();
-
             if (lastTryCatchNode) {
                 this.logger.info(`Đã bắt được lỗi bởi khối Try/Catch: ${lastTryCatchNode.data.title}. Chuyển hướng tới cổng 'catch'.`);
-                this.executionState.error = {
-                    message: error.message,
-                    sourceNode: node.id,
-                    context: error.context
-                };
+                this.executionState.error = { message: error.message, sourceNode: node.id, context: error.context };
                 this._setNodeState(lastTryCatchNode, 'error');
                 this._updateVariablesPanel();
-                
                 await executeNextNodes('catch', tryCatchStack, lastTryCatchNode.id);
             } else {
                 await executeNextNodes('error', tryCatchStack);
             }
         } finally {
-            if (node.type !== 'loop') {
-                    this._updateVariablesPanel();
-            }
+            if (node.type !== 'loop') this._updateVariablesPanel();
         }
     }
 
-
     _setNodeState(node, state) {
         node.element.classList.remove('running', 'success', 'error');
-        if (state !== 'idle') {
-            node.element.classList.add(state);
-        }
+        if (state !== 'idle') node.element.classList.add(state);
     }
 
     _clearCanvas(commit = true) {
         this.dom.connectorSvg.innerHTML = '';
         this.nodes.forEach(node => node.element.remove());
-        this.nodes = [];
-        this.connections = [];
-        this.nodeTypeCounts = {};
-        this._clearSelection();
+        this.nodes = []; this.connections = []; this.nodeTypeCounts = {}; this._clearSelection();
         if (commit) this._commitState("Xóa canvas");
         this.dispatchEvent(new CustomEvent('workflow:cleared'));
     }
@@ -1882,30 +1345,18 @@ class WorkflowBuilder extends EventTarget {
             const jsonString = JSON.stringify(workflowData, null, 2);
             const blob = new Blob([jsonString], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'workflow.json';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        } catch (err) {
-            this.logger.error("Xuất file JSON thất bại.", err);
-        }
+            const a = document.createElement('a'); a.href = url; a.download = 'workflow.json';
+            document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+        } catch (err) { this.logger.error("Xuất file JSON thất bại.", err); }
     }
 
     _handleFileImport(e) {
         const file = e.target.files[0];
         if (!file) return;
-
         const reader = new FileReader();
         reader.onload = (event) => {
-            try {
-                const jsonContent = event.target.result;
-                this._importWorkflow(jsonContent);
-            } catch (err) {
-                this.logger.error("Nhập file JSON thất bại. File có thể bị lỗi hoặc không đúng định dạng.", err);
-            }
+            try { this._importWorkflow(event.target.result); }
+            catch (err) { this.logger.error("Nhập file JSON thất bại. File có thể bị lỗi hoặc không đúng định dạng.", err); }
         };
         reader.readAsText(file);
         e.target.value = '';
@@ -1914,165 +1365,109 @@ class WorkflowBuilder extends EventTarget {
     _importWorkflow(jsonString, commit = true) {
         try {
             const data = JSON.parse(jsonString);
-            if (!data.nodes || !data.connections) {
-                throw new Error('File JSON không hợp lệ. Thiếu thuộc tính "nodes" hoặc "connections".');
-            }
+            if (!data.nodes || !data.connections) throw new Error('File JSON không hợp lệ.');
             this._loadState(data);
-            if (commit) {
-                this.history = [];
-                this.historyIndex = -1;
-                this._commitState("Import file");
-            }
+            if (commit) { this.history = []; this.historyIndex = -1; this._commitState("Import file"); }
             this._resetView();
-        } catch (error) {
-            this.logger.error(`Lỗi khi nhập workflow: ${error.message}`);
-        }
+        } catch (error) { this.logger.error(`Lỗi khi nhập workflow: ${error.message}`); }
     }
 
     _handleVariableContextMenu(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        this._hideAllContextMenus();
-
-        const target = e.currentTarget;
-        const key = target.dataset.key;
-        const value = target.dataset.value;
-        const path = target.dataset.path;
-
+        e.preventDefault(); e.stopPropagation(); this._hideAllContextMenus();
+        const { key, value, path } = e.currentTarget.dataset;
         if (!key && !path) return;
-
         this.activeVariableContext = { key, value, path };
         const menu = this.dom.variableContextMenu;
-        menu.style.display = 'block';
-        menu.style.left = `${e.clientX}px`;
-        menu.style.top = `${e.clientY}px`;
+        Object.assign(menu.style, { display: 'block', left: `${e.clientX}px`, top: `${e.clientY}px` });
     }
     
     async _handleVariableContextMenuClick(e) {
         const item = e.target.closest('.context-menu-item');
         if (!item || !this.activeVariableContext) return;
-
         const action = item.dataset.action;
         if (!action) return;
-
         const { key, value, path } = this.activeVariableContext;
         let textToCopy = '';
         switch (action) {
             case 'copy-value':
                 try {
-                    const parsedValue = JSON.parse(value);
-                    textToCopy = (typeof parsedValue === 'object' && parsedValue !== null) 
-                        ? JSON.stringify(parsedValue, null, 2) 
-                        : String(parsedValue);
+                    const parsed = JSON.parse(value);
+                    textToCopy = (typeof parsed === 'object' && parsed !== null) ? JSON.stringify(parsed, null, 2) : String(parsed);
                 } catch { textToCopy = value; }
                 break;
             case 'copy-key': textToCopy = key; break;
             case 'copy-path': textToCopy = `{{${path}}}`; break;
         }
-
         if (textToCopy) await this._copyToClipboard(textToCopy);
-        
-        this._hideAllContextMenus();
-        this.activeVariableContext = null;
+        this._hideAllContextMenus(); this.activeVariableContext = null;
     }
 
     async _copyToClipboard(text) {
         try {
             await navigator.clipboard.writeText(text);
             this.logger.system(`Đã sao chép: ${text.substring(0, 50)}...`);
-        } catch (err) {
-            this.logger.error('Không thể sao chép vào clipboard.', err);
-        }
+        } catch (err) { this.logger.error('Không thể sao chép vào clipboard.', err); }
     }
     
     _handleProcessCurlImport() {
         const curlString = document.getElementById('curl-input-textarea').value;
         if (!curlString || this.selectedNodes.length !== 1) return;
-
         const node = this.selectedNodes[0];
         if (node.type !== 'http_request') return;
-
         try {
             const parsedData = this._parseCurlCommand(curlString);
-            
             this.updateNodeData(node.id, {
-                url: parsedData.url,
-                method: parsedData.method,
-                headers: parsedData.headers,
+                url: parsedData.url, method: parsedData.method, headers: parsedData.headers,
                 body: { 
                     type: parsedData.body.type,
                     json: parsedData.body.type === 'json' ? parsedData.body.content : '',
                     formUrlEncoded: parsedData.body.type === 'form-urlencoded' ? parsedData.body.content : []
                 }
             });
-
             this.logger.success("Lệnh cURL đã được import thành công.");
             this._commitState("Import from cURL");
             this.curlImportModal.hide();
-        } catch (error) {
-            this.logger.error(`Không thể phân tích lệnh cURL: ${error.message}`);
-        }
+        } catch (error) { this.logger.error(`Không thể phân tích lệnh cURL: ${error.message}`); }
     }
 
     _parseCurlCommand(curlString) {
-        const result = {
-            url: '',
-            method: 'GET',
-            headers: [],
-            body: { type: 'none', content: null }
-        };
-
+        const result = { url: '', method: 'GET', headers: [], body: { type: 'none', content: null } };
         let singleLineCurl = curlString.replace(/(\r\n|\n|\r|\\| \^)/g, ' ').trim();
         const args = [];
         const regex = /'[^']*'|"[^"]*"|\S+/g;
         let match;
-        while(match = regex.exec(singleLineCurl)) {
-            args.push(match[0]);
-        }
-        
+        while(match = regex.exec(singleLineCurl)) { args.push(match[0]); }
         let i = 0;
         while (i < args.length) {
-            const arg = args[i];
-            const nextArg = args[i+1];
+            const arg = args[i]; const nextArg = args[i+1];
             const cleanNextArg = () => nextArg ? nextArg.replace(/^['"]|['"]$/g, '') : '';
-
             if (arg === 'curl' || arg.startsWith('http')) {
                 if (!result.url) result.url = arg.replace(/^['"]|['"]$/g, '');
                 i++; continue;
             }
             if (!arg.startsWith('-')) { i++; continue; }
-
             switch(arg) {
                 case '-H': case '--header':
                     const [key, ...valueParts] = cleanNextArg().split(':');
-                    if (key && valueParts.length > 0) {
-                         result.headers.push({ key: key.trim(), value: valueParts.join(':').trim() });
-                    }
+                    if (key && valueParts.length > 0) result.headers.push({ key: key.trim(), value: valueParts.join(':').trim() });
                     i += 2; break;
-                case '-X': case '--request':
-                    result.method = cleanNextArg().toUpperCase(); i += 2; break;
+                case '-X': case '--request': result.method = cleanNextArg().toUpperCase(); i += 2; break;
                 case '-d': case '--data': case '--data-raw': case '--data-binary':
                     const bodyContent = cleanNextArg();
                     try {
                         JSON.parse(bodyContent);
-                        result.body.type = 'json';
-                        result.body.content = bodyContent;
+                        result.body = { type: 'json', content: bodyContent };
                     } catch(e) {
-                        result.body.type = 'form-urlencoded';
-                        result.body.content = Array.from(new URLSearchParams(bodyContent).entries())
-                                                  .map(([key, value]) => ({ key, value }));
+                        result.body = { type: 'form-urlencoded', content: Array.from(new URLSearchParams(bodyContent)).map(([k, v]) => ({ key: k, value: v })) };
                     }
                     i += 2; break;
                 case '-b': case '--cookie':
                     const cookieValue = cleanNextArg();
-                    const existingCookieHeader = result.headers.find(h => h.key.toLowerCase() === 'cookie');
-                    if (existingCookieHeader) existingCookieHeader.value += '; ' + cookieValue;
+                    const cookieHeader = result.headers.find(h => h.key.toLowerCase() === 'cookie');
+                    if (cookieHeader) cookieHeader.value += '; ' + cookieValue;
                     else result.headers.push({ key: 'Cookie', value: cookieValue });
                     i += 2; break;
-                default:
-                    if (nextArg && !nextArg.startsWith('-')) i += 2;
-                    else i++;
-                    break;
+                default: if (nextArg && !nextArg.startsWith('-')) i += 2; else i++; break;
             }
         }
         if (result.method === 'GET' && result.body.type !== 'none') result.method = 'POST';

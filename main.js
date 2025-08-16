@@ -22,6 +22,8 @@ const createWindow = () => {
     }
   });
 
+  win.setMenuBarVisibility(false)
+
   // *** BẮT ĐẦU THAY ĐỔI ***
   // Kích hoạt module "remote" cho cửa sổ này
   require('@electron/remote/main').enable(win.webContents);
