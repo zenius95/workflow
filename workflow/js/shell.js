@@ -1,4 +1,4 @@
-// shell.js
+// workflow/js/shell.js
 document.addEventListener('DOMContentLoaded', () => {
     const { ipcRenderer } = require('electron');
 
@@ -6,9 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const maximizeBtn = document.getElementById('maximize-btn');
     const closeBtn = document.getElementById('close-btn');
 
-    // *** BẮT ĐẦU THAY ĐỔI: Lấy tham chiếu đến icon bên trong nút maximize ***
     const maximizeBtnIcon = maximizeBtn.querySelector('i');
-    // *** KẾT THÚC THAY ĐỔI ***
 
     const tabBar = document.getElementById('tab-bar');
     const addTabBtn = document.getElementById('add-tab-btn');
@@ -16,9 +14,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let tabCounter = 0;
     let activeTabId = null;
+    
+    const findTabByWorkflowId = (workflowId) => {
+        if (!workflowId || String(workflowId) === 'null') {
+            return null;
+        }
+        return document.querySelector(`.tab-item[data-workflow-id="${workflowId}"]`);
+    };
 
     const createNewTab = (options = {}) => {
-        const { title = 'Workflow Mới', workflowId = null, focus = true, sourceTabId = null } = options;
+        const { title = 'Workflow Mới', workflowId = null, focus = true } = options;
 
         tabCounter++;
         const tabId = `tab-${tabCounter}`;
@@ -26,7 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const tabEl = document.createElement('div');
         tabEl.className = 'tab-item';
         tabEl.dataset.tabId = tabId;
-        tabEl.dataset.workflowId = workflowId;
+        tabEl.dataset.workflowId = String(workflowId);
         tabEl.innerHTML = `
             <div class="tab-title">${title}</div>
             <button class="close-tab-btn"><i class="ri-close-line"></i></button>
@@ -46,15 +51,31 @@ document.addEventListener('DOMContentLoaded', () => {
             const { channel, args } = event;
             const [data] = args;
             
+            if (channel === 'getOpenWorkflows-request') {
+                const openIds = Array.from(document.querySelectorAll('.tab-item[data-workflow-id]'))
+                    .map(tab => parseInt(tab.dataset.workflowId, 10))
+                    .filter(id => !isNaN(id) && id > 0);
+                
+                const requestingWebview = document.getElementById(`webview-${data.tabId}`);
+                if (requestingWebview) {
+                    requestingWebview.send('getOpenWorkflows-response', { openIds });
+                }
+                return;
+            }
+
+            if (channel === 'switchToWorkflow') {
+                const tabToSwitch = findTabByWorkflowId(data.workflowId);
+                if (tabToSwitch) {
+                    switchToTab(tabToSwitch.dataset.tabId);
+                    tabToSwitch.classList.add('tab-flash');
+                    setTimeout(() => tabToSwitch.classList.remove('tab-flash'), 500);
+                }
+                return;
+            }
+
             if (channel === 'updateTabTitle') {
                 updateTab(data.tabId, { title: data.title, workflowId: data.workflowId });
-            } else if (channel === 'openWorkflowInNewTab') {
-                if (isTabNew(data.sourceTabId)) {
-                     updateTab(data.sourceTabId, { title: data.name, workflowId: data.workflowId, focus: true });
-                } else {
-                    createNewTab({ title: data.name, workflowId: data.workflowId, focus: true });
-                }
-            }
+            } 
         });
 
         webviewContainer.appendChild(webview);
@@ -88,24 +109,33 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
     
+    /**
+     * Cập nhật thông tin của một tab và tải lại webview nếu cần.
+     * Đây là phiên bản đã sửa lỗi ERR_INVALID_URL.
+     */
     const updateTab = (tabId, { title, workflowId, focus = false }) => {
         const tabEl = document.querySelector(`.tab-item[data-tab-id="${tabId}"]`);
         const webview = document.getElementById(`webview-${tabId}`);
 
-        if (tabEl) {
-            tabEl.querySelector('.tab-title').textContent = title;
-            tabEl.dataset.workflowId = workflowId;
+        if (!tabEl || !webview) {
+            console.error(`Không tìm thấy tab hoặc webview cho ID: ${tabId}`);
+            return;
         }
 
-        if (webview) {
+        const currentWorkflowId = tabEl.dataset.workflowId;
+
+        // --- BẮT ĐẦU SỬA LỖI ---
+        // Quyết định tải lại URL dựa trên `data-workflow-id` của tab, 
+        // không dựa vào `webview.getURL()` để tránh lỗi race condition.
+        if (String(currentWorkflowId) !== String(workflowId)) {
             const newUrl = `workflow.html?tabId=${tabId}&workflowId=${workflowId}`;
-            const currentUrl = new URL(webview.getURL());
-            const currentWorkflowId = currentUrl.searchParams.get('workflowId');
-            
-            if (String(currentWorkflowId) !== String(workflowId)) {
-                 webview.loadURL(newUrl);
-            }
+            webview.loadURL(newUrl);
         }
+        // --- KẾT THÚC SỬA LỖI ---
+        
+        // Luôn cập nhật thông tin hiển thị và trạng thái của tab
+        tabEl.querySelector('.tab-title').textContent = title;
+        tabEl.dataset.workflowId = String(workflowId);
         
         if (focus) {
             switchToTab(tabId);
@@ -144,17 +174,13 @@ document.addEventListener('DOMContentLoaded', () => {
         ipcRenderer.send('close-window');
     });
 
-    // *** BẮT ĐẦU THAY ĐỔI: Lắng nghe và cập nhật icon maximize ***
     ipcRenderer.on('window-state-changed', (event, { isMaximized }) => {
         if (isMaximized) {
-            // Thay icon thành "restore" (thu nhỏ lại)
             maximizeBtnIcon.className = 'ri-file-copy-2-line';
         } else {
-            // Trả icon về "maximize"
             maximizeBtnIcon.className = 'ri-checkbox-blank-line';
         }
     });
-    // *** KẾT THÚC THAY ĐỔI ***
 
     addTabBtn.addEventListener('click', () => createNewTab());
 

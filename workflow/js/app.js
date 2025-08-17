@@ -20,28 +20,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const db = require('./js/database.js');
     db.initialize();
 
-    // --- BẮT ĐẦU THAY ĐỔI: Loại bỏ modal cũ, lấy tham chiếu đến các phần tử mới ---
     const saveWorkflowModal = new bootstrap.Modal(document.getElementById('save-workflow-modal'));
-
     const saveBtn = document.getElementById('save-workflow-btn');
     const workflowNameInput = document.getElementById('workflow-name-input');
     const confirmSaveBtn = document.getElementById('confirm-save-btn');
-    
     const historyTab = document.getElementById('history-tab');
     const workflowVersionsList = document.getElementById('workflow-versions-list');
-
-    // Các phần tử của trang bắt đầu
     const createNewWorkflowBtn = document.querySelector('[data-action="create-new-workflow"]');
     const startPageWorkflowList = workflowBuilder.dom.startPageWorkflowList;
-    // --- KẾT THÚC THAY ĐỔI ---
 
-    // --- STATE QUẢN LÝ ---
     let currentWorkflowId = initialWorkflowId;
     let autoSaveInterval = null;
     let lastSavedVersionState = null;
     const AUTOSAVE_INTERVAL_MS = 10000; // 10 giây
-
-    // --- CÁC HÀM XỬ LÝ SỰ KIỆN (ĐÃ CẬP NHẬT) ---
 
     const openSaveModal = () => {
         const currentData = workflowBuilder.getWorkflow();
@@ -88,26 +79,61 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
     
-    // --- BẮT ĐẦU THAY ĐỔI: Các hàm logic cho trang bắt đầu ---
+    // --- BẮT ĐẦU THAY ĐỔI: Logic hiển thị danh sách workflow ---
     const populateStartPage = async () => {
         try {
+            // 1. Gửi yêu cầu lên shell để lấy danh sách ID các workflow đang mở
+            ipcRenderer.sendToHost('getOpenWorkflows-request', { tabId });
+
+            // 2. Chờ phản hồi từ shell
+            const openWorkflowIds = await new Promise(resolve => {
+                ipcRenderer.once('getOpenWorkflows-response', (event, { openIds }) => {
+                    resolve(new Set(openIds)); // Dùng Set để tra cứu nhanh hơn
+                });
+            });
+
             const workflows = await db.getWorkflows();
             startPageWorkflowList.innerHTML = ''; // Xóa danh sách cũ
+
             if (workflows.length === 0) {
                 startPageWorkflowList.innerHTML = '<p class="text-center text-muted p-3">Sếp chưa lưu workflow nào cả.</p>';
             } else {
+                // 3. Render danh sách với trạng thái tương ứng
                 workflows.forEach(wf => {
-                    const item = document.createElement('a');
-                    item.href = '#';
-                    item.className = 'list-group-item list-group-item-action workflow-list-item';
-                    item.dataset.id = wf.id;
-                    item.innerHTML = `
+                    const isOpen = openWorkflowIds.has(wf.id);
+                    const item = document.createElement('div'); // Thay <a> bằng <div>
+                    item.className = 'list-group-item list-group-item-action workflow-list-item d-flex justify-content-between align-items-center';
+                    
+                    if (isOpen) {
+                        item.classList.add('bg-light'); // Highlight nhẹ nếu đang mở
+                    }
+
+                    // Phần thông tin workflow
+                    let contentHTML = `
                         <div>
-                            <h5>${wf.name}</h5>
+                            <h5 class="${isOpen ? 'text-primary' : ''}">${wf.name}</h5>
                             <small>Cập nhật: ${new Date(wf.updatedAt).toLocaleString()}</small>
                         </div>
-                        <i class="ri-arrow-right-s-line"></i>
                     `;
+                    
+                    item.innerHTML = contentHTML;
+
+                    if (isOpen) {
+                        // Nếu đang mở, thêm nút "Chuyển Tab"
+                        const switchBtn = document.createElement('button');
+                        switchBtn.className = 'btn btn-sm btn-primary';
+                        switchBtn.innerHTML = 'Chuyển Tab <i class="ri-arrow-right-line ms-1"></i>';
+                        switchBtn.dataset.action = 'switch-tab';
+                        switchBtn.dataset.workflowId = wf.id;
+                        item.appendChild(switchBtn);
+                    } else {
+                        // Nếu chưa mở, thêm icon và data-id để mở
+                        const icon = document.createElement('i');
+                        icon.className = 'ri-arrow-right-s-line';
+                        item.appendChild(icon);
+                        item.dataset.action = 'open-workflow';
+                        item.dataset.id = wf.id;
+                    }
                     startPageWorkflowList.appendChild(item);
                 });
             }
@@ -118,13 +144,26 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     
     const handleStartPageSelection = async (e) => {
-        const item = e.target.closest('.workflow-list-item');
+        // Bắt sự kiện cho nút "Chuyển Tab"
+        const switchBtn = e.target.closest('[data-action="switch-tab"]');
+        if (switchBtn) {
+            e.preventDefault();
+            const workflowIdToSwitch = switchBtn.dataset.workflowId;
+            if (workflowIdToSwitch) {
+                ipcRenderer.sendToHost('switchToWorkflow', { workflowId: workflowIdToSwitch });
+            }
+            return;
+        }
+
+        // Logic cũ để mở workflow mới
+        const item = e.target.closest('[data-action="open-workflow"]');
         if (!item) return;
         
         e.preventDefault();
         const id = parseInt(item.dataset.id, 10);
         await loadWorkflowById(id);
     };
+    // --- KẾT THÚC THAY ĐỔI ---
     
     const handleCreateNew = () => {
         workflowBuilder.hideStartPage();
@@ -161,14 +200,12 @@ document.addEventListener('DOMContentLoaded', () => {
             workflowBuilder.logger.error(`Lỗi khi tải workflow: ${error.message}`);
         }
     };
-    // --- KẾT THÚC THAY ĐỔI ---
 
     const resetCurrentWorkflow = (event) => {
         const isFromJsonImport = event.detail?.workflow?.nodes[0]?.id.includes('_');
         if (event.type === 'workflow:cleared' || isFromJsonImport) {
             currentWorkflowId = null;
             stopAutoSaveTimer();
-            // Nếu xóa canvas, quay lại trang bắt đầu
             populateStartPage();
             workflowBuilder.showStartPage();
         }
@@ -257,19 +294,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // --- GÁN SỰ KIỆN ---
     saveBtn.addEventListener('click', openSaveModal);
     confirmSaveBtn.addEventListener('click', handleConfirmSave);
-    
-    // Gán sự kiện cho các phần tử mới của trang bắt đầu
     createNewWorkflowBtn.addEventListener('click', handleCreateNew);
     startPageWorkflowList.addEventListener('click', handleStartPageSelection);
-    
     historyTab.addEventListener('show.bs.tab', updateHistoryTabContent);
     workflowBuilder.addEventListener('workflow:cleared', resetCurrentWorkflow);
     workflowBuilder.addEventListener('workflow:loaded', resetCurrentWorkflow);
 
-    // --- KHỞI TẠO TRẠNG THÁI ---
     stopAutoSaveTimer();
     autoLoadWorkflowOnStart();
 });
