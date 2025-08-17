@@ -1,5 +1,15 @@
 // shell.js
 document.addEventListener('DOMContentLoaded', () => {
+    const { ipcRenderer } = require('electron');
+
+    const minimizeBtn = document.getElementById('minimize-btn');
+    const maximizeBtn = document.getElementById('maximize-btn');
+    const closeBtn = document.getElementById('close-btn');
+
+    // *** BẮT ĐẦU THAY ĐỔI: Lấy tham chiếu đến icon bên trong nút maximize ***
+    const maximizeBtnIcon = maximizeBtn.querySelector('i');
+    // *** KẾT THÚC THAY ĐỔI ***
+
     const tabBar = document.getElementById('tab-bar');
     const addTabBtn = document.getElementById('add-tab-btn');
     const webviewContainer = document.getElementById('webview-container');
@@ -13,29 +23,25 @@ document.addEventListener('DOMContentLoaded', () => {
         tabCounter++;
         const tabId = `tab-${tabCounter}`;
 
-        // Tạo phần tử tab trên UI
         const tabEl = document.createElement('div');
         tabEl.className = 'tab-item';
         tabEl.dataset.tabId = tabId;
-        // Gán workflowId vào dataset để kiểm tra sau này
         tabEl.dataset.workflowId = workflowId;
         tabEl.innerHTML = `
-            <span class="tab-title">${title}</span>
+            <div class="tab-title">${title}</div>
             <button class="close-tab-btn"><i class="ri-close-line"></i></button>
         `;
 
         tabBar.appendChild(tabEl);
 
-        // Tạo webview để chứa nội dung workflow
         const webview = document.createElement('webview');
         webview.id = `webview-${tabId}`;
         webview.className = 'workflow-webview';
         const url = `workflow.html?tabId=${tabId}` + (workflowId ? `&workflowId=${workflowId}` : '');
         webview.setAttribute('src', url);
-        webview.setAttribute('nodeintegration', 'true');
-        webview.setAttribute('webpreferences', 'contextIsolation=false');
+        
+        webview.setAttribute('webpreferences', 'contextIsolation=false, nodeIntegration=true');
 
-        // Lắng nghe các thông điệp từ webview
         webview.addEventListener('ipc-message', (event) => {
             const { channel, args } = event;
             const [data] = args;
@@ -43,7 +49,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (channel === 'updateTabTitle') {
                 updateTab(data.tabId, { title: data.title, workflowId: data.workflowId });
             } else if (channel === 'openWorkflowInNewTab') {
-                // Nếu tab hiện tại là "Workflow Mới", ta sẽ tái sử dụng nó
                 if (isTabNew(data.sourceTabId)) {
                      updateTab(data.sourceTabId, { title: data.name, workflowId: data.workflowId, focus: true });
                 } else {
@@ -57,19 +62,18 @@ document.addEventListener('DOMContentLoaded', () => {
         if (focus) {
             switchToTab(tabId);
         }
+        
+        tabBar.scrollLeft = tabBar.scrollWidth;
     };
     
-    // Hàm kiểm tra xem một tab có phải là tab "Workflow Mới" hay không
     const isTabNew = (tabId) => {
         const tab = document.querySelector(`.tab-item[data-tab-id="${tabId}"]`);
-        // So sánh với chuỗi 'null' vì dataset luôn là string
         return tab && tab.dataset.workflowId === 'null';
     };
 
     const switchToTab = (tabId) => {
         if (activeTabId === tabId) return;
 
-        // Cập nhật trạng thái active cho các tab
         document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
         const tabToActivate = document.querySelector(`.tab-item[data-tab-id="${tabId}"]`);
         if (tabToActivate) {
@@ -77,7 +81,6 @@ document.addEventListener('DOMContentLoaded', () => {
             activeTabId = tabId;
         }
 
-        // Cập nhật trạng thái active cho các webview
         document.querySelectorAll('.workflow-webview').forEach(wv => wv.classList.remove('active'));
         const webviewToActivate = document.getElementById(`webview-${tabId}`);
         if (webviewToActivate) {
@@ -99,7 +102,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const currentUrl = new URL(webview.getURL());
             const currentWorkflowId = currentUrl.searchParams.get('workflowId');
             
-            // Chỉ tải lại URL nếu workflowId thay đổi
             if (String(currentWorkflowId) !== String(workflowId)) {
                  webview.loadURL(newUrl);
             }
@@ -125,13 +127,35 @@ document.addEventListener('DOMContentLoaded', () => {
         if (wasActive && sibling) {
             switchToTab(sibling.dataset.tabId);
         } else if (document.querySelectorAll('.tab-item').length === 0) {
-            // Nếu không còn tab nào, tạo một tab "Workflow Mới"
             activeTabId = null;
             createNewTab();
         }
     };
+    
+    minimizeBtn.addEventListener('click', () => {
+        ipcRenderer.send('minimize-window');
+    });
 
-    // --- Event Listeners ---
+    maximizeBtn.addEventListener('click', () => {
+        ipcRenderer.send('maximize-window');
+    });
+
+    closeBtn.addEventListener('click', () => {
+        ipcRenderer.send('close-window');
+    });
+
+    // *** BẮT ĐẦU THAY ĐỔI: Lắng nghe và cập nhật icon maximize ***
+    ipcRenderer.on('window-state-changed', (event, { isMaximized }) => {
+        if (isMaximized) {
+            // Thay icon thành "restore" (thu nhỏ lại)
+            maximizeBtnIcon.className = 'ri-file-copy-2-line';
+        } else {
+            // Trả icon về "maximize"
+            maximizeBtnIcon.className = 'ri-checkbox-blank-line';
+        }
+    });
+    // *** KẾT THÚC THAY ĐỔI ***
+
     addTabBtn.addEventListener('click', () => createNewTab());
 
     tabBar.addEventListener('click', (e) => {
@@ -145,12 +169,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Kích hoạt tính năng kéo/thả để sắp xếp tab
-    new Sortable(tabBar, {
-        animation: 150,
-        ghostClass: 'tab-ghost'
+    tabBar.addEventListener('wheel', (e) => {
+        if (e.deltaY !== 0) {
+            e.preventDefault();
+            tabBar.scrollLeft += e.deltaY;
+        }
     });
 
-    // Khởi tạo tab đầu tiên
+    new Sortable(tabBar, {
+        animation: 200,
+        ghostClass: 'tab-ghost',
+        dragClass: 'tab-dragging',
+    });
+
     createNewTab();
 });

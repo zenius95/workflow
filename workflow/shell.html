@@ -8,13 +8,23 @@
     <link rel="stylesheet" href="css/shell.css">
 </head>
 <body>
-    <div class="tab-manager">
-        <div class="tab-bar" id="tab-bar">
+    <header class="titlebar d-flex align-items-center">
+        <div class="drag-region">
+            <div class="tab-manager d-flex align-items-center">
+                <div class="tab-bar" id="tab-bar"></div>
+                <button id="add-tab-btn" class="add-tab-btn"><i class="ri-add-line"></i></button>
             </div>
-        <button id="add-tab-btn" class="add-tab-btn"><i class="ri-add-line"></i></button>
-    </div>
+            </div>
+
+        <div class="window-controls">
+            <button id="minimize-btn"><i class="ri-subtract-line"></i></button>
+            <button id="maximize-btn"><i class="ri-checkbox-blank-line"></i></button>
+            <button id="close-btn"><i class="ri-close-line"></i></button>
+        </div>
+    </header>
+    
     <main id="webview-container" class="webview-container">
-        </main>
+    </main>
 
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     <script src="js/shell.js"></script>

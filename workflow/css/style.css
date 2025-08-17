@@ -1,5 +1,21 @@
+:root {
+  --primary-color: #31a9ed;
+  --light-color: #ffffffbd;
+  --light-hover-color: #ffffff48;
+  --bs-border-color: #ffffff67;
+}
+
+.bg-blur {
+    background-color: var(--light-color);
+}
+
+.bg-blur-2 {
+    background: #ffffffe8;
+}
+
 /* General Styles */
-body { font-family: 'Poppins', sans-serif; overflow: hidden; background-color: #f8f9fa; }
+body { font-family: 'Poppins', sans-serif; overflow: hidden; background-image: linear-gradient(100deg, #0093E9 0%, #80D0C7 100%);
+    background-size: cover; }
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;900&display=swap');
 
 /* Node Styles */
@@ -91,8 +107,6 @@ body { font-family: 'Poppins', sans-serif; overflow: hidden; background-color: #
 
 /* Canvas & UI Panels */
 .canvas-container {
-    background-color: #f8f9fa;
-    background-image: radial-gradient(#e9ecef 1px, transparent 0);
     background-size: 20px 20px;
     position: relative; width: 100%; height: 100%;
     overflow: hidden; flex-grow: 1;
@@ -142,11 +156,9 @@ body { font-family: 'Poppins', sans-serif; overflow: hidden; background-color: #
     transition: transform 0.3s ease-in-out;
     z-index: 30; overflow-y: auto;
 }
-/* *** START FIX: Added rule to hide the panel *** */
 .settings-panel.hidden {
     transform: translateX(calc(100% + 30px));
 }
-/* *** END FIX *** */
 
 .tree-view { font-family: monospace; font-size: 14px; }
 .tree-view summary { cursor: pointer; list-style: none; display: flex; align-items: center; }
@@ -194,7 +206,6 @@ body { font-family: 'Poppins', sans-serif; overflow: hidden; background-color: #
     padding-top: 10px;
     margin-top: 8px;
 }
-
 
 .condition-row {
     display: grid;
@@ -272,24 +283,23 @@ body { font-family: 'Poppins', sans-serif; overflow: hidden; background-color: #
     animation: spin 1s linear infinite;
 }
 
-/* === START CHANGE: DYNAMIC GROUP LAYOUT STYLES === */
 .custom-layout-grid {
     display: grid;
     gap: 0 1rem; /* Column gap only */
 }
 
-/* Override Bootstrap's col-12 when inside our custom grid */
 .custom-layout-grid > .layout-item-wrapper {
     width: auto;
     flex: 1;
-    padding: 0 !important; /* Remove padding from Bootstrap's .g-2 */
+    padding: 0 !important;
 }
-/* === END CHANGE === */
 
-/* *** BẮT ĐẦU THAY ĐỔI: CSS cho Trang Bắt Đầu bên trong Workflow *** */
+/* *** BẮT ĐẦU THAY ĐỔI: CSS cho Trang Bắt Đầu và Giao diện chính *** */
 .start-page-container {
-    width: 100vw;
-    height: 100vh;
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -297,6 +307,20 @@ body { font-family: 'Poppins', sans-serif; overflow: hidden; background-color: #
     color: #343a40;
     text-align: center;
     padding: 2rem;
+    z-index: 1000;
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.start-page-container.hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+}
+
+main.main-ui.hidden {
+    display: none !important;
 }
 
 .start-page-content {

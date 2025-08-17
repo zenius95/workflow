@@ -1,3 +1,10 @@
+:root {
+  --primary-color: #31a9ed;
+  --light-color: #ffffffbd;
+  --light-hover-color: #ffffff48;
+  --bs-border-color: #ffffff67;
+}
+
 /* shell.css */
 body {
     display: flex;
@@ -5,108 +12,198 @@ body {
     height: 100vh;
     overflow: hidden;
     font-family: sans-serif;
-    background-color: #f0f2f5;
+    background-image: linear-gradient(100deg, #0093E9 0%, #80D0C7 100%);
+    background-size: cover;
+}
+
+.bg-blur {
+    background-color: var(--light-color);
+}
+
+.titlebar {
+    display: flex;
+    flex-shrink: 0;
+    height: 50px;
+    user-select: none;
+    padding: 0 10px;
+}
+
+.drag-region {
+    flex-grow: 1;
+    -webkit-app-region: drag; 
+    display: flex;
+    align-items: flex-end;
+    min-width: 0;
+}
+
+.window-controls {
+    display: flex;
+    flex-shrink: 0;
+    -webkit-app-region: no-drag;
+}
+
+.window-controls button {
+    width: 30px;
+    height: 30px;
+    border: none;
+    background-color: transparent;
+    cursor: pointer;
+    outline: none;
+    transition: background-color 0.2s;
+    font-size: 16px;
+}
+
+.window-controls button:hover {
+    background-color: rgba(0, 0, 0, 0.1);
+}
+
+#close-btn:hover {
+    background-color: #e81123;
+    color: white;
 }
 
 .tab-manager {
     display: flex;
-    align-items: center;
-    background-color: #e9ecef;
-    padding: 5px 5px 0 5px;
-    flex-shrink: 0;
+    align-items: flex-end;
+    flex-grow: 1;
+    min-width: 0;
 }
 
+/* *** BẮT ĐẦU THAY ĐỔI: Cho phép tab-bar cuộn ngang khi cần *** */
 .tab-bar {
     display: flex;
-    flex-grow: 1;
-    overflow-x: auto;
+    align-items: flex-end; 
+    overflow-x: auto; /* Kích hoạt cuộn ngang khi nội dung tràn */
+    overflow-y: hidden; /* Tắt cuộn dọc */
 }
-/* Ẩn thanh cuộn của tab bar */
-.tab-bar::-webkit-scrollbar { display: none; }
+/* *** KẾT THÚC THAY ĐỔI *** */
+
+.tab-bar::-webkit-scrollbar { display: none; } 
 
 .tab-item {
+    position: relative;
     display: flex;
     align-items: center;
-    padding: 8px 12px;
-    border-radius: 8px 8px 0 0;
-    cursor: pointer;
-    background-color: #ced4da;
-    border: 1px solid #adb5bd;
-    border-bottom: none;
-    margin-right: 2px;
-    max-width: 200px;
-    transition: background-color 0.2s;
+    /* Cho phép tab co giãn đến một giới hạn */
+    flex: 1 1 auto;
+    min-width: 70px;
+    max-width: 220px;
+
+    font-weight: 500;
+
+    -webkit-app-region: no-drag;
+
+    font-size: 14px;
+
+    margin-right: 5px;
+    padding-right: 5px;
 }
-.tab-item:hover {
-    background-color: #dee2e6;
+
+.tab-item:hover .tab-title {
+    background-color: var(--light-hover-color);
 }
-.tab-item.active {
-    background-color: #fff;
-    border-color: #dee2e6;
+
+.tab-item:after {
+    content: '';
+    width: 1px;
+    height: 15px;
+    background-color: var(--bs-border-color);
+    position: absolute;
+    right: 0px;
+    top: 50%;
+    margin-top: -7.5px;
+}
+
+.tab-item.active .tab-title {
+    background-color: var(--light-color);
+    color: #000;
 }
 
 .tab-title {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    margin-right: 8px;
-    font-size: 14px;
+    line-height: 35px;
+    padding: 0 10px;
+    border-radius: 7px;
+    cursor: pointer;
+    color: #fff;
+    padding-right: 30px;
+}
+
+.tab-item.active .close-tab-btn {
+    color: #000;
 }
 
 .close-tab-btn {
+    position: absolute;
     border: none;
     background: transparent;
-    padding: 2px;
+    padding: 3px;
     border-radius: 50%;
+    font-size: 12px;
     cursor: pointer;
-    width: 20px;
-    height: 20px;
+    color: #fff;
+    width: 15px;
+    height: 15px;
+    right: 10px;
     display: flex;
     align-items: center;
     justify-content: center;
 }
-.close-tab-btn:hover {
-    background-color: rgba(0,0,0,0.1);
-}
 
 .add-tab-btn {
-    border-radius: 50%;
-    width: 28px;
-    height: 28px;
+    border-radius: 5px;
+    width: 25px;
+    height: 25px;
     border: none;
-    background-color: #adb5bd;
-    margin-left: 5px;
     flex-shrink: 0;
     display: flex;
     align-items: center;
     justify-content: center;
+    cursor: pointer;
+    -webkit-app-region: no-drag;
+    background-color: transparent;
+    color: #fff
 }
+
 .add-tab-btn:hover {
-    background-color: #6c757d;
+    background-color: var(--light-hover-color);
     color: white;
 }
 
 .webview-container {
     flex-grow: 1;
     position: relative;
-    background-color: #fff;
+    padding: 10px;
+    padding-top: 0px;
+    border-radius: 7px;
 }
 
 .workflow-webview {
     position: absolute;
-    width: 100%;
-    height: 100%;
+    border-radius: 7px;
+    overflow: hidden;
+    width: calc(100% - 20px);
+    height: calc(100% - 10px);
     border: none;
-    display: none; /* Mặc định ẩn, chỉ hiển thị webview active */
+    display: none;
 }
 
-/* Class 'active' sẽ buộc webview phải hiển thị */
 .workflow-webview.active {
-    display: flex !important; /* Dùng flex để đảm bảo layout bên trong co giãn tốt */
+    display: flex !important;
 }
 
-/* Kiểu cho ghost khi kéo tab */
 .tab-ghost {
-    opacity: 0.5;
     background: #c8ebfb;
+    border-radius: 8px 8px 0 0;
+    opacity: 0.5;
+}
+
+.tab-dragging {
+    opacity: 0.7;
+}
+
+.sortable-fallback {
+    display: none !important;
 }

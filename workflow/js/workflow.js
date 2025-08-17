@@ -101,8 +101,10 @@ class WorkflowBuilder extends EventTarget {
         }
 
         if (this.initialWorkflow) {
+            this.hideStartPage();
             setTimeout(() => this.loadWorkflow(this.initialWorkflow, false), 0);
         } else {
+            this.showStartPage();
             this._commitState("Initial State");
         }
         
@@ -112,6 +114,23 @@ class WorkflowBuilder extends EventTarget {
     }
 
     // --- PUBLIC API ---
+
+    // *** BẮT ĐẦU THAY ĐỔI: Thêm hàm để quản lý trang bắt đầu và giao diện chính ***
+    setMainUIVisibility(visible) {
+        this.dom.mainUi?.classList.toggle('hidden', !visible);
+    }
+
+    showStartPage() {
+        this.dom.startPage?.classList.remove('hidden');
+        this.setMainUIVisibility(false);
+    }
+
+    hideStartPage() {
+        this.dom.startPage?.classList.add('hidden');
+        this.setMainUIVisibility(true);
+    }
+    // *** KẾT THÚC THAY ĐỔI ***
+
     loadWorkflow(workflowObject, commit = true) { this._importWorkflow(JSON.stringify(workflowObject), commit); }
     getWorkflow() { return this._getCurrentState(); }
     clear() { this._clearCanvas(true); }
@@ -154,11 +173,8 @@ class WorkflowBuilder extends EventTarget {
         this.formData = newData;
         this._updateVariablesPanel();
     }
-    // *** NEW: Method to update form builder data from FormBuilder instance
     setFormBuilderData(data) {
         this.formBuilderData = JSON.parse(JSON.stringify(data));
-        // We don't commit this to history to avoid cluttering undo/redo with minor form changes.
-        // The form state is considered part of the overall workflow state saved at major actions.
     }
 
     // --- INTERNAL METHODS ---
@@ -722,13 +738,11 @@ class WorkflowBuilder extends EventTarget {
             return;
         }
 
-        // <<< START CHANGE: Remember active tab >>>
         let activeTabId = null;
         const activeTabButton = content.querySelector('.nav-tabs .nav-link.active');
         if (activeTabButton) {
             activeTabId = activeTabButton.getAttribute('data-bs-target');
         }
-        // <<< END CHANGE >>>
         
         const node = this.selectedNodes[0];
         const nodeConfig = this._findNodeConfig(node.type);
@@ -762,7 +776,6 @@ class WorkflowBuilder extends EventTarget {
             fieldsContainer.appendChild(formElements);
         }
 
-        // <<< START CHANGE: Restore active tab >>>
         if (activeTabId) {
             const newTabButton = content.querySelector(`[data-bs-target="${activeTabId}"]`);
             if (newTabButton) {
@@ -770,7 +783,6 @@ class WorkflowBuilder extends EventTarget {
                 tab.show();
             }
         }
-        // <<< END CHANGE >>>
     }
 
     _handleInputPortMouseDown(e, endNode, endPort) {
@@ -954,7 +966,6 @@ class WorkflowBuilder extends EventTarget {
     }
 
     _getCurrentState() {
-        // *** MODIFIED: Include form builder data in the state
         return {
             nodes: this.nodes.map(n => ({ 
                 id: n.id, type: n.type, x: n.x, y: n.y, data: JSON.parse(JSON.stringify(n.data)) 
@@ -969,7 +980,6 @@ class WorkflowBuilder extends EventTarget {
         const idMap = new Map();
         this.nodeTypeCounts = {};
         
-        // Load nodes
         (state.nodes || []).forEach(nodeInfo => {
             const newNode = this._createNode(nodeInfo.type, { x: nodeInfo.x, y: nodeInfo.y }, nodeInfo.data, nodeInfo.id);
             if (newNode) {
@@ -984,7 +994,6 @@ class WorkflowBuilder extends EventTarget {
             }
         });
 
-        // Load connections
         (state.connections || []).forEach(connInfo => {
             const startNode = idMap.get(connInfo.from);
             const endNode = idMap.get(connInfo.to);
@@ -993,11 +1002,10 @@ class WorkflowBuilder extends EventTarget {
             }
         });
 
-        // *** MODIFIED: Load form builder data
         if (this.formBuilder && state.formBuilder) {
             this.formBuilder.loadComponents(state.formBuilder);
         } else if (this.formBuilder) {
-            this.formBuilder.clearCanvas(false); // Clear form if loading an old workflow without form data
+            this.formBuilder.clearCanvas(false);
         }
 
         this._clearSelection();
@@ -1048,19 +1056,14 @@ class WorkflowBuilder extends EventTarget {
     _updateVariablesPanel() {
         if (!this.dom.variablesPanel) return;
         this.dom.variablesPanel.querySelectorAll('details').forEach(d => { this.treeViewStates.set(d.id, d.open); });
-        const panelContent = this.dom.variablesPanel;
-        panelContent.innerHTML = ''; 
-        const createSection = (title, data, prefix) => {
-            const section = document.createElement('div');
-            section.className = 'mb-4';
-            section.innerHTML = `<h4 class="h6 fw-semibold text-secondary mb-2 border-bottom pb-1">${title}</h4><div class="tree-view p-2 bg-light rounded border"></div>`;
-            section.querySelector('.tree-view').appendChild(this._createTreeView(data, prefix));
-            return section;
-        };
-        panelContent.appendChild(createSection('Toàn cục (Global)', this.globalVariables, 'global'));
-        panelContent.querySelector('.tree-view').parentElement.appendChild(this.dom.addGlobalVarForm);
-        panelContent.appendChild(createSection('Dữ liệu Form (Preview)', this.formData, 'form'));
-        panelContent.appendChild(createSection('Đầu ra các Khối (Node Outputs)', this.executionState, ''));
+        
+        const globalContainer = this.dom.globalVariablesContainer;
+        globalContainer.innerHTML = '';
+        globalContainer.appendChild(this._createTreeView(this.globalVariables, 'global'));
+        
+        const nodeOutputsContainer = this.dom.nodeOutputsContainer;
+        nodeOutputsContainer.innerHTML = '';
+        nodeOutputsContainer.appendChild(this._createNodeOutputsTreeView(this.executionState));
     }
 
     _createNodeOutputsTreeView(executionState) {
@@ -1356,7 +1359,7 @@ class WorkflowBuilder extends EventTarget {
         this.dom.connectorSvg.innerHTML = '';
         this.nodes.forEach(node => node.element.remove());
         this.nodes = []; this.connections = []; this.nodeTypeCounts = {}; this._clearSelection();
-        if (this.formBuilder) { this.formBuilder.clearCanvas(false); } // *** MODIFIED: Clear form builder as well
+        if (this.formBuilder) { this.formBuilder.clearCanvas(false); }
         if (commit) this._commitState("Xóa canvas");
         this.dispatchEvent(new CustomEvent('workflow:cleared'));
     }
@@ -1387,7 +1390,6 @@ class WorkflowBuilder extends EventTarget {
     _importWorkflow(jsonString, commit = true) {
         try {
             const data = JSON.parse(jsonString);
-            // *** MODIFIED: Looser validation to support older formats
             if (!data.nodes || !data.connections) throw new Error('File JSON không chứa các trường "nodes" và "connections" bắt buộc.');
             this._loadState(data);
             if (commit) { this.history = []; this.historyIndex = -1; this._commitState("Import file"); }

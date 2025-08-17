@@ -10,13 +10,26 @@
     <link rel="stylesheet" href="css/form-builder.css">
     <link href="https://cdn.jsdelivr.net/npm/remixicon@4.6.0/fonts/remixicon.min.css" rel="stylesheet">
     </head>
-<body class="bg-light">
+<body>
 
     <div id="app-container" class="vw-100 vh-100 d-flex flex-column">
 
-        <main class="d-flex flex-grow-1 position-relative overflow-hidden">
-            
-            <nav class="h-100 border-end bg-white" style="width: 100px; padding: 10px">
+        <div data-ref="start-page" class="start-page-container">
+            <div class="start-page-content">
+                <h1 class="start-page-title">Workflow Builder</h1>
+                <p class="start-page-subtitle">Tự động hóa công việc của sếp một cách trực quan.</p>
+                <div class="d-grid gap-2 d-sm-flex justify-content-sm-center start-actions">
+                    <button data-action="create-new-workflow" type="button" class="btn btn-primary btn-lg px-4 gap-3">Tạo Workflow Mới</button>
+                </div>
+                <div class="workflow-list-container">
+                    <h2 class="workflow-list-header">Hoặc mở một workflow gần đây</h2>
+                    <div data-ref="start-page-workflow-list" class="list-group list-group-flush workflow-list">
+                        </div>
+                </div>
+            </div>
+        </div>
+        <main data-ref="main-ui" class="d-flex flex-grow-1 position-relative overflow-hidden">
+        <nav class="h-100 border-end bg-blur-2" style="width: 100px; padding: 10px">
                 <ul class="nav nav-tabs nav-pills border-0" id="left-panel-tabs" role="tablist">
                    
                     <li class="nav-item w-100" role="presentation">
@@ -54,15 +67,14 @@
                 </ul>
             </nav>
 
-            <aside class="d-flex flex-column flex-shrink-0 border-end bg-white h-100" style="width: 380px;">
+            <aside class="d-flex flex-column flex-shrink-0 border-end bg-blur h-100" style="width: 380px;">
                 <div class="tab-content overflow-auto h-100" id="left-panel-tab-content">
                     <div class="tab-pane show active p-3" id="tab-pane-nodes" role="tabpanel" aria-labelledby="nodes-tab">
                         <input type="search" data-ref="palette-search" placeholder="Tìm kiếm khối..." class="form-control form-control-sm mb-3">
                         <div data-ref="palette-content"></div>
                     </div>
                     <div class="tab-pane p-3" id="tab-pane-variables" role="tabpanel" aria-labelledby="variables-tab" data-ref="variables-panel">
-                        <h3 class="h5 fw-bold text-dark mb-4">Biến</h3>
-                        <div class="mb-4">
+                         <div class="mb-4">
                             <h4 class="h6 fw-semibold text-secondary mb-2 border-bottom pb-1">Toàn cục (Global)</h4>
                             <div data-ref="global-variables-container" class="tree-view p-2 bg-light rounded mb-3 border"></div>
                             <form data-ref="add-global-var-form" class="row g-2">
@@ -86,16 +98,12 @@
                         </div>
                     </div>
             </aside>
-            <div class="d-flex flex-column w-100">
+            <div class="d-flex flex-column w-100 bg-blur-2">
                 <div data-ref="canvas-container" class="canvas-container position-relative">
                     <div class="position-absolute end-0 d-flex top-0 m-3" style="z-index: 998;">
-
                         <button id="save-workflow-btn" class="btn btn-primary me-2"><i class="ri-save-line me-1"></i> Lưu</button>
-                        <button id="load-workflow-btn" class="btn btn-secondary me-2"><i class="ri-folder-open-line me-1"></i> Mở...</button>
-                        
                         <button data-action="import-json" class="btn btn-info text-white me-2">Import JSON</button>
                         <button data-action="export-json" class="btn btn-dark me-2">Export JSON</button>
-                    
                         <button data-action="run-simulation" class="btn btn-success d-flex align-items-center gap-2">
                             <i class="bi bi-play-fill"></i> Chạy Mô phỏng
                         </button>
