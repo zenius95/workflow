@@ -14,6 +14,46 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let tabCounter = 0;
     let activeTabId = null;
+    let sortableInstance = null; // Biến để lưu trữ đối tượng Sortable
+
+    // --- BẮT ĐẦU THAY ĐỔI: Hàm trung tâm quản lý trạng thái UI của các tab ---
+    const updateUiState = () => {
+        const tabs = document.querySelectorAll('.tab-item');
+        let hasStartTab = false;
+        
+        // Đặt lại trạng thái hiển thị của tất cả các nút tắt trước
+        tabs.forEach(tab => {
+            const closeBtn = tab.querySelector('.close-tab-btn');
+            if (closeBtn) {
+                closeBtn.style.display = ''; // Dùng chuỗi rỗng để CSS tự quyết định
+            }
+        });
+        
+        // Kiểm tra xem có tab bắt đầu nào không
+        tabs.forEach(tab => {
+            if (tab.dataset.workflowId === 'null') {
+                hasStartTab = true;
+            }
+        });
+
+        // Cập nhật hiển thị nút Thêm Tab
+        addTabBtn.style.display = hasStartTab ? 'none' : 'flex';
+
+        // Vô hiệu hóa/Kích hoạt sắp xếp tab
+        if (sortableInstance) {
+            sortableInstance.option('disabled', hasStartTab);
+        }
+        
+        // Ẩn nút tắt nếu chỉ có 1 tab duy nhất và đó là tab bắt đầu
+        if (tabs.length === 1 && hasStartTab) {
+            const singleTab = tabs[0];
+            const closeBtn = singleTab.querySelector('.close-tab-btn');
+            if (closeBtn) {
+                closeBtn.style.display = 'none';
+            }
+        }
+    };
+    // --- KẾT THÚC THAY ĐỔI ---
     
     const findTabByWorkflowId = (workflowId) => {
         if (!workflowId || String(workflowId) === 'null') {
@@ -85,6 +125,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         tabBar.scrollLeft = tabBar.scrollWidth;
+        updateUiState();
     };
     
     const isTabNew = (tabId) => {
@@ -94,6 +135,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const switchToTab = (tabId) => {
         if (activeTabId === tabId) return;
+        
+        const startTab = document.querySelector('.tab-item[data-workflow-id="null"]');
+        if (startTab && startTab.dataset.tabId !== tabId) {
+            closeTab(startTab.dataset.tabId);
+        }
 
         document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
         const tabToActivate = document.querySelector(`.tab-item[data-tab-id="${tabId}"]`);
@@ -119,32 +165,30 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const currentWorkflowId = tabEl.dataset.workflowId;
-        const isFirstSave = (currentWorkflowId === 'null' && String(workflowId) !== 'null');
+        
+        const isBecomingReal = ((currentWorkflowId === 'null' || currentWorkflowId === 'creating') && !isNaN(parseInt(workflowId, 10)));
+        const isStartingNew = (currentWorkflowId === 'null' && workflowId === 'creating');
 
-        // *** BẮT ĐẦU SỬA LỖI: Tránh reload khi lưu lần đầu ***
-        if (isFirstSave) {
-            // Nếu đây là lần lưu đầu tiên, chỉ cần cập nhật URL của webview một cách "thầm lặng"
-            // bằng cách thực thi một đoạn script nhỏ, thay vì tải lại toàn bộ trang.
+        if (isBecomingReal) {
             const newUrl = new URL(`workflow.html?tabId=${tabId}&workflowId=${workflowId}`, window.location.href).href;
             const script = `history.replaceState({}, '', '${newUrl}');`;
             webview.executeJavaScript(script).catch(err => console.error('Failed to update URL:', err));
+        } else if (isStartingNew) {
+            // Chuyển từ trang bắt đầu sang canvas trống, chỉ cập nhật trạng thái, không làm gì webview
         } else if (String(currentWorkflowId) !== String(workflowId)) {
-            // Nếu ID workflow thực sự thay đổi (ví dụ: mở một workflow khác vào tab này),
-            // thì chúng ta vẫn cần tải lại để hiển thị đúng nội dung.
             const newUrl = new URL(`workflow.html?tabId=${tabId}&workflowId=${workflowId}`, window.location.href).href;
             if (newUrl) {
                 webview.loadURL(newUrl);
             }
         }
-        // *** KẾT THÚC SỬA LỖI ***
         
-        // Luôn cập nhật thông tin hiển thị và trạng thái của tab
         tabEl.querySelector('.tab-title').textContent = title;
         tabEl.dataset.workflowId = String(workflowId);
         
         if (focus) {
             switchToTab(tabId);
         }
+        updateUiState();
     };
 
     const closeTab = (tabId) => {
@@ -165,6 +209,7 @@ document.addEventListener('DOMContentLoaded', () => {
             activeTabId = null;
             createNewTab();
         }
+        updateUiState();
     };
     
     minimizeBtn.addEventListener('click', () => {
@@ -207,7 +252,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    new Sortable(tabBar, {
+    sortableInstance = new Sortable(tabBar, {
         animation: 200,
         ghostClass: 'tab-ghost',
         dragClass: 'tab-dragging',

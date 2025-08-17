@@ -187,6 +187,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const handleCreateNew = () => {
         workflowBuilder.hideStartPage();
         workflowBuilder.logger.system("Bắt đầu workflow mới.");
+        // BẮT ĐẦU THAY ĐỔI: Gửi tín hiệu để cập nhật trạng thái tab cha
+        if (tabId) {
+            ipcRenderer.sendToHost('updateTabTitle', {
+                tabId: tabId,
+                title: 'Workflow Chưa Lưu', // Đặt tên tạm thời
+                workflowId: 'creating' // Đặt một trạng thái tạm thời
+            });
+        }
+        // KẾT THÚC THAY ĐỔI
     };
 
     const loadWorkflowById = async (workflowId) => {
