@@ -109,10 +109,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
     
-    /**
-     * Cập nhật thông tin của một tab và tải lại webview nếu cần.
-     * Đây là phiên bản đã sửa lỗi ERR_INVALID_URL.
-     */
     const updateTab = (tabId, { title, workflowId, focus = false }) => {
         const tabEl = document.querySelector(`.tab-item[data-tab-id="${tabId}"]`);
         const webview = document.getElementById(`webview-${tabId}`);
@@ -123,15 +119,24 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const currentWorkflowId = tabEl.dataset.workflowId;
+        const isFirstSave = (currentWorkflowId === 'null' && String(workflowId) !== 'null');
 
-        // --- BẮT ĐẦU SỬA LỖI ---
-        // Quyết định tải lại URL dựa trên `data-workflow-id` của tab, 
-        // không dựa vào `webview.getURL()` để tránh lỗi race condition.
-        if (String(currentWorkflowId) !== String(workflowId)) {
-            const newUrl = `workflow.html?tabId=${tabId}&workflowId=${workflowId}`;
-            webview.loadURL(newUrl);
+        // *** BẮT ĐẦU SỬA LỖI: Tránh reload khi lưu lần đầu ***
+        if (isFirstSave) {
+            // Nếu đây là lần lưu đầu tiên, chỉ cần cập nhật URL của webview một cách "thầm lặng"
+            // bằng cách thực thi một đoạn script nhỏ, thay vì tải lại toàn bộ trang.
+            const newUrl = new URL(`workflow.html?tabId=${tabId}&workflowId=${workflowId}`, window.location.href).href;
+            const script = `history.replaceState({}, '', '${newUrl}');`;
+            webview.executeJavaScript(script).catch(err => console.error('Failed to update URL:', err));
+        } else if (String(currentWorkflowId) !== String(workflowId)) {
+            // Nếu ID workflow thực sự thay đổi (ví dụ: mở một workflow khác vào tab này),
+            // thì chúng ta vẫn cần tải lại để hiển thị đúng nội dung.
+            const newUrl = new URL(`workflow.html?tabId=${tabId}&workflowId=${workflowId}`, window.location.href).href;
+            if (newUrl) {
+                webview.loadURL(newUrl);
+            }
         }
-        // --- KẾT THÚC SỬA LỖI ---
+        // *** KẾT THÚC SỬA LỖI ***
         
         // Luôn cập nhật thông tin hiển thị và trạng thái của tab
         tabEl.querySelector('.tab-title').textContent = title;

@@ -17,8 +17,27 @@ document.addEventListener('DOMContentLoaded', () => {
         todoId: 1
     });
 
-    const db = require('./js/database.js');
-    db.initialize();
+    // *** BẮT ĐẦU SỬA LỖI: Thay thế direct DB access bằng IPC ***
+    // Xóa các dòng require và initialize db trực tiếp
+    // const db = require('./js/database.js');
+    // db.initialize();
+
+    // Tạo một "proxy" object để giao tiếp với main process qua IPC
+    const db = {
+        async getWorkflows() {
+            return await ipcRenderer.invoke('db-get-workflows');
+        },
+        async saveWorkflow(name, data, id) {
+            return await ipcRenderer.invoke('db-save-workflow', { name, data, id });
+        },
+        async getWorkflowVersions(workflowId) {
+            return await ipcRenderer.invoke('db-get-versions', workflowId);
+        },
+        async saveWorkflowVersion(workflowId, data) {
+            return await ipcRenderer.invoke('db-save-version', { workflowId, data });
+        }
+    };
+    // *** KẾT THÚC SỬA LỖI ***
 
     const saveWorkflowModal = new bootstrap.Modal(document.getElementById('save-workflow-modal'));
     const saveBtn = document.getElementById('save-workflow-btn');

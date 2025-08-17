@@ -2,6 +2,7 @@
 
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
+const db = require('./workflow/js/database.js'); // Import database manager
 
 const remoteMain = require('@electron/remote/main');
 remoteMain.initialize();
@@ -9,6 +10,39 @@ remoteMain.initialize();
 app.on('web-contents-created', (event, webContents) => {
   remoteMain.enable(webContents);
 });
+
+// Khởi tạo DB khi app sẵn sàng
+app.whenReady().then(() => {
+  db.initialize();
+});
+
+// *** BẮT ĐẦU SỬA LỖI: Chuyển đổi dữ liệu Sequelize sang object thường trước khi gửi qua IPC ***
+
+ipcMain.handle('db-get-workflows', async () => {
+  const workflows = await db.getWorkflows();
+  // Chuyển đổi từng instance Sequelize thành object thường
+  return workflows.map(wf => wf.get({ plain: true }));
+});
+
+ipcMain.handle('db-save-workflow', async (event, { name, data, id }) => {
+  const savedWorkflow = await db.saveWorkflow(name, data, id);
+  // Chuyển đổi instance thành object thường
+  return savedWorkflow ? savedWorkflow.get({ plain: true }) : null;
+});
+
+ipcMain.handle('db-get-versions', async (event, workflowId) => {
+  const versions = await db.getWorkflowVersions(workflowId);
+  // Chuyển đổi từng instance thành object thường
+  return versions.map(v => v.get({ plain: true }));
+});
+
+ipcMain.handle('db-save-version', async (event, { workflowId, data }) => {
+  const savedVersion = await db.saveWorkflowVersion(workflowId, data);
+  // Chuyển đổi instance thành object thường
+  return savedVersion ? savedVersion.get({ plain: true }) : null;
+});
+
+// *** KẾT THÚC SỬA LỖI ***
 
 const createWindow = () => {
   const win = new BrowserWindow({
@@ -27,7 +61,6 @@ const createWindow = () => {
 
   remoteMain.enable(win.webContents);
 
-  // *** BẮT ĐẦU THAY ĐỔI: Gửi trạng thái maximize cho giao diện ***
   win.on('maximize', () => {
     win.webContents.send('window-state-changed', { isMaximized: true });
   });
@@ -35,7 +68,6 @@ const createWindow = () => {
   win.on('unmaximize', () => {
     win.webContents.send('window-state-changed', { isMaximized: false });
   });
-  // *** KẾT THÚC THAY ĐỔI ***
 
   win.loadFile('workflow/shell.html');
 
