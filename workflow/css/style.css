@@ -18,6 +18,77 @@ body { font-family: 'Poppins', sans-serif; overflow: hidden; background-image: l
     background-size: cover; }
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;900&display=swap');
 
+.workflow-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1.5rem;
+    border-bottom: 1px solid #dee2e6;
+    flex-shrink: 0;
+}
+.workflow-title-container {
+    flex-grow: 1;
+    min-width: 0;
+}
+.workflow-title-display {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 0;
+    cursor: pointer;
+    border-radius: 0.25rem;
+    padding: 0.25rem 0.5rem;
+    transition: background-color 0.2s;
+}
+.workflow-title-display:hover {
+    background-color: #e9ecef;
+}
+.workflow-title-edit {
+    font-size: 1.25rem;
+    font-weight: 600;
+    padding: 0.25rem 0.5rem;
+    border: 1px solid #0d6efd;
+    border-radius: 0.25rem;
+    width: 100%;
+    max-width: 500px;
+}
+.workflow-actions {
+    flex-shrink: 0;
+    margin-left: 1rem;
+    display: flex;
+    align-items: center;
+}
+
+.save-status {
+    font-size: 0.8rem;
+    color: #6c757d;
+    margin-right: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    transition: color 0.3s;
+}
+.save-status .spinner-sm {
+    width: 1rem;
+    height: 1rem;
+    border-width: 0.2em;
+    animation: spin 0.75s linear infinite;
+    display: none; 
+}
+.save-status.saving .spinner-sm {
+    display: inline-block;
+}
+.save-status .icon {
+    display: none; 
+}
+.save-status.saved .icon.saved,
+.save-status.unsaved .icon.unsaved,
+.save-status.error .icon.error {
+    display: inline-block;
+}
+.save-status.saved { color: #198754; }
+.save-status.error { color: #dc3545; }
+
+
 /* Node Styles */
 .node {
     position: absolute;
@@ -179,6 +250,16 @@ body { font-family: 'Poppins', sans-serif; overflow: hidden; background-image: l
 .log-content.success { color: #198754; } /* success */
 .log-content.error { color: #dc3545; } /* danger */
 .log-content.system { color: #6f42c1; } /* purple */
+
+/* *** BẮT ĐẦU THAY ĐỔI: Thêm class để ẩn console *** */
+footer[data-ref="console-panel"] {
+    display: none!important;
+}
+
+footer[data-ref="console-panel"].show {
+    display: flex!important;
+}
+/* *** KẾT THÚC THAY ĐỔI *** */
 
 .kv-editor-row {
     display: grid;

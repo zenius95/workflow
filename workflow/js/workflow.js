@@ -234,10 +234,21 @@ class WorkflowBuilder extends EventTarget {
         this.container.querySelector('[data-action="redo"]').addEventListener('click', () => this._redo());
 
         this.container.querySelector('[data-action="clear-console"]').addEventListener('click', () => this.logger.clear());
+        
+        // *** BẮT ĐẦU THAY ĐỔI: Thêm listener cho nút toggle console ***
+        this.container.querySelector('[data-action="toggle-console"]').addEventListener('click', () => this._toggleConsole());
+        // *** KẾT THÚC THAY ĐỔI ***
+
         this._setupConsoleResizer();
 
         this.dom.addGlobalVarForm.addEventListener('submit', (e) => this._handleAddGlobalVariable(e));
     }
+
+    // *** BẮT ĐẦU THAY ĐỔI: Hàm mới để ẩn/hiện console ***
+    _toggleConsole() {
+        this.dom.consolePanel.classList.toggle('show');
+    }
+    // *** KẾT THÚC THAY ĐỔI ***
 
     _setupConsoleResizer() {
         const resizer = this.dom.consoleResizer;
@@ -1206,6 +1217,13 @@ class WorkflowBuilder extends EventTarget {
 
     async runSimulation() {
         if (this.isSimulating) return;
+        
+        // *** BẮT ĐẦU THAY ĐỔI: Tự động hiện console khi chạy ***
+        if (!this.dom.consolePanel.classList.contains('show')) {
+            this._toggleConsole();
+        }
+        // *** KẾT THÚC THAY ĐỔI ***
+
         this.isSimulating = true;
         this.dispatchEvent(new CustomEvent('simulation:started'));
         const runButton = this.container.querySelector('[data-action="run-simulation"]');

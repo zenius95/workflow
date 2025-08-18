@@ -88,15 +88,22 @@
                     </div>
             </aside>
             <div class="d-flex flex-column w-100 bg-blur-2">
-                <div data-ref="canvas-container" class="canvas-container position-relative">
-                    <div class="position-absolute end-0 d-flex top-0 m-3" style="z-index: 998;">
-                        <button id="save-workflow-btn" class="btn btn-primary me-2"><i class="ri-save-line me-1"></i> Lưu</button>
+                <header data-ref="workflow-header" class="workflow-header">
+                    <div class="workflow-title-container">
+                        <h2 data-ref="workflow-title-display" class="workflow-title-display">Workflow Chưa Lưu</h2>
+                        <input type="text" data-ref="workflow-title-edit" class="workflow-title-edit" style="display: none;">
+                    </div>
+                    <div class="workflow-actions">
+                        <div data-ref="save-status" class="save-status"></div>
                         <button data-action="import-json" class="btn btn-info text-white me-2">Import JSON</button>
                         <button data-action="export-json" class="btn btn-dark me-2">Export JSON</button>
                         <button data-action="run-simulation" class="btn btn-success d-flex align-items-center gap-2">
                             <i class="bi bi-play-fill"></i> Chạy Mô phỏng
                         </button>
                     </div>
+                </header>
+                
+                <div data-ref="canvas-container" class="canvas-container position-relative">
                     <div class="position-absolute start-0 d-flex bottom-0 m-3" style="z-index: 998;">
                         <div class="shadow-sm border rounded bg-white overflow-hidden me-2 d-flex">
                             <button data-action="undo" class="border-0 border-end bg-transparent" style="width: 30px; height: 30px;">

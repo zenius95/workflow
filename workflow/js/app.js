@@ -12,7 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const showLoading = () => loadingOverlay.style.display = 'flex';
     const hideLoading = () => setTimeout(() => {
         loadingOverlay.style.display = 'none';
-    }, 1000);
+    }, 1000)
 
     // --- KHỞI TẠO CÁC THÀNH PHẦN CHÍNH ---
     const workflowBuilder = new WorkflowBuilder('app-container', workflowConfig, null, {
@@ -22,78 +22,152 @@ document.addEventListener('DOMContentLoaded', () => {
         todoId: 1
     });
     
-    // Tạo một "proxy" object để giao tiếp với main process qua IPC
     const db = {
-        async getWorkflows() {
-            return await ipcRenderer.invoke('db-get-workflows');
-        },
-        async saveWorkflow(name, data, id) {
-            return await ipcRenderer.invoke('db-save-workflow', { name, data, id });
-        },
-        async getWorkflowVersions(workflowId) {
-            return await ipcRenderer.invoke('db-get-versions', workflowId);
-        },
-        async saveWorkflowVersion(workflowId, data) {
-            return await ipcRenderer.invoke('db-save-version', { workflowId, data });
-        }
+        async getWorkflows() { return await ipcRenderer.invoke('db-get-workflows'); },
+        async saveWorkflow(name, data, id) { return await ipcRenderer.invoke('db-save-workflow', { name, data, id }); },
+        async getWorkflowVersions(workflowId) { return await ipcRenderer.invoke('db-get-versions', workflowId); },
+        async saveWorkflowVersion(workflowId, data) { return await ipcRenderer.invoke('db-save-version', { workflowId, data }); }
     };
 
     const saveWorkflowModal = new bootstrap.Modal(document.getElementById('save-workflow-modal'));
-    const saveBtn = document.getElementById('save-workflow-btn');
     const workflowNameInput = document.getElementById('workflow-name-input');
     const confirmSaveBtn = document.getElementById('confirm-save-btn');
     const historyTab = document.getElementById('history-tab');
     const workflowVersionsList = document.getElementById('workflow-versions-list');
 
-    let currentWorkflowId = initialWorkflowId;
-    let autoSaveInterval = null;
-    let lastSavedVersionState = null;
-    const AUTOSAVE_INTERVAL_MS = 10000; // 10 giây
+    const titleDisplay = document.querySelector('[data-ref="workflow-title-display"]');
+    const titleEdit = document.querySelector('[data-ref="workflow-title-edit"]');
+    const saveStatusEl = document.querySelector('[data-ref="save-status"]');
 
-    const openSaveModal = () => {
-        const currentData = workflowBuilder.getWorkflow();
-        if (currentData.nodes.length === 0) {
-            alert("Sếp ơi, không thể lưu một workflow rỗng!");
-            return;
-        }
-        const defaultName = `Workflow mới ${new Date().toLocaleString()}`;
-        workflowNameInput.value = defaultName;
-        saveWorkflowModal.show();
+    let currentWorkflowId = initialWorkflowId;
+    let currentWorkflowName = 'Workflow Chưa Lưu';
+    let autoSaveTimer = null;
+    let versionHistoryTimer = null;
+    let lastSavedVersionState = null;
+    let isSavingFirstTime = false;
+    const AUTOSAVE_INTERVAL_MS = 2000; // 2 giây
+    const VERSION_INTERVAL_MS = 30000; // 30 giây
+
+    // --- LOGIC TRẠNG THÁI LƯU ---
+    const setSaveStatus = (status, message = '') => {
+        saveStatusEl.className = `save-status ${status}`;
+        const text = message || {
+            saved: 'Đã lưu',
+            saving: 'Đang lưu...',
+            unsaved: 'Chưa lưu',
+            error: 'Lỗi'
+        }[status];
+        saveStatusEl.innerHTML = `
+            <div class="spinner-sm" role="status"></div>
+            <i class="icon saved bi bi-check-circle-fill"></i>
+            <i class="icon unsaved bi bi-hdd-fill"></i>
+            <i class="icon error bi bi-x-circle-fill"></i>
+            <span>${text}</span>`;
     };
 
-    const handleConfirmSave = async () => {
-        const name = workflowNameInput.value.trim();
-        if (!name) {
-            alert("Tên workflow không được để trống!");
-            return;
-        }
-        const currentData = workflowBuilder.getWorkflow();
-        try {
-            const saved = await db.saveWorkflow(name, currentData, currentWorkflowId);
-            const isNewSave = !currentWorkflowId || currentWorkflowId !== saved.id;
-            currentWorkflowId = saved.id;
-            saveWorkflowModal.hide();
-            workflowBuilder.logger.success(`Đã lưu workflow "${name}" thành công!`);
-            
-            if (tabId) {
+    // --- LOGIC LƯU TỰ ĐỘNG ---
+    const triggerAutoSave = async () => {
+        if (isSavingFirstTime) return;
+
+        if (!currentWorkflowId) {
+            isSavingFirstTime = true;
+            setSaveStatus('saving', 'Đang tạo...');
+            try {
+                // *** THAY ĐỔI: Tạo tên mặc định không có ngày giờ ***
+                const tabNumber = tabId.split('-')[1] || 1;
+                const defaultName = `Workflow mới ${tabNumber}`;
+                updateWorkflowTitle(defaultName);
+
+                const currentData = workflowBuilder.getWorkflow();
+                const saved = await db.saveWorkflow(defaultName, currentData, null);
+                
+                currentWorkflowId = saved.id;
+                setSaveStatus('saved');
+                workflowBuilder.logger.success(`Đã tự động tạo và lưu workflow "${defaultName}"`);
+
                 ipcRenderer.sendToHost('updateTabTitle', {
-                    tabId: tabId,
-                    title: name,
-                    workflowId: currentWorkflowId
+                    tabId: tabId, title: defaultName, workflowId: currentWorkflowId
                 });
-            }
-            
-            if (isNewSave) {
+                
                 await db.saveWorkflowVersion(currentWorkflowId, currentData);
                 lastSavedVersionState = JSON.stringify(currentData);
+                
+                startVersionHistoryTimer();
                 updateHistoryTabContent();
+
+            } catch (error) {
+                setSaveStatus('error', 'Tạo thất bại');
+                updateWorkflowTitle('Workflow Chưa Lưu');
+                console.error("Lỗi khi lưu lần đầu:", error);
+            } finally {
+                isSavingFirstTime = false;
             }
-            startAutoSaveTimer();
+            return;
+        }
+
+        setSaveStatus('unsaved');
+        clearTimeout(autoSaveTimer);
+        autoSaveTimer = setTimeout(autoSaveWorkflow, AUTOSAVE_INTERVAL_MS);
+    };
+
+    const autoSaveWorkflow = async () => {
+        if (!currentWorkflowId) return;
+
+        setSaveStatus('saving');
+        try {
+            const currentData = workflowBuilder.getWorkflow();
+            await db.saveWorkflow(currentWorkflowName, currentData, currentWorkflowId);
+            setSaveStatus('saved');
         } catch (error) {
-            workflowBuilder.logger.error(`Lỗi khi lưu workflow: ${error.message}`);
-            alert(`Lỗi khi lưu workflow: ${error.message}`);
+            setSaveStatus('error', 'Lưu thất bại');
+            console.error("Lỗi tự động lưu:", error);
         }
     };
+
+    // --- LOGIC TIÊU ĐỀ WORKFLOW ---
+    const updateWorkflowTitle = (name) => {
+        currentWorkflowName = name;
+        titleDisplay.textContent = name;
+        titleEdit.value = name;
+    };
+
+    const enableTitleEdit = () => {
+        titleDisplay.style.display = 'none';
+        titleEdit.style.display = 'inline-block';
+        titleEdit.focus();
+        titleEdit.select();
+    };
+
+    const disableTitleEdit = async (save = false) => {
+        titleEdit.style.display = 'none';
+        titleDisplay.style.display = 'block';
+
+        const newName = titleEdit.value.trim();
+        if (!save || !newName || newName === currentWorkflowName) {
+            updateWorkflowTitle(currentWorkflowName);
+            return;
+        }
+
+        if (!currentWorkflowId) {
+            updateWorkflowTitle(newName);
+            ipcRenderer.sendToHost('updateTabTitle', {
+                tabId: tabId, title: newName, workflowId: 'creating'
+            });
+        } else {
+            updateWorkflowTitle(newName);
+            ipcRenderer.sendToHost('updateTabTitle', {
+                tabId: tabId, title: newName, workflowId: currentWorkflowId
+            });
+            await autoSaveWorkflow();
+        }
+    };
+
+    titleDisplay.addEventListener('dblclick', enableTitleEdit);
+    titleEdit.addEventListener('blur', () => disableTitleEdit(true));
+    titleEdit.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') disableTitleEdit(true);
+        if (e.key === 'Escape') disableTitleEdit(false);
+    });
     
     const loadWorkflowById = async (workflowId) => {
         if (!workflowId) return;
@@ -104,42 +178,62 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (wfToLoad) {
                 workflowBuilder.loadWorkflow(wfToLoad.data);
-                workflowBuilder.logger.system(`Đã mở workflow "${wfToLoad.name}".`);
                 currentWorkflowId = wfToLoad.id;
+                updateWorkflowTitle(wfToLoad.name);
                 lastSavedVersionState = JSON.stringify(wfToLoad.data);
+                setSaveStatus('saved');
+                
+                ipcRenderer.sendToHost('updateTabTitle', {
+                    tabId: tabId, title: wfToLoad.name, workflowId: currentWorkflowId
+                });
 
-                // *** BẮT ĐẦU SỬA LỖI: Thêm lệnh giao tiếp với shell sau khi tải xong ***
-                // Báo cho cửa sổ chính (shell.js) biết rằng tab này đã tải xong
-                // workflow, để nó có thể cập nhật lại trạng thái và tiêu đề.
-                if (tabId) {
-                    ipcRenderer.sendToHost('updateTabTitle', {
-                        tabId: tabId,
-                        title: wfToLoad.name,
-                        workflowId: currentWorkflowId
-                    });
-                }
-                // *** KẾT THÚC SỬA LỖI ***
-
-                startAutoSaveTimer();
+                startVersionHistoryTimer();
                 updateHistoryTabContent();
             } else {
-                workflowBuilder.logger.error(`Không tìm thấy workflow với ID: ${workflowId}`);
+                updateWorkflowTitle('Không tìm thấy Workflow');
+                setSaveStatus('error', 'Không tìm thấy');
             }
         } catch (error) {
-            workflowBuilder.logger.error(`Lỗi khi tải workflow: ${error.message}`);
+            console.error(`Lỗi khi tải workflow: ${error.message}`);
+            setSaveStatus('error', 'Lỗi tải');
         } finally {
             hideLoading();
         }
     };
 
-    const resetOnClearOrImport = (event) => {
+    const resetOnClearOrImport = () => {
         currentWorkflowId = null;
-        stopAutoSaveTimer();
+        updateWorkflowTitle('Workflow Chưa Lưu');
+        setSaveStatus('unsaved', 'Chưa đặt tên');
+        stopVersionHistoryTimer();
         ipcRenderer.sendToHost('updateTabTitle', {
-            tabId: tabId,
-            title: 'Workflow Chưa Lưu',
-            workflowId: 'creating'
+            tabId: tabId, title: 'Workflow Chưa Lưu', workflowId: 'creating'
         });
+    };
+    
+    // --- LỊCH SỬ PHIÊN BẢN ---
+    const startVersionHistoryTimer = () => {
+        stopVersionHistoryTimer(); 
+        if (currentWorkflowId) {
+            historyTab.classList.remove('disabled');
+            versionHistoryTimer = setInterval(async () => {
+                const currentState = JSON.stringify(workflowBuilder.getWorkflow());
+                if (currentState !== lastSavedVersionState) {
+                    try {
+                        await db.saveWorkflowVersion(currentWorkflowId, JSON.parse(currentState));
+                        lastSavedVersionState = currentState;
+                        if(historyTab.classList.contains('active')) updateHistoryTabContent();
+                    } catch (error) { console.error(`Lỗi tự động lưu phiên bản: ${error.message}`); }
+                }
+            }, VERSION_INTERVAL_MS);
+        }
+    };
+    
+    const stopVersionHistoryTimer = () => {
+        historyTab.classList.add('disabled');
+        workflowVersionsList.innerHTML = '<p class="text-muted text-center p-3">Lưu workflow để xem lịch sử.</p>';
+        clearInterval(versionHistoryTimer);
+        versionHistoryTimer = null;
     };
     
     const updateHistoryTabContent = async () => {
@@ -171,7 +265,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const handleRestoreVersion = (versionData) => {
         if (confirm("Sếp có chắc muốn khôi phục phiên bản này không? Mọi thay đổi chưa lưu sẽ bị mất.")) {
             showLoading();
-            setTimeout(() => { // Thêm timeout nhỏ để UI kịp cập nhật
+            setTimeout(() => {
                 try {
                     workflowBuilder.loadWorkflow(versionData);
                     const nodesTab = new bootstrap.Tab(document.getElementById('nodes-tab'));
@@ -183,55 +277,22 @@ document.addEventListener('DOMContentLoaded', () => {
             }, 100);
         }
     };
-    
-    const startAutoSaveTimer = () => {
-        stopAutoSaveTimer(); 
-        if (currentWorkflowId) {
-            historyTab.classList.remove('disabled');
-            autoSaveInterval = setInterval(async () => {
-                const currentData = workflowBuilder.getWorkflow();
-                const currentState = JSON.stringify(currentData);
-                if (currentState !== lastSavedVersionState) {
-                    try {
-                        await db.saveWorkflowVersion(currentWorkflowId, currentData);
-                        lastSavedVersionState = currentState;
-                        workflowBuilder.logger.system(`Đã tự động lưu phiên bản lúc ${new Date().toLocaleTimeString()}`);
-                        if(historyTab.classList.contains('active')) {
-                            updateHistoryTabContent();
-                        }
-                    } catch (error) {
-                        workflowBuilder.logger.error(`Lỗi tự động lưu: ${error.message}`);
-                    }
-                }
-            }, AUTOSAVE_INTERVAL_MS);
-        }
-    };
-    
-    const stopAutoSaveTimer = () => {
-        historyTab.classList.add('disabled');
-        workflowVersionsList.innerHTML = '<p class="text-muted text-center p-3">Lưu workflow để xem lịch sử.</p>';
-        if (autoSaveInterval) {
-            clearInterval(autoSaveInterval);
-            autoSaveInterval = null;
-        }
-    };
 
+    // --- KHỞI TẠO ---
     const initializeView = async () => {
         if (initialWorkflowId) {
             await loadWorkflowById(initialWorkflowId);
         } else {
-            workflowBuilder.logger.system("Bắt đầu workflow mới.");
-            stopAutoSaveTimer();
-            hideLoading(); // Ẩn loading nếu là workflow mới
+            updateWorkflowTitle('Workflow Chưa Lưu');
+            setSaveStatus('unsaved', 'Chưa đặt tên');
+            stopVersionHistoryTimer();
+            hideLoading();
         }
     };
-
-    saveBtn.addEventListener('click', openSaveModal);
-    confirmSaveBtn.addEventListener('click', handleConfirmSave);
+    
+    workflowBuilder.addEventListener('workflow:changed', triggerAutoSave);
     historyTab.addEventListener('show.bs.tab', updateHistoryTabContent);
     workflowBuilder.addEventListener('workflow:cleared', resetOnClearOrImport);
-    // Gỡ bỏ listener này để tránh reset ID sai thời điểm
-    // workflowBuilder.addEventListener('workflow:loaded', resetOnClearOrImport);
-
+    
     initializeView();
 });
