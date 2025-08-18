@@ -39,7 +39,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // ... (getWebviewUrl, findTabByWorkflowId, createNewTab, switchToTab, updateTab, closeTab - không thay đổi)
     const getWebviewUrl = (tabId, workflowId = null) => {
         const query = new URLSearchParams({ tabId });
         if (workflowId !== null) {
@@ -246,13 +245,14 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // --- UI State Management (Updated) ---
     const updateUiState = () => {
-        // ... (phần code cũ không thay đổi)
         const isStartTabActive = !!(document.querySelector('.tab-item.active')?.dataset.workflowId === 'null');
         startPageOverlay.style.display = isStartTabActive ? 'flex' : 'none';
         
-        if(isStartTabActive && startPageWorkflowList.innerHTML.trim() === '') {
+        // *** BẮT ĐẦU THAY ĐỔI: Luôn làm mới danh sách khi chuyển về tab Bắt đầu ***
+        if (isStartTabActive) {
             resetAndPopulateStartPage();
         }
+        // *** KẾT THÚC THAY ĐỔI ***
 
         const anyStartTabExists = !!document.querySelector('.tab-item[data-workflow-id="null"]');
         addTabBtn.style.display = anyStartTabExists ? 'none' : 'flex';
@@ -342,7 +342,6 @@ document.addEventListener('DOMContentLoaded', () => {
         populateStartPage(true); // append = true
     });
     
-    // ... (các event listeners còn lại không đổi)
     minimizeBtn.addEventListener('click', () => ipcRenderer.send('minimize-window'));
     maximizeBtn.addEventListener('click', () => ipcRenderer.send('maximize-window'));
     closeBtn.addEventListener('click', () => ipcRenderer.send('close-window'));
