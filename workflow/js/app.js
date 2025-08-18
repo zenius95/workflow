@@ -1,5 +1,6 @@
 // workflow/js/app.js
 const { ipcRenderer } = require('electron');
+const { workflowConfig } = require('./js/config.js');
 
 document.addEventListener('DOMContentLoaded', () => {
     // --- LẤY THÔNG TIN TỪ URL CỦA WEBVIEW ---
@@ -21,7 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
         adminEmail: "admin@example.com",
         todoId: 1
     });
-    
+
     const db = {
         async getWorkflows() { return await ipcRenderer.invoke('db-get-workflows'); },
         async saveWorkflow(name, data, id) { return await ipcRenderer.invoke('db-save-workflow', { name, data, id }); },
@@ -73,14 +74,13 @@ document.addEventListener('DOMContentLoaded', () => {
             isSavingFirstTime = true;
             setSaveStatus('saving', 'Đang tạo...');
             try {
-                // *** THAY ĐỔI: Tạo tên mặc định không có ngày giờ ***
                 const tabNumber = tabId.split('-')[1] || 1;
                 const defaultName = `Workflow mới ${tabNumber}`;
                 updateWorkflowTitle(defaultName);
 
                 const currentData = workflowBuilder.getWorkflow();
                 const saved = await db.saveWorkflow(defaultName, currentData, null);
-                
+
                 currentWorkflowId = saved.id;
                 setSaveStatus('saved');
                 workflowBuilder.logger.success(`Đã tự động tạo và lưu workflow "${defaultName}"`);
@@ -88,10 +88,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 ipcRenderer.sendToHost('updateTabTitle', {
                     tabId: tabId, title: defaultName, workflowId: currentWorkflowId
                 });
-                
+
                 await db.saveWorkflowVersion(currentWorkflowId, currentData);
                 lastSavedVersionState = JSON.stringify(currentData);
-                
+
                 startVersionHistoryTimer();
                 updateHistoryTabContent();
 
@@ -168,7 +168,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.key === 'Enter') disableTitleEdit(true);
         if (e.key === 'Escape') disableTitleEdit(false);
     });
-    
+
     const loadWorkflowById = async (workflowId) => {
         if (!workflowId) return;
         showLoading();
@@ -177,16 +177,19 @@ document.addEventListener('DOMContentLoaded', () => {
             const wfToLoad = workflows.find(w => w.id === workflowId);
             
             if (wfToLoad) {
-                workflowBuilder.loadWorkflow(wfToLoad.data);
+                // *** BẮT ĐẦU SỬA LỖI: Cập nhật ID và Tên TRƯỚC KHI load data ***
                 currentWorkflowId = wfToLoad.id;
                 updateWorkflowTitle(wfToLoad.name);
                 lastSavedVersionState = JSON.stringify(wfToLoad.data);
-                setSaveStatus('saved');
                 
                 ipcRenderer.sendToHost('updateTabTitle', {
                     tabId: tabId, title: wfToLoad.name, workflowId: currentWorkflowId
                 });
 
+                workflowBuilder.loadWorkflow(wfToLoad.data); // Hàm này sẽ trigger 'workflow:changed'
+                // *** KẾT THÚC SỬA LỖI ***
+
+                setSaveStatus('saved');
                 startVersionHistoryTimer();
                 updateHistoryTabContent();
             } else {

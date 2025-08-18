@@ -295,6 +295,18 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.deltaY !== 0) { e.preventDefault(); tabBar.scrollLeft += e.deltaY; }
     });
 
+    // *** BẮT ĐẦU THÊM MỚI: Thêm phím tắt F12 để mở DevTools ***
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'F12') {
+            e.preventDefault();
+            const activeWebview = document.querySelector('.workflow-webview.active');
+            if (activeWebview) {
+                activeWebview.openDevTools();
+            }
+        }
+    });
+    // *** KẾT THÚC THÊM MỚI ***
+
     // --- Initialization ---
     sortableInstance = new Sortable(tabBar, {
         animation: 200,

@@ -1,21 +1,15 @@
 /**
  * Headless Workflow Runner (chạy với Object trong code)
- * Cách dùng: 
+ * Cách dùng:
  * 1. Dán object JSON của workflow vào biến `workflowObject`.
- * 2. Chạy script bằng lệnh: node run-workflow.js
+ * 2. Chạy script bằng lệnh: node run.js
  */
 
-const fs = require('fs');
 const path = require('path');
-const { exec } = require('child_process'); // Cần cho khối execute_command
-
-// --- Import cấu hình từ config.js ---
-// Script này sẽ load trực tiếp các hàm execute từ file config của sếp.
-const { getProperty } = require('./config.js');
+const { getProperty } = require(path.join(__dirname, 'nodes/logic/data_processing.js'));
 
 
 // --- Logger đơn giản cho Console ---
-// Một phiên bản rút gọn của Logger, in trực tiếp ra terminal.
 class ConsoleLogger {
     _log(message, type = 'INFO') {
         const timestamp = new Date().toLocaleTimeString('en-GB');
@@ -39,13 +33,11 @@ class WorkflowRunner {
         this.workflow = workflowData;
         this.logger = new ConsoleLogger();
         this.globalVariables = {
-            // Sếp có thể định nghĩa các biến toàn cục mặc định ở đây nếu muốn
             environment: "headless_production",
         };
-        this.executionState = {}; // Lưu trữ output của các khối
+        this.executionState = {};
     }
 
-    // Tìm cấu hình của một khối dựa trên type
     _findNodeConfig(type) {
         for (const category of this.config.nodeCategories) {
             const foundNode = category.nodes.find(node => node.type === type);
@@ -54,7 +46,6 @@ class WorkflowRunner {
         return null;
     }
 
-    // Thay thế các biến {{...}} bằng giá trị thực tế
     _resolveVariables(text, context) {
         if (typeof text !== 'string') return text;
         const singleVarMatch = text.match(/{{\s*([^}]+)\s*}}/);
@@ -70,11 +61,10 @@ class WorkflowRunner {
         });
     }
 
-    // Hàm thực thi chính
     async run() {
         this.logger.system('--- BẮT ĐẦU THỰC THI WORKFLOW ---');
         const startNodes = this.workflow.nodes.filter(n => !this.workflow.connections.some(c => c.to === n.id));
-        
+
         if (startNodes.length === 0 && this.workflow.nodes.length > 0) {
             this.logger.error('Lỗi: Không tìm thấy khối bắt đầu. Workflow phải có ít nhất một khối không có đầu vào.');
             return;
@@ -87,22 +77,20 @@ class WorkflowRunner {
         }
 
         this.logger.system('--- KẾT THÚC THỰC THI WORKFLOW ---');
-        // console.log("Trạng thái cuối cùng:", JSON.stringify(this.executionState, null, 2));
     }
 
-    // Hàm đệ quy để thực thi từng khối
     async _executeNode(node, tryCatchStack) {
         const nodeConfig = this._findNodeConfig(node.type);
         if (!nodeConfig) {
             this.logger.error(`Không tìm thấy cấu hình cho khối loại "${node.type}" (ID: ${node.id})`);
             return;
         }
-        
+
         this.logger.info(`Đang thực thi khối: "${node.data.title}" (ID: ${node.id})`);
 
         const resolvedNodeData = JSON.parse(JSON.stringify(node.data));
         const resolutionContext = { global: this.globalVariables, ...this.executionState };
-        
+
         const resolveRecursively = (obj) => {
             for (const key in obj) {
                 if (typeof obj[key] === 'string') {
@@ -137,7 +125,7 @@ class WorkflowRunner {
             if (node.type === 'loop') {
                 const items = await nodeConfig.execute(resolvedNodeData, this.logger, this);
                 const loopConnection = this.workflow.connections.find(c => c.from === node.id && c.fromPort === 'loop');
-                
+
                 if (loopConnection) {
                     const loopBodyStartNode = this.workflow.nodes.find(n => n.id === loopConnection.to);
                     if (loopBodyStartNode) {
@@ -156,7 +144,7 @@ class WorkflowRunner {
             }
 
             const result = await nodeConfig.execute(resolvedNodeData, this.logger, this);
-            
+
             if (result && typeof result === 'object' && result.hasOwnProperty('selectedPort')) {
                 this.executionState[node.id] = result.data;
                 await executeNextNodes(result.selectedPort, tryCatchStack);
@@ -168,7 +156,7 @@ class WorkflowRunner {
         } catch (error) {
             this.logger.error(`Lỗi thực thi khối ${node.data.title}: ${error.message}`);
             this.executionState[node.id] = { error: error.message, ...error.context };
-            
+
             const lastTryCatchNode = tryCatchStack.pop();
             if (lastTryCatchNode) {
                 this.logger.info(`Đã bắt được lỗi bởi khối Try/Catch: ${lastTryCatchNode.data.title}. Chuyển hướng tới cổng 'catch'.`);
@@ -181,4 +169,4 @@ class WorkflowRunner {
     }
 }
 
-module.exports = WorkflowRunner
+module.exports = WorkflowRunner;
