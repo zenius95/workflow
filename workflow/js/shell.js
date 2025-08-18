@@ -2,6 +2,12 @@
 document.addEventListener('DOMContentLoaded', () => {
     const { ipcRenderer } = require('electron');
     const path = require('path');
+    const i18n = require('./js/i18n.js');
+
+    // --- Load language and translate static UI elements ---
+    i18n.loadLanguage('en'); // or 'vi', or load from user settings
+    i18n.translateUI();
+    // --- End of new code ---
 
     // DOM Elements
     const minimizeBtn = document.getElementById('minimize-btn');
@@ -18,7 +24,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const loadMoreContainer = document.getElementById('load-more-container');
     const loadMoreBtn = document.getElementById('load-more-btn');
 
-
     // State
     let tabCounter = 0;
     let activeTabId = null;
@@ -28,7 +33,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let totalWorkflows = 0;
     let currentSearchTerm = '';
     let isFetching = false;
-
 
     const db = {
         async getWorkflows(options) {
@@ -54,7 +58,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const createNewTab = (options = {}) => {
-        const { title = 'Trang bắt đầu', workflowId = null, focus = true } = options;
+        const { title, workflowId = null, focus = true } = options;
         tabCounter++;
         const tabId = `tab-${tabCounter}`;
 
@@ -63,7 +67,7 @@ document.addEventListener('DOMContentLoaded', () => {
         tabEl.dataset.tabId = tabId;
         tabEl.dataset.workflowId = String(workflowId);
         
-        const tabTitle = workflowId === null ? 'Trang bắt đầu' : title;
+        const tabTitle = workflowId === null ? i18n.get('shell.start_page') : title;
         tabEl.innerHTML = `<div class="tab-title">${tabTitle}</div><button class="close-tab-btn"><i class="ri-close-line"></i></button>`;
         
         tabBar.insertBefore(tabEl, addTabBtn);
@@ -200,7 +204,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             
             if (workflows.length === 0 && !append) {
-                startPageWorkflowList.innerHTML = '<p class="text-center text-muted p-3">Sếp chưa lưu workflow nào cả (hoặc không tìm thấy kết quả).</p>';
+                startPageWorkflowList.innerHTML = `<p class="text-center text-muted p-3">${i18n.get('shell.no_workflows_found')}</p>`;
             } else {
                 workflows.forEach(wf => {
                     const isOpen = openIds.has(wf.id);
@@ -212,10 +216,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div class="workflow-list-item-main d-flex align-items-center" data-action="open-workflow" data-id="${wf.id}" data-name="${wf.name}">
                             <div class="flex-grow-1">
                                 <h5 class="${isOpen ? 'text-primary' : ''}">${wf.name}</h5>
-                                <small>Cập nhật: ${new Date(wf.updatedAt).toLocaleString()}</small>
+                                <small>${i18n.get('shell.updated_at')}: ${new Date(wf.updatedAt).toLocaleString()}</small>
                             </div>
                             ${isOpen 
-                                ? `<button class="btn btn-sm btn-primary ms-3" data-action="switch-tab" data-workflow-id="${wf.id}">Chuyển Tab <i class="ri-arrow-right-line ms-1"></i></button>`
+                                ? `<button class="btn btn-sm btn-primary ms-3" data-action="switch-tab" data-workflow-id="${wf.id}">${i18n.get('shell.switch_tab')} <i class="ri-arrow-right-line ms-1"></i></button>`
                                 : '<i class="ri-arrow-right-s-line ms-3"></i>'
                             }
                         </div>
@@ -236,7 +240,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         } catch (error) {
             console.error(error);
-            startPageWorkflowList.innerHTML = '<p class="text-center text-danger p-3">Không thể tải danh sách workflow.</p>';
+            startPageWorkflowList.innerHTML = `<p class="text-center text-danger p-3">${i18n.get('shell.load_error')}</p>`;
         } finally {
             isFetching = false;
             loadMoreBtn.disabled = false;
@@ -248,11 +252,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const isStartTabActive = !!(document.querySelector('.tab-item.active')?.dataset.workflowId === 'null');
         startPageOverlay.style.display = isStartTabActive ? 'flex' : 'none';
         
-        // *** BẮT ĐẦU THAY ĐỔI: Luôn làm mới danh sách khi chuyển về tab Bắt đầu ***
         if (isStartTabActive) {
             resetAndPopulateStartPage();
         }
-        // *** KẾT THÚC THAY ĐỔI ***
 
         const anyStartTabExists = !!document.querySelector('.tab-item[data-workflow-id="null"]');
         addTabBtn.style.display = anyStartTabExists ? 'none' : 'flex';
@@ -297,21 +299,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 const name = target.dataset.name;
                 const { response } = await ipcRenderer.invoke('show-confirm-dialog', {
                     type: 'warning',
-                    buttons: ['Hủy', 'Xóa'],
+                    buttons: [i18n.get('common.cancel'), i18n.get('common.delete')],
                     defaultId: 0,
-                    title: 'Xác nhận xóa',
-                    message: `Sếp có chắc chắn muốn xóa workflow "${name}" không?`,
-                    detail: 'Hành động này không thể hoàn tác.'
+                    title: i18n.get('shell.confirm_delete_title'),
+                    message: i18n.get('shell.confirm_delete_message', { name: name }),
+                    detail: i18n.get('shell.confirm_delete_detail')
                 });
                 
-                if (response === 1) { // 1 là index của nút "Xóa"
+                if (response === 1) { // 1 is the index for the "Delete" button
                     const result = await db.deleteWorkflow(workflowId);
                     if (result.success) {
                         const tabToDelete = findTabByWorkflowId(workflowId);
                         if (tabToDelete) closeTab(tabToDelete.dataset.tabId);
                         resetAndPopulateStartPage();
                     } else {
-                        console.error("Lỗi khi xóa workflow:", result.message);
+                        console.error(i18n.get('shell.delete_error'), result.message);
                     }
                 }
                 break;
@@ -322,7 +324,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Event Listeners ---
     createNewWorkflowBtn.addEventListener('click', () => {
         if (activeTabId) {
-            updateTab(activeTabId, { title: 'Workflow Chưa Lưu', workflowId: 'creating' });
+            updateTab(activeTabId, { title: i18n.get('app.unsaved_workflow'), workflowId: 'creating' });
         }
     });
 

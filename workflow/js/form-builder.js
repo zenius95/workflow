@@ -1,33 +1,33 @@
+// workflow/js/form-builder.js
+
 class FormBuilder {
     constructor(workflowInstance) {
         this.workflow = workflowInstance; 
 
-        // --- DOM Elements ---
         this.palette = document.getElementById('component-palette');
         this.canvas = document.getElementById('canvas');
         this.propertiesPanel = document.getElementById('properties-panel');
         this.clearCanvasBtn = document.getElementById('clear-canvas-btn');
         this.previewPane = document.getElementById('preview-pane');
 
-        // --- State ---
         this.components = [];
         this.selectedComponentId = null;
         this.nextId = 1;
         this.formData = {};
 
         this.CONTROL_DEFINITIONS = {
-            'text': { name: 'Text Input', icon: 'bi-input-cursor-text', props: ['label', 'dataField', 'placeholder', 'helpText', 'variablePicker', 'col', 'visibleWhen'] },
-            'number': { name: 'Number Input', icon: 'bi-hash', props: ['label', 'dataField', 'placeholder', 'col', 'visibleWhen'] },
-            'password': { name: 'Password Input', icon: 'bi-key', props: ['label', 'dataField', 'placeholder', 'col', 'visibleWhen'] },
-            'textarea': { name: 'Textarea', icon: 'bi-textarea-resize', props: ['label', 'dataField', 'rows', 'placeholder', 'variablePicker', 'visibleWhen'] },
-            'select': { name: 'Select (Dropdown)', icon: 'bi-menu-button-wide', props: ['label', 'dataField', 'options', 'onChange', 'col', 'visibleWhen'] },
-            'file-select': { name: 'File Select', icon: 'bi-file-earmark-arrow-up', props: ['label', 'dataField', 'helpText', 'col', 'visibleWhen'] },
-            'folder-select': { name: 'Folder Select', icon: 'bi-folder-plus', props: ['label', 'dataField', 'helpText', 'col', 'visibleWhen'] },
-            'group': { name: 'Group', icon: 'bi-collection', props: ['label', 'helpText', 'layoutColumns', 'visibleWhen'], isContainer: true },
-            'tabs': { name: 'Tabs', icon: 'bi-segmented-nav', props: ['label', 'helpText', 'tabs'], isContainer: true, hasTabs: true },
-            'repeater': { name: 'Repeater', icon: 'bi-plus-slash-minus', props: ['label', 'helpText', 'dataField', 'addButtonText'], isContainer: true },
-            'button': { name: 'Button', icon: 'bi-hand-index-thumb', props: ['text', 'action', 'class'] },
-            'info': { name: 'Info Text', icon: 'bi-info-circle', props: ['text'] },
+            'text': { name: i18n.get('form_builder.controls.text'), icon: 'bi-input-cursor-text', props: ['label', 'dataField', 'placeholder', 'helpText', 'variablePicker', 'col', 'visibleWhen'] },
+            'number': { name: i18n.get('form_builder.controls.number'), icon: 'bi-hash', props: ['label', 'dataField', 'placeholder', 'col', 'visibleWhen'] },
+            'password': { name: i18n.get('form_builder.controls.password'), icon: 'bi-key', props: ['label', 'dataField', 'placeholder', 'col', 'visibleWhen'] },
+            'textarea': { name: i18n.get('form_builder.controls.textarea'), icon: 'bi-textarea-resize', props: ['label', 'dataField', 'rows', 'placeholder', 'variablePicker', 'visibleWhen'] },
+            'select': { name: i18n.get('form_builder.controls.select'), icon: 'bi-menu-button-wide', props: ['label', 'dataField', 'options', 'onChange', 'col', 'visibleWhen'] },
+            'file-select': { name: i18n.get('form_builder.controls.file-select'), icon: 'bi-file-earmark-arrow-up', props: ['label', 'dataField', 'helpText', 'col', 'visibleWhen'] },
+            'folder-select': { name: i18n.get('form_builder.controls.folder-select'), icon: 'bi-folder-plus', props: ['label', 'dataField', 'helpText', 'col', 'visibleWhen'] },
+            'group': { name: i18n.get('form_builder.controls.group'), icon: 'bi-collection', props: ['label', 'helpText', 'layoutColumns', 'visibleWhen'], isContainer: true },
+            'tabs': { name: i18n.get('form_builder.controls.tabs'), icon: 'bi-segmented-nav', props: ['label', 'helpText', 'tabs'], isContainer: true, hasTabs: true },
+            'repeater': { name: i18n.get('form_builder.controls.repeater'), icon: 'bi-plus-slash-minus', props: ['label', 'helpText', 'dataField', 'addButtonText'], isContainer: true },
+            'button': { name: i18n.get('form_builder.controls.button'), icon: 'bi-hand-index-thumb', props: ['text', 'action', 'class'] },
+            'info': { name: i18n.get('form_builder.controls.info'), icon: 'bi-info-circle', props: ['text'] },
         };
         
         this.initialize();
@@ -39,29 +39,21 @@ class FormBuilder {
 
     loadComponents(components) {
         this.components = JSON.parse(JSON.stringify(components || []));
-        
         this.nextId = (this.components.reduce((maxId, comp) => {
             const findMaxId = (c, currentMax) => {
                 const idNum = parseInt(c.id.split('-')[1], 10);
                 let max = Math.max(currentMax, isNaN(idNum) ? 0 : idNum);
-                if (c.config.controls) {
-                    max = c.config.controls.reduce((m, child) => findMaxId(child, m), max);
-                }
-                if (c.config.tabs) {
-                    max = c.config.tabs.reduce((m, tab) => tab.controls.reduce((m2, child) => findMaxId(child, m2), m), max);
-                }
+                if (c.config.controls) max = c.config.controls.reduce((m, child) => findMaxId(child, m), max);
+                if (c.config.tabs) max = c.config.tabs.reduce((m, tab) => tab.controls.reduce((m2, child) => findMaxId(child, m2), m), max);
                 return max;
             };
             return findMaxId(comp, maxId);
         }, 0)) + 1;
-
         this.renderCanvas();
         this.selectComponent(null);
         this._notifyWorkflowChanged();
     }
 
-
-    // --- Helper Functions ---
     findComponent(id, componentArray = this.components) {
         for (const comp of componentArray) {
             if (comp.id === id) return comp;
@@ -97,7 +89,6 @@ class FormBuilder {
         return null;
     }
     
-    // --- Main Functions ---
     initialize() {
         this.renderPalette();
         this.setupDragAndDrop();
@@ -134,11 +125,8 @@ class FormBuilder {
             const parentTabsEl = evt.to.closest('.canvas-component[data-id]');
             if (parentTabsEl) {
                 const activeNavLink = parentTabsEl.querySelector('.nav-link.active');
-                if (activeNavLink) {
-                    activeTabId = activeNavLink.getAttribute('href');
-                }
+                if (activeNavLink) activeTabId = activeNavLink.getAttribute('href');
             }
-
             if (action === 'add') {
                 const type = evt.item.dataset.type;
                 if (!type || !this.CONTROL_DEFINITIONS[type]) { evt.item.remove(); return; }
@@ -158,12 +146,7 @@ class FormBuilder {
             }
             this._notifyWorkflowChanged();
         };
-    
-        return new Sortable(containerElement, {
-            group: 'builder', animation: 150,
-            onAdd: (evt) => handleSortableChange(evt, 'add'),
-            onUpdate: (evt) => handleSortableChange(evt, 'update'),
-        });
+        return new Sortable(containerElement, { group: 'builder', animation: 150, onAdd: (evt) => handleSortableChange(evt, 'add'), onUpdate: (evt) => handleSortableChange(evt, 'update') });
     }
 
     createComponent(type) {
@@ -174,7 +157,7 @@ class FormBuilder {
         if (def.props.includes('label')) component.config.label = def.name;
         if (type === 'tabs') component.config.tabs = [{ title: 'Tab 1', controls: [] }];
         if (type === 'group') component.config.layoutColumns = [1, 1]; 
-        if (type === 'repeater') component.config.addButtonText = "+ Thêm mục";
+        if (type === 'repeater') component.config.addButtonText = i18n.get('form_builder.add_item');
         if (def.isContainer) component.config.controls = [];
         return component;
     }
@@ -182,23 +165,15 @@ class FormBuilder {
     renderCanvas(activeTabIdToRestore = null) {
         this.canvas.innerHTML = '';
         if (this.components.length === 0) {
-            this.canvas.innerHTML = '<p class="text-muted text-center">Kéo các thành phần từ Hộp công cụ vào đây</p>';
+            this.canvas.innerHTML = `<p class="text-muted text-center">${i18n.get('form_builder.canvas_placeholder')}</p>`;
         } else {
             this.components.forEach(comp => this.canvas.appendChild(this.createComponentElement(comp)));
         }
-
-        // *** BẮT ĐẦU SỬA LỖI: Tái khởi tạo Sortable cho canvas chính ***
         this.makeSortable(this.canvas, this.components);
-        // *** KẾT THÚC SỬA LỖI ***
-
         if (activeTabIdToRestore) {
             const newTabButton = this.canvas.querySelector(`a.nav-link[href="${activeTabIdToRestore}"]`);
-            if (newTabButton) {
-                const tab = new bootstrap.Tab(newTabButton);
-                tab.show();
-            }
+            if (newTabButton) new bootstrap.Tab(newTabButton).show();
         }
-
         this.renderPropertiesPanel();
         this.renderPreview();
     }
@@ -218,7 +193,6 @@ class FormBuilder {
             const cols = component.config.layoutColumns || [1];
             const totalUnits = cols.reduce((sum, val) => sum + val, 0);
             layoutContainer.style.gridTemplateColumns = cols.map(c => `${(c / totalUnits) * 100}%`).join(' ');
-
             const childrenByCol = cols.map(() => []);
             (component.config.controls || []).forEach(child => {
                 const colIndex = child.config.colIndex || 0;
@@ -276,7 +250,7 @@ class FormBuilder {
     renderPreview() {
         this.previewPane.innerHTML = '';
         if (this.components.length === 0) {
-            this.previewPane.innerHTML = '<p class="text-muted text-center">Chưa có gì để xem trước</p>';
+            this.previewPane.innerHTML = `<p class="text-muted text-center">${i18n.get('form_builder.preview_placeholder')}</p>`;
             return;
         }
         const finalConfig = this.components.map(c => c.config);
@@ -294,7 +268,7 @@ class FormBuilder {
         this.propertiesPanel.innerHTML = '';
         const component = this.findComponent(this.selectedComponentId);
         if (!component) {
-            this.propertiesPanel.innerHTML = '<p class="text-muted p-3">Chưa có thành phần nào được chọn.</p>';
+            this.propertiesPanel.innerHTML = `<p class="text-muted p-3">${i18n.get('form_builder.no_component_selected')}</p>`;
             return;
         }
         const def = this.CONTROL_DEFINITIONS[component.type];
@@ -312,31 +286,25 @@ class FormBuilder {
     _createGroupLayoutEditor(component) {
         const wrapper = document.createElement('div');
         wrapper.className = 'mb-3 prop-wrapper group-layout-editor';
-        wrapper.innerHTML = `<label class="form-label">Layout (tỉ lệ các cột)</label>`;
+        wrapper.innerHTML = `<label class="form-label">${i18n.get('form_builder.props.layoutColumns')}</label>`;
         const layoutContainer = document.createElement('div');
         (component.config.layoutColumns || []).forEach((col, index) => {
             const item = document.createElement('div');
             item.className = 'layout-item';
-            item.innerHTML = `
-                <span class="col-form-label">Cột ${index + 1}:</span>
-                <input type="number" class="form-control form-control-sm" value="${col}" min="1" step="0.1">
-                <button class="btn btn-sm btn-outline-danger btn-remove-col"><i class="bi bi-trash"></i></button>`;
+            item.innerHTML = `<span class="col-form-label">${i18n.get('form_builder.column')} ${index + 1}:</span><input type="number" class="form-control form-control-sm" value="${col}" min="1" step="0.1"><button class="btn btn-sm btn-outline-danger btn-remove-col"><i class="bi bi-trash"></i></button>`;
             item.querySelector('input').addEventListener('input', e => {
-                const newValue = parseFloat(e.target.value) || 1;
-                component.config.layoutColumns[index] = newValue;
+                component.config.layoutColumns[index] = parseFloat(e.target.value) || 1;
                 this.renderCanvas();
                 this._notifyWorkflowChanged();
             });
             const removeBtn = item.querySelector('.btn-remove-col');
             if (component.config.layoutColumns.length <= 1) removeBtn.disabled = true;
-            removeBtn.addEventListener('click', () => {
-                this.removeColumnFromGroup(component, index);
-            });
+            removeBtn.addEventListener('click', () => this.removeColumnFromGroup(component, index));
             layoutContainer.appendChild(item);
         });
         const addBtn = document.createElement('button');
         addBtn.className = 'btn btn-sm btn-outline-secondary w-100 mt-2';
-        addBtn.innerHTML = '<i class="bi bi-plus-lg"></i> Thêm Cột';
+        addBtn.innerHTML = `<i class="bi bi-plus-lg"></i> ${i18n.get('form_builder.add_column')}`;
         addBtn.addEventListener('click', () => {
             component.config.layoutColumns.push(1);
             this.renderCanvas();
@@ -349,7 +317,7 @@ class FormBuilder {
     _createTabsPropertyEditor(component) {
         const wrapper = document.createElement('div');
         wrapper.className = 'mb-3 prop-wrapper tabs-editor';
-        wrapper.innerHTML = `<label class="form-label">Tabs</label>`;
+        wrapper.innerHTML = `<label class="form-label">${i18n.get('form_builder.props.tabs')}</label>`;
         const tabsContainer = document.createElement('div');
         (component.config.tabs || []).forEach((tab, index) => {
             const tabItem = document.createElement('div');
@@ -377,10 +345,9 @@ class FormBuilder {
         });
         const addBtn = document.createElement('button');
         addBtn.className = 'btn btn-sm btn-outline-secondary w-100 mt-2';
-        addBtn.innerHTML = '<i class="bi bi-plus-lg"></i> Thêm Tab';
+        addBtn.innerHTML = `<i class="bi bi-plus-lg"></i> ${i18n.get('form_builder.add_tab')}`;
         addBtn.addEventListener('click', () => {
-            const newIndex = component.config.tabs.length + 1;
-            component.config.tabs.push({ title: `Tab ${newIndex}`, controls: [] });
+            component.config.tabs.push({ title: `Tab ${component.config.tabs.length + 1}`, controls: [] });
             this.renderCanvas();
             this._notifyWorkflowChanged();
         });
@@ -392,7 +359,7 @@ class FormBuilder {
         const value = component.config[prop];
         const wrapper = document.createElement('div');
         wrapper.className = 'mb-3 prop-wrapper';
-        const propName = prop.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+        const propName = i18n.get(`form_builder.props.${prop}`);
         let inputHtml = '';
         const isCheck = ['variablePicker', 'onChange'].includes(prop);
         const type = ['col', 'rows'].includes(prop) ? 'number' : 'text';
@@ -403,8 +370,7 @@ class FormBuilder {
         }
         wrapper.innerHTML = `<label class="form-label">${propName}</label>${inputHtml}`;
         wrapper.querySelectorAll('[data-prop]').forEach(input => input.addEventListener('input', e => {
-            const val = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
-            this.updateComponentConfig(component.id, e.target.dataset.prop, val);
+            this.updateComponentConfig(component.id, e.target.dataset.prop, e.target.type === 'checkbox' ? e.target.checked : e.target.value);
         }));
         return wrapper;
     }
@@ -439,11 +405,8 @@ class FormBuilder {
         const targetColIndex = Math.max(0, colIndexToRemove - 1);
         (groupComponent.config.controls || []).forEach(child => {
             const currentChildCol = child.config.colIndex || 0;
-            if (currentChildCol === colIndexToRemove) {
-                child.config.colIndex = targetColIndex;
-            } else if (currentChildCol > colIndexToRemove) {
-                child.config.colIndex = currentChildCol - 1;
-            }
+            if (currentChildCol === colIndexToRemove) child.config.colIndex = targetColIndex;
+            else if (currentChildCol > colIndexToRemove) child.config.colIndex = currentChildCol - 1;
         });
         cols.splice(colIndexToRemove, 1);
         this.renderCanvas();
@@ -468,15 +431,11 @@ class FormBuilder {
             this.workflow.setFormData(this.formData);
             this.renderCanvas();
             this.makeSortable(this.canvas, this.components);
-            if (notify) {
-                this._notifyWorkflowChanged();
-            }
+            if (notify) this._notifyWorkflowChanged();
         };
 
         if (notify) {
-            if (confirm('Sếp có chắc muốn xóa toàn bộ form không?')) {
-                doClear();
-            }
+            if (confirm(i18n.get('form_builder.confirm_clear_canvas'))) doClear();
         } else {
             doClear();
         }

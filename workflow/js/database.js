@@ -1,8 +1,13 @@
 // workflow/js/database.js
-
-const { Sequelize, DataTypes, Op } = require('sequelize'); // Thêm 'Op'
+const { Sequelize, DataTypes, Op } = require('sequelize');
 const path = require('path');
 const { app } = require('electron');
+
+try {
+    i18n = require('./i18n.js');
+} catch (err) {
+    console.log(err)
+}
 
 const userDataPath = app ? app.getPath('userData') : './'; 
 const dbPath = path.join(userDataPath, 'workflows.sqlite');
@@ -13,52 +18,25 @@ const sequelize = new Sequelize({
     logging: false 
 });
 
-// ... (Models definition remains the same)
 const Workflow = sequelize.define('Workflow', {
-    id: {
-        type: DataTypes.INTEGER,
-        autoIncrement: true,
-        primaryKey: true
-    },
-    name: {
-        type: DataTypes.STRING,
-        allowNull: false
-    },
-    data: {
-        type: DataTypes.JSON, 
-        allowNull: false
-    }
-}, {
-    timestamps: true 
-});
+    id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
+    name: { type: DataTypes.STRING, allowNull: false },
+    data: { type: DataTypes.JSON, allowNull: false }
+}, { timestamps: true });
 
 const WorkflowVersion = sequelize.define('WorkflowVersion', {
-    id: {
-        type: DataTypes.INTEGER,
-        autoIncrement: true,
-        primaryKey: true
-    },
+    id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
     workflowId: {
         type: DataTypes.INTEGER,
         allowNull: false,
-        references: {
-            model: Workflow,
-            key: 'id'
-        },
+        references: { model: Workflow, key: 'id' },
         onDelete: 'CASCADE'
     },
-    data: {
-        type: DataTypes.JSON,
-        allowNull: false
-    }
-}, {
-    timestamps: true,
-    updatedAt: false 
-});
+    data: { type: DataTypes.JSON, allowNull: false }
+}, { timestamps: true, updatedAt: false });
 
 Workflow.hasMany(WorkflowVersion, { foreignKey: 'workflowId' });
 WorkflowVersion.belongsTo(Workflow, { foreignKey: 'workflowId' });
-
 
 class DatabaseManager {
     constructor() {
@@ -71,35 +49,32 @@ class DatabaseManager {
     async initialize() {
         try {
             await this.db.sync(); 
-            console.log('Database initialized successfully.');
+            console.log(i18n.get('database.init_success'));
         } catch (error) {
-            console.error('Failed to initialize database:', error);
+            console.error(i18n.get('database.init_fail'), error);
         }
     }
 
     async saveWorkflow(name, data, id = null) {
         if (!name || !data) {
-            throw new Error('Tên và dữ liệu workflow không được để trống.');
+            throw new Error(i18n.get('database.validation_error'));
         }
         if (id) {
             const [updated] = await this.Workflow.update({ name, data }, { where: { id } });
             if (updated) {
                 return this.Workflow.findByPk(id);
             }
-            throw new Error(`Không tìm thấy workflow với ID: ${id}`);
+            throw new Error(i18n.get('database.not_found_error', { id }));
         } else {
             return this.Workflow.create({ name, data });
         }
     }
 
-    // *** BẮT ĐẦU THAY ĐỔI: Cập nhật getWorkflows để hỗ trợ tìm kiếm và phân trang ***
     async getWorkflows(options = {}) {
         const { limit, offset = 0, searchTerm = '' } = options;
         const where = {};
         if (searchTerm) {
-            where.name = {
-                [Op.like]: `%${searchTerm}%`
-            };
+            where.name = { [Op.like]: `%${searchTerm}%` };
         }
 
         return this.Workflow.findAndCountAll({
@@ -109,22 +84,19 @@ class DatabaseManager {
             offset
         });
     }
-    // *** KẾT THÚC THAY ĐỔI ***
-
-    // *** BẮT ĐẦU THÊM MỚI: Thêm hàm xóa workflow ***
+    
     async deleteWorkflow(id) {
         const workflow = await this.Workflow.findByPk(id);
         if (workflow) {
             await workflow.destroy();
             return { success: true, id };
         }
-        return { success: false, message: `Không tìm thấy workflow với ID: ${id}` };
+        return { success: false, message: i18n.get('database.delete_not_found', { id }) };
     }
-    // *** KẾT THÚC THÊM MỚI ***
     
     async saveWorkflowVersion(workflowId, data) {
         if (!workflowId) {
-            throw new Error('Cần có ID của workflow để lưu phiên bản.');
+            throw new Error(i18n.get('database.version_id_error'));
         }
 
         const newVersion = await this.WorkflowVersion.create({ workflowId, data });

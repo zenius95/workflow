@@ -1,40 +1,29 @@
-/**
- * Headless Workflow Runner (chạy với Object trong code)
- * Cách dùng:
- * 1. Dán object JSON của workflow vào biến `workflowObject`.
- * 2. Chạy script bằng lệnh: node run.js
- */
-
+// workflow/js/runner.js
 const path = require('path');
 const { getProperty } = require(path.join(__dirname, 'nodes/logic/data_processing.js'));
+const i18n = require('./i18n.js');
 
+i18n.loadLanguage('en');
 
-// --- Logger đơn giản cho Console ---
 class ConsoleLogger {
     _log(message, type = 'INFO') {
         const timestamp = new Date().toLocaleTimeString('en-GB');
-        let finalMessage = message;
-        if (typeof message === 'object') {
-            finalMessage = JSON.stringify(message, null, 2);
-        }
+        let finalMessage = (typeof message === 'object') ? JSON.stringify(message, null, 2) : message;
         console.log(`[${timestamp}][${type}] ${finalMessage}`);
     }
-    info(message) { this._log(message, 'INFO'); }
-    success(message) { this._log(message, 'SUCCESS'); }
-    error(message) { this._log(message, 'ERROR'); }
-    system(message) { this._log(message, 'SYSTEM'); }
+    info(message) { this._log(message, i18n.get('common.info').toUpperCase()); }
+    success(message) { this._log(message, i18n.get('common.success').toUpperCase()); }
+    error(message) { this._log(message, i18n.get('common.error').toUpperCase()); }
+    system(message) { this._log(message, i18n.get('common.system').toUpperCase()); }
     clear() { console.clear(); }
 }
 
-// --- Bộ máy thực thi Workflow ---
 class WorkflowRunner {
     constructor(config, workflowData) {
         this.config = config;
         this.workflow = workflowData;
         this.logger = new ConsoleLogger();
-        this.globalVariables = {
-            environment: "headless_production",
-        };
+        this.globalVariables = { environment: "headless_production" };
         this.executionState = {};
     }
 
@@ -62,42 +51,39 @@ class WorkflowRunner {
     }
 
     async run() {
-        this.logger.system('--- BẮT ĐẦU THỰC THI WORKFLOW ---');
+        this.logger.system(i18n.get('runner.start_log'));
         const startNodes = this.workflow.nodes.filter(n => !this.workflow.connections.some(c => c.to === n.id));
 
         if (startNodes.length === 0 && this.workflow.nodes.length > 0) {
-            this.logger.error('Lỗi: Không tìm thấy khối bắt đầu. Workflow phải có ít nhất một khối không có đầu vào.');
+            this.logger.error(i18n.get('runner.no_start_node'));
             return;
         }
 
         try {
             await Promise.allSettled(startNodes.map(node => this._executeNode(node, [])));
         } catch (e) {
-            this.logger.error(`Lỗi nghiêm trọng không bắt được: ${e.message}`);
+            this.logger.error(i18n.get('runner.critical_error', { message: e.message }));
         }
 
-        this.logger.system('--- KẾT THÚC THỰC THI WORKFLOW ---');
+        this.logger.system(i18n.get('runner.end_log'));
     }
 
     async _executeNode(node, tryCatchStack) {
         const nodeConfig = this._findNodeConfig(node.type);
         if (!nodeConfig) {
-            this.logger.error(`Không tìm thấy cấu hình cho khối loại "${node.type}" (ID: ${node.id})`);
+            this.logger.error(i18n.get('runner.node_config_not_found', { type: node.type, id: node.id }));
             return;
         }
 
-        this.logger.info(`Đang thực thi khối: "${node.data.title}" (ID: ${node.id})`);
+        this.logger.info(i18n.get('runner.executing_node', { title: node.data.title, id: node.id }));
 
         const resolvedNodeData = JSON.parse(JSON.stringify(node.data));
         const resolutionContext = { global: this.globalVariables, ...this.executionState };
 
         const resolveRecursively = (obj) => {
             for (const key in obj) {
-                if (typeof obj[key] === 'string') {
-                    obj[key] = this._resolveVariables(obj[key], resolutionContext);
-                } else if (typeof obj[key] === 'object' && obj[key] !== null) {
-                    resolveRecursively(obj[key]);
-                }
+                if (typeof obj[key] === 'string') obj[key] = this._resolveVariables(obj[key], resolutionContext);
+                else if (typeof obj[key] === 'object' && obj[key] !== null) resolveRecursively(obj[key]);
             }
         };
         resolveRecursively(resolvedNodeData);
@@ -107,15 +93,13 @@ class WorkflowRunner {
             if (nextConnections.length > 0) {
                 await Promise.all(nextConnections.map(async (conn) => {
                     const nextNode = this.workflow.nodes.find(n => n.id === conn.to);
-                    if (nextNode) {
-                        await this._executeNode(nextNode, newTryCatchStack);
-                    }
+                    if (nextNode) await this._executeNode(nextNode, newTryCatchStack);
                 }));
             }
         };
 
         if (node.type === 'try_catch') {
-            this.logger.info(`Bắt đầu khối Try/Catch: ${node.data.title}`);
+            this.logger.info(i18n.get('runner.try_catch_start', { title: node.data.title }));
             this.executionState[node.id] = { status: 'try_path_taken' };
             await executeNextNodes('try', [...tryCatchStack, node]);
             return;
@@ -125,26 +109,24 @@ class WorkflowRunner {
             if (node.type === 'loop') {
                 const items = await nodeConfig.execute(resolvedNodeData, this.logger, this);
                 const loopConnection = this.workflow.connections.find(c => c.from === node.id && c.fromPort === 'loop');
-
                 if (loopConnection) {
                     const loopBodyStartNode = this.workflow.nodes.find(n => n.id === loopConnection.to);
                     if (loopBodyStartNode) {
                         for (let i = 0; i < items.length; i++) {
                             const item = items[i];
-                            this.logger.info(`Vòng lặp ${i + 1}/${items.length}: item = ${JSON.stringify(item)}`);
+                            this.logger.info(i18n.get('runner.loop_iteration', { index: i + 1, total: items.length, item: JSON.stringify(item) }));
                             this.executionState[node.id] = { currentItem: item, currentIndex: i, totalItems: items.length };
                             await this._executeNode(loopBodyStartNode, [...tryCatchStack]);
                         }
                     }
                 }
-                this.logger.success(`Vòng lặp hoàn thành.`);
+                this.logger.success(i18n.get('runner.loop_complete'));
                 this.executionState[node.id] = { allItems: items, count: items.length };
                 await executeNextNodes('done', tryCatchStack);
                 return;
             }
 
             const result = await nodeConfig.execute(resolvedNodeData, this.logger, this);
-
             if (result && typeof result === 'object' && result.hasOwnProperty('selectedPort')) {
                 this.executionState[node.id] = result.data;
                 await executeNextNodes(result.selectedPort, tryCatchStack);
@@ -154,12 +136,11 @@ class WorkflowRunner {
                 await executeNextNodes(successPortName, tryCatchStack);
             }
         } catch (error) {
-            this.logger.error(`Lỗi thực thi khối ${node.data.title}: ${error.message}`);
+            this.logger.error(i18n.get('runner.node_error', { title: node.data.title, message: error.message }));
             this.executionState[node.id] = { error: error.message, ...error.context };
-
             const lastTryCatchNode = tryCatchStack.pop();
             if (lastTryCatchNode) {
-                this.logger.info(`Đã bắt được lỗi bởi khối Try/Catch: ${lastTryCatchNode.data.title}. Chuyển hướng tới cổng 'catch'.`);
+                this.logger.info(i18n.get('runner.error_caught', { title: lastTryCatchNode.data.title }));
                 this.executionState.error = { message: error.message, sourceNode: node.id, context: error.context };
                 await executeNextNodes('catch', tryCatchStack, lastTryCatchNode.id);
             } else {

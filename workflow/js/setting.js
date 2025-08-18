@@ -1,15 +1,16 @@
 /**
  * Renders node settings UI from a configuration object and handles its events.
  */
+
 class SettingsRenderer {
     constructor(workflowInstance) {
         this.workflow = workflowInstance;
         try {
             this.dialog = require('@electron/remote').dialog;
         } catch (e) {
-            console.error("Không thể tải module @electron/remote. Các nút chọn file/folder sẽ không hoạt động.", e);
+            console.error(i18n.get('settings.errors.electron_remote_fail'), e);
             if (this.workflow && this.workflow.logger) {
-                this.workflow.logger.error("Lỗi cấu hình: Không thể kích hoạt tính năng chọn file/folder. Vui lòng kiểm tra lại file main.js và đảm bảo đã cài đặt @electron/remote.");
+                this.workflow.logger.error(i18n.get('settings.errors.config_error_remote'));
             }
             this.dialog = null;
         }
@@ -21,7 +22,7 @@ class SettingsRenderer {
         row.className = 'row g-2';
         
         settingsConfig.forEach(control => {
-            const controlEl = this._renderControl(control, uniqueId, dataObject);
+            const controlEl = this._renderControl(control, uniqueId, dataObject, nodeConfig);
             if (controlEl) row.appendChild(controlEl);
         });
 
@@ -30,13 +31,16 @@ class SettingsRenderer {
         return container;
     }
 
-    _renderControl(control, uniqueId, dataObject) {
+    _renderControl(control, uniqueId, dataObject, nodeConfig) {
         const actualControl = control.config ? control.config : control;
 
         if (actualControl.visibleWhen) {
             const value = this.workflow._getProperty(dataObject, actualControl.visibleWhen.dataField);
             if (String(value) !== String(actualControl.visibleWhen.is)) return null;
         }
+
+        const lang = i18n.currentLanguage;
+        const nodeLocale = nodeConfig?.locales?.[lang]?.settings || {};
 
         const colWrapper = document.createElement('div');
         colWrapper.className = actualControl.col ? `col-md-${actualControl.col}` : 'col-12';
@@ -45,35 +49,43 @@ class SettingsRenderer {
         const wrapper = document.createElement('div');
         wrapper.className = 'mb-3';
 
-        if (actualControl.label) {
+        const labelText = nodeLocale[actualControl.labelKey] || actualControl.label;
+        if (labelText) {
             const label = document.createElement('label');
             label.className = 'form-label fw-semibold small';
-            label.textContent = actualControl.label;
+            label.textContent = labelText;
             wrapper.appendChild(label);
         }
 
         let element;
         switch (actualControl.type) {
             case 'text': case 'number': case 'password':
-                element = this._renderInput(actualControl, uniqueId, dataObject); break;
-            case 'textarea': element = this._renderTextarea(actualControl, uniqueId, dataObject); break;
-            case 'select': element = this._renderSelect(actualControl, uniqueId, dataObject); break;
+                element = this._renderInput(actualControl, uniqueId, dataObject, nodeLocale); break;
+            case 'textarea': element = this._renderTextarea(actualControl, uniqueId, dataObject, nodeLocale); break;
+            case 'select': element = this._renderSelect(actualControl, uniqueId, dataObject, nodeLocale); break;
             case 'file-select': element = this._renderFileSelect(actualControl, uniqueId, dataObject); break;
             case 'folder-select': element = this._renderFolderSelect(actualControl, uniqueId, dataObject); break;
-            case 'tabs': element = this._renderTabs(actualControl, uniqueId, dataObject); break;
-            case 'repeater': element = this._renderRepeater(actualControl, uniqueId, dataObject); break;
-            case 'group': element = this._renderGroup(actualControl, uniqueId, dataObject); break;
-            case 'condition-builder': case 'json-builder': case 'button': case 'output-display': case 'info':
-                element = this._renderSpecialType(actualControl, uniqueId, dataObject); break;
+            case 'tabs': element = this._renderTabs(actualControl, uniqueId, dataObject, nodeLocale, nodeConfig); break;
+            case 'repeater': element = this._renderRepeater(actualControl, uniqueId, dataObject, nodeConfig); break;
+            case 'group': element = this._renderGroup(actualControl, uniqueId, dataObject, nodeConfig); break;
+            case 'condition-builder':
+                element = this._renderConditionBuilder(actualControl, uniqueId, dataObject); break;
+            case 'json-builder':
+                element = this._renderJsonBuilder(actualControl, uniqueId, dataObject); break;
+            case 'button':
+            case 'output-display':
+            case 'info':
+                element = this._renderSpecialType(actualControl, nodeLocale); break;
             default: return null;
         }
         
         wrapper.appendChild(element);
         
-        if (actualControl.helpText) {
+        const helpText = nodeLocale[actualControl.helpTextKey] || actualControl.helpText;
+        if (helpText) {
             const help = document.createElement('div');
             help.className = 'form-text';
-            help.textContent = actualControl.helpText;
+            help.innerHTML = helpText; // Use innerHTML to allow for simple formatting
             wrapper.appendChild(help);
         }
         
@@ -83,19 +95,17 @@ class SettingsRenderer {
 
     _bindListeners(container, dataObject, nodeConfig, settingsConfig) {
         container.querySelectorAll('[data-field]').forEach(input => {
-            const fieldName = input.dataset.field;
             input.addEventListener('input', (e) => {
                 const newValue = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
-                const oldValue = this.workflow._getProperty(dataObject, fieldName);
+                const oldValue = this.workflow._getProperty(dataObject, input.dataset.field);
 
                 if (oldValue !== newValue) {
-                    this.workflow._setProperty(dataObject, fieldName, newValue);
-                    
-                    const controlConfig = this._findControlConfig(settingsConfig, fieldName);
+                    this.workflow._setProperty(dataObject, input.dataset.field, newValue);
+                    const controlConfig = this._findControlConfig(settingsConfig, input.dataset.field);
                     if (controlConfig && controlConfig.onChange === 'rerender') {
                         this.workflow._updateSettingsPanel();
                     }
-                    this.workflow._commitState("Sửa cài đặt");
+                    this.workflow._commitState(i18n.get('settings.state_commit.settings_edit'));
                 }
             });
         });
@@ -107,7 +117,7 @@ class SettingsRenderer {
                 this.workflow._showVariablePicker(targetInput, e.currentTarget);
             });
         });
-
+        
         const setupFileHandler = (action, handler) => {
             container.querySelectorAll(`[data-action="${action}"]`).forEach(btn => {
                 btn.addEventListener('click', (e) => {
@@ -157,7 +167,7 @@ class SettingsRenderer {
                 this.workflow._setProperty(dataObject, dataField, items);
                 
                 this.workflow._updateSettingsPanel();
-                this.workflow._commitState("Thêm mục vào Repeater");
+                this.workflow._commitState(i18n.get('settings.state_commit.repeater_add'));
             });
         });
 
@@ -172,7 +182,7 @@ class SettingsRenderer {
                 if (Array.isArray(items)) {
                     items.splice(index, 1);
                     this.workflow._updateSettingsPanel();
-                    this.workflow._commitState("Xóa mục khỏi Repeater");
+                    this.workflow._commitState(i18n.get('settings.state_commit.repeater_remove'));
                 }
             });
         });
@@ -189,96 +199,68 @@ class SettingsRenderer {
                 }
             });
         });
-
-        // --- BẮT ĐẦU THAY ĐỔI: Thêm event listener cho các nút Test ---
-        container.querySelectorAll('[data-action="test-data-generation"]').forEach(btn => {
-            btn.addEventListener('click', async () => {
-                const node = this.workflow.selectedNodes[0];
-                if (!node) return;
-                const nodeConfig = this.workflow._findNodeConfig('generate_data');
-                if (!nodeConfig || !nodeConfig.execute) return;
-
-                const outputContainer = btn.closest('.row, .custom-layout-grid, .p-3').querySelector('[data-ref="test-output-container"]');
-                if (outputContainer) outputContainer.textContent = 'Đang tạo...';
-
-                try {
-                    const mockLogger = {
-                        info: (m) => console.log('[TEST INFO]', m),
-                        success: (m) => console.log('[TEST SUCCESS]', m),
-                        error: (m) => console.log('[TEST ERROR]', m),
-                    };
-                    const result = await nodeConfig.execute(node.data, mockLogger, this.workflow);
-                    if (outputContainer) {
-                        outputContainer.textContent = JSON.stringify(result, null, 2);
-                    }
-                } catch (error) {
-                    if (outputContainer) {
-                        outputContainer.textContent = `Lỗi: ${error.message}`;
-                    }
-                    console.error(error);
-                }
-            });
+        
+        container.querySelectorAll('[data-action="test-data-generation"], [data-action="test-operation"]').forEach(btn => {
+            btn.addEventListener('click', (e) => this._handleTestExecution(e));
         });
-
-        container.querySelectorAll('[data-action="test-operation"]').forEach(btn => {
-            btn.addEventListener('click', async () => {
-                const node = this.workflow.selectedNodes[0];
-                if (!node) return;
-
-                const nodeConfig = this.workflow._findNodeConfig('data_processing');
-                if (!nodeConfig || !nodeConfig.execute) return;
-
-                const outputContainer = btn.closest('.row, .custom-layout-grid, .p-3').querySelector('[data-ref="test-output-container"]');
-                if (outputContainer) outputContainer.textContent = 'Đang xử lý...';
-                
-                try {
-                    const mockLogger = {
-                        info: (m) => console.log('[TEST INFO]', m),
-                        success: (m) => console.log('[TEST SUCCESS]', m),
-                        error: (m) => console.log('[TEST ERROR]', m),
-                    };
-
-                    const resolvedData = JSON.parse(JSON.stringify(node.data));
-                    const resolutionContext = { global: this.workflow.globalVariables, form: this.workflow.formData, ...this.workflow.executionState };
-                    
-                    if (typeof resolvedData.input === 'string') {
-                         resolvedData.input = this.workflow._resolveVariables(resolvedData.input, resolutionContext);
-                    }
-                    if (resolvedData.params) {
-                        for (const key in resolvedData.params) {
-                            if (typeof resolvedData.params[key] === 'string') {
-                                 resolvedData.params[key] = this.workflow._resolveVariables(resolvedData.params[key], resolutionContext);
-                            }
-                        }
-                    }
-                    
-                    const result = await nodeConfig.execute(resolvedData, mockLogger);
-
-                    if (outputContainer) {
-                        outputContainer.textContent = JSON.stringify(result, null, 2);
-                    }
-
-                } catch (error) {
-                    if (outputContainer) {
-                        outputContainer.textContent = `Lỗi: ${error.message}`;
-                    }
-                    console.error(error);
-                }
-            });
-        });
-        // --- KẾT THÚC THAY ĐỔI ---
     }
 
-     _renderSpecialType(control, uniqueId, dataObject) {
+    _handleTestExecution(e) {
+        const node = this.workflow.selectedNodes[0];
+        if (!node) return;
+        const nodeConfig = this.workflow._findNodeConfig(node.type);
+        if (!nodeConfig || !nodeConfig.execute) return;
+
+        const outputContainer = e.target.closest('.row, .custom-layout-grid, .p-3, .prop-wrapper').querySelector('[data-ref="test-output-container"]');
+        const action = e.target.closest('[data-action]').dataset.action;
+        
+        if (outputContainer) {
+            outputContainer.textContent = action === 'test-data-generation' ? i18n.get('settings.controls.test_generating') : i18n.get('settings.controls.test_processing');
+        }
+
+        const mockLogger = {
+            info: (m) => console.log('[TEST INFO]', m),
+            success: (m) => console.log('[TEST SUCCESS]', m),
+            error: (m) => console.log('[TEST ERROR]', m),
+        };
+
+        const resolvedData = JSON.parse(JSON.stringify(node.data));
+        const resolutionContext = { global: this.workflow.globalVariables, form: this.workflow.formData, ...this.workflow.executionState };
+        
+        const resolveRecursively = (obj) => {
+            for (const key in obj) {
+                if (typeof obj[key] === 'string') {
+                     obj[key] = this.workflow._resolveVariables(obj[key], resolutionContext);
+                } else if (typeof obj[key] === 'object' && obj[key] !== null) {
+                    resolveRecursively(obj[key]);
+                }
+            }
+        };
+        resolveRecursively(resolvedData);
+
+        (async () => {
+            try {
+                const result = await nodeConfig.execute(resolvedData, mockLogger, this.workflow);
+                if (outputContainer) {
+                    outputContainer.textContent = JSON.stringify(result, null, 2);
+                }
+            } catch (error) {
+                if (outputContainer) {
+                    outputContainer.textContent = i18n.get('settings.controls.test_error', { message: error.message });
+                }
+                console.error(error);
+            }
+        })();
+    }
+
+     _renderSpecialType(control, nodeLocale) {
         switch (control.type) {
-            case 'condition-builder': return this._renderConditionBuilder(control, uniqueId, dataObject);
-            case 'json-builder':      return this._renderJsonBuilder(control, uniqueId, dataObject);
-            case 'button':            return this._renderButton(control);
-            case 'output-display':    return this._renderOutputDisplay(control);
+            case 'button':            return this._renderButton(control, nodeLocale);
+            case 'output-display':    return this._renderOutputDisplay(control, nodeLocale);
             case 'info':              
                 const infoP = document.createElement('p');
                 infoP.className = 'text-muted small fst-italic';
-                infoP.innerHTML = control.text;
+                infoP.innerHTML = nodeLocale[control.textKey] || control.text;
                 return infoP;
             default: return null;
         }
@@ -289,43 +271,37 @@ class SettingsRenderer {
         return `settings-${uniqueId}-${safePart}`;
     }
 
-    _renderInput(control, uniqueId, dataObject) {
+    _renderInput(control, uniqueId, dataObject, nodeLocale) {
         const id = this._createSafeId(uniqueId, control);
         const value = this.workflow._getProperty(dataObject, control.dataField) || '';
-
+        const placeholder = nodeLocale[control.placeholderKey] || control.placeholder || '';
+        const inputHtml = `<input id="${id}" type="${control.type}" data-field="${control.dataField}" class="form-control form-control-sm" placeholder="${placeholder}" value="${value}">`;
+        
         if (control.variablePicker) {
             const group = document.createElement('div');
             group.className = 'input-group input-group-sm';
-            group.innerHTML = `
-                <input id="${id}" type="${control.type}" data-field="${control.dataField}" class="form-control form-control-sm" placeholder="${control.placeholder || ''}" value="${value}">
-                <button class="btn btn-outline-secondary variable-picker-btn" type="button" data-target-input="${id}"><i class="bi bi-braces"></i></button>
-            `;
+            group.innerHTML = `${inputHtml}<button class="btn btn-outline-secondary variable-picker-btn" type="button" data-target-input="${id}"><i class="bi bi-braces"></i></button>`;
             return group;
-        } else {
-            const input = document.createElement('input');
-            input.id = id;
-            input.type = control.type;
-            input.dataset.field = control.dataField;
-            input.className = 'form-control form-control-sm';
-            if (control.placeholder) input.placeholder = control.placeholder;
-            input.value = value;
-            return input;
         }
+        
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = inputHtml;
+        return tempDiv.firstChild;
     }
 
-    _renderTextarea(control, uniqueId, dataObject) {
-            const id = this._createSafeId(uniqueId, control);
-            const value = this.workflow._getProperty(dataObject, control.dataField) || '';
+    _renderTextarea(control, uniqueId, dataObject, nodeLocale) {
+        const id = this._createSafeId(uniqueId, control);
+        const value = this.workflow._getProperty(dataObject, control.dataField) || '';
+        const placeholder = nodeLocale[control.placeholderKey] || control.placeholder || '';
+        const element = document.createElement('textarea');
+        element.id = id;
+        element.dataset.field = control.dataField;
+        element.className = 'form-control form-control-sm';
+        if(control.rows) element.rows = control.rows;
+        element.placeholder = placeholder;
+        element.textContent = value;
 
-            const element = document.createElement('textarea');
-            element.id = id;
-            element.dataset.field = control.dataField;
-            element.className = 'form-control form-control-sm';
-            if(control.rows) element.rows = control.rows;
-            if(control.placeholder) element.placeholder = control.placeholder;
-            element.textContent = value;
-
-            if (control.variablePicker) {
+        if (control.variablePicker) {
             const group = document.createElement('div');
             group.className = 'input-group input-group-sm';
             group.appendChild(element);
@@ -335,35 +311,32 @@ class SettingsRenderer {
         return element;
     }
 
-    _renderSelect(control, uniqueId, dataObject) {
-        const id = this._createSafeId(uniqueId, control);
-        const value = this.workflow._getProperty(dataObject, control.dataField) || '';
+    _renderSelect(control, uniqueId, dataObject, nodeLocale) {
         const select = document.createElement('select');
-        select.id = id;
+        select.id = this._createSafeId(uniqueId, control);
         select.dataset.field = control.dataField;
         select.className = 'form-select form-select-sm';
+        
+        const optionsSource = control.optionsKey ? (nodeLocale[control.optionsKey] || {}) : (control.options || []);
+
+        if (Array.isArray(optionsSource)) {
+            optionsSource.forEach(opt => select.add(new Option(opt.text, opt.value)));
+        } else if (typeof optionsSource === 'object') {
+            Object.entries(optionsSource).forEach(([value, text]) => select.add(new Option(text, value)));
+        }
 
         if (control.optionGroups) {
-                control.optionGroups.forEach(group => {
+             control.optionGroups.forEach(groupData => {
+                const groupLabel = nodeLocale[groupData.labelKey] || groupData.label;
                 const optgroup = document.createElement('optgroup');
-                optgroup.label = group.label;
-                group.options.forEach(opt => {
-                    const option = document.createElement('option');
-                    option.value = opt.value;
-                    option.textContent = opt.text;
-                    optgroup.appendChild(option);
-                });
+                optgroup.label = groupLabel;
+                const groupOptions = nodeLocale[groupData.optionsKey] || {};
+                Object.entries(groupOptions).forEach(([value, text]) => optgroup.appendChild(new Option(text, value)));
                 select.appendChild(optgroup);
             });
-        } else if (control.options) {
-            control.options.forEach(opt => {
-                const option = document.createElement('option');
-                option.value = opt.value;
-                option.textContent = opt.text;
-                select.appendChild(option);
-            });
         }
-        select.value = value;
+        
+        select.value = this.workflow._getProperty(dataObject, control.dataField) || '';
         return select;
     }
 
@@ -373,9 +346,9 @@ class SettingsRenderer {
         const group = document.createElement('div');
         group.className = 'input-group input-group-sm';
         group.innerHTML = `
-            <input id="${id}" type="text" data-field="${control.dataField}" class="form-control" placeholder="Chưa chọn file nào" value="${value}">
+            <input id="${id}" type="text" data-field="${control.dataField}" class="form-control" placeholder="${i18n.get('settings.placeholders.no_file_selected')}" value="${value}">
             <button class="btn btn-outline-secondary" type="button" data-action="select-file" data-target-input="${id}" ${!this.dialog ? 'disabled' : ''}>
-                <i class="bi bi-file-earmark-text me-1"></i> Browse...
+                <i class="bi bi-file-earmark-text me-1"></i> ${i18n.get('settings.controls.browse')}
             </button>
         `;
         return group;
@@ -387,9 +360,9 @@ class SettingsRenderer {
         const group = document.createElement('div');
         group.className = 'input-group input-group-sm';
         group.innerHTML = `
-            <input id="${id}" type="text" data-field="${control.dataField}" class="form-control" placeholder="Chưa chọn thư mục nào" value="${value}">
+            <input id="${id}" type="text" data-field="${control.dataField}" class="form-control" placeholder="${i18n.get('settings.placeholders.no_folder_selected')}" value="${value}">
             <button class="btn btn-outline-secondary" type="button" data-action="select-folder" data-target-input="${id}" ${!this.dialog ? 'disabled' : ''}>
-                <i class="bi bi-folder2-open me-1"></i> Browse...
+                <i class="bi bi-folder2-open me-1"></i> ${i18n.get('settings.controls.browse')}
             </button>
         `;
         return group;
@@ -413,7 +386,7 @@ class SettingsRenderer {
         }
     }
 
-    _renderTabs(control, uniqueId, dataObject) {
+    _renderTabs(control, uniqueId, dataObject, nodeLocale, nodeConfig) {
         const tabId = `settings-tabs-${uniqueId}`;
         const wrapper = document.createElement('div');
         const nav = document.createElement('ul');
@@ -424,17 +397,16 @@ class SettingsRenderer {
         control.tabs.forEach((tab, index) => {
             const paneId = `${tabId}-pane-${index}`;
             const activeClass = index === 0 ? 'active' : '';
-            nav.innerHTML += `<li class="nav-item" role="presentation"><button class="nav-link ${activeClass}" data-bs-toggle="tab" data-bs-target="#${paneId}" type="button" role="tab">${tab.title}</button></li>`;
+            const tabTitle = nodeLocale[tab.titleKey] || tab.title;
+            nav.innerHTML += `<li class="nav-item" role="presentation"><button class="nav-link ${activeClass}" data-bs-toggle="tab" data-bs-target="#${paneId}" type="button" role="tab">${tabTitle}</button></li>`;
             const pane = document.createElement('div');
-            // <<< START CHANGE: Removed 'fade' class >>>
-            pane.className = `tab-pane ${activeClass}`;
-            // <<< END CHANGE >>>
+            pane.className = `tab-pane fade ${index === 0 ? 'show active' : ''}`;
             pane.id = paneId;
             pane.setAttribute('role', 'tabpanel');
             const row = document.createElement('div');
             row.className = 'row g-2';
             tab.controls.forEach(c => {
-                const el = this._renderControl(c, uniqueId, dataObject);
+                const el = this._renderControl(c, uniqueId, dataObject, nodeConfig);
                 if (el) row.appendChild(el);
             });
             pane.appendChild(row);
@@ -444,7 +416,7 @@ class SettingsRenderer {
         return wrapper;
     }
     
-    _renderGroup(control, uniqueId, dataObject) {
+    _renderGroup(control, uniqueId, dataObject, nodeConfig) {
         const groupWrapper = document.createElement('div');
         groupWrapper.className = 'border rounded p-3'; 
         const hasLayout = Array.isArray(control.layoutColumns) && control.layoutColumns.length > 0;
@@ -455,20 +427,20 @@ class SettingsRenderer {
             groupWrapper.classList.add('row', 'g-2');
         }
         control.controls.forEach(c => {
-            const el = this._renderControl({ ...c, parentLayout: hasLayout }, uniqueId, dataObject);
+            const el = this._renderControl({ ...c, parentLayout: hasLayout }, uniqueId, dataObject, nodeConfig);
             if (el) groupWrapper.appendChild(el);
         });
         return groupWrapper;
     }
 
-    _renderRepeater(control, uniqueId, dataObject) {
+    _renderRepeater(control, uniqueId, dataObject, nodeConfig) {
         const wrapper = document.createElement('div');
         const container = document.createElement('div');
         wrapper.appendChild(container);
         const items = this.workflow._getProperty(dataObject, control.dataField) || [];
         const fieldsToRender = control.fields || control.controls || [];
         if (items.length === 0 && fieldsToRender.length === 0 && uniqueId !== 'preview') {
-            container.innerHTML = `<p class="text-muted text-center small fst-italic">Chưa có trường nào được định nghĩa.</p>`;
+            container.innerHTML = `<p class="text-muted text-center small fst-italic">${i18n.get('settings.controls.no_fields_defined')}</p>`;
         }
         items.forEach((itemData, index) => {
             const rowWrapper = document.createElement('div');
@@ -481,7 +453,7 @@ class SettingsRenderer {
             fieldsToRender.forEach(fieldSource => {
                 const fieldConfig = fieldSource.config ? fieldSource.config : fieldSource;
                 const fieldPath = `${control.dataField}.${index}.${fieldConfig.dataField}`;
-                const el = this._renderControl({ ...fieldConfig, dataField: fieldPath, col: null }, uniqueId, dataObject);
+                const el = this._renderControl({ ...fieldConfig, dataField: fieldPath, col: null }, uniqueId, dataObject, nodeConfig);
                 if (el) rowWrapper.appendChild(el);
             });
             const removeBtn = document.createElement('button');
@@ -491,9 +463,11 @@ class SettingsRenderer {
             rowWrapper.appendChild(removeBtn);
             container.appendChild(rowWrapper);
         });
+        const lang = i18n.currentLanguage;
+        const buttonText = nodeConfig.locales?.[lang]?.settings?.[control.addButtonTextKey] || control.addButtonText || i18n.get('settings.controls.add_item');
         const addButton = document.createElement('button');
         addButton.className = 'btn btn-sm btn-outline-secondary w-100 mt-2';
-        addButton.innerHTML = control.addButtonText || '+ Thêm mục';
+        addButton.innerHTML = buttonText;
         Object.assign(addButton.dataset, { action: 'add-repeater-item', field: control.dataField });
         wrapper.appendChild(addButton);
         return wrapper;
@@ -502,9 +476,12 @@ class SettingsRenderer {
     _renderConditionBuilder(control, uniqueId, dataObject) {
         const container = document.createElement('div');
         const conditionGroups = this.workflow._getProperty(dataObject, control.dataField) || [];
+        const operatorMap = i18n.get('settings.condition_operators');
+        const operatorOptions = Object.entries(operatorMap).map(([value, text]) => `<option value="${value}">${text}</option>`).join('');
+
         conditionGroups.forEach((group, groupIndex) => {
             if (groupIndex > 0) {
-                container.innerHTML += `<div class="group-separator">hoặc</div>`;
+                container.innerHTML += `<div class="group-separator">${i18n.get('settings.controls.condition_or')}</div>`;
             }
             const groupDiv = document.createElement('div');
             groupDiv.className = 'condition-group';
@@ -517,7 +494,7 @@ class SettingsRenderer {
                     e.preventDefault();
                     conditionGroups.splice(groupIndex, 1);
                     this.workflow._updateSettingsPanel();
-                    this.workflow._commitState("Xóa nhóm điều kiện");
+                    this.workflow._commitState(i18n.get("settings.state_commit.condition_group_remove"));
                 });
                 groupDiv.appendChild(removeGroupBtn);
             }
@@ -528,17 +505,12 @@ class SettingsRenderer {
                 const comparisonValueId = `${uniqueId}-cond-${groupIndex}-${condIndex}-comparisonValue`;
                 row.innerHTML = `
                     <div class="input-group input-group-sm">
-                        <input type="text" class="form-control" placeholder="Giá trị" value="${cond.inputValue || ''}" data-field="conditionGroups.${groupIndex}.${condIndex}.inputValue" id="${inputValueId}">
+                        <input type="text" class="form-control" placeholder="${i18n.get('settings.placeholders.input_value')}" value="${cond.inputValue || ''}" data-field="conditionGroups.${groupIndex}.${condIndex}.inputValue" id="${inputValueId}">
                         <button class="btn btn-outline-secondary variable-picker-btn" type="button" data-target-input="${inputValueId}"><i class="bi bi-braces"></i></button>
                     </div>
-                    <select class="form-select form-select-sm" data-field="conditionGroups.${groupIndex}.${condIndex}.operator">
-                        <option value="==">bằng với</option> <option value="!=">không bằng</option> <option value=">">lớn hơn</option>
-                        <option value="<">nhỏ hơn</option> <option value=">=">lớn hơn hoặc bằng</option> <option value="<=">nhỏ hơn hoặc bằng</option>
-                        <option value="contains">chứa</option> <option value="not_contains">không chứa</option> <option value="is_empty">là rỗng</option>
-                        <option value="is_not_empty">không rỗng</option>
-                    </select>
+                    <select class="form-select form-select-sm" data-field="conditionGroups.${groupIndex}.${condIndex}.operator">${operatorOptions}</select>
                     <div class="input-group input-group-sm">
-                        <input type="text" class="form-control" placeholder="Giá trị so sánh" value="${cond.comparisonValue || ''}" data-field="conditionGroups.${groupIndex}.${condIndex}.comparisonValue" id="${comparisonValueId}">
+                        <input type="text" class="form-control" placeholder="${i18n.get('settings.placeholders.comparison_value')}" value="${cond.comparisonValue || ''}" data-field="conditionGroups.${groupIndex}.${condIndex}.comparisonValue" id="${comparisonValueId}">
                         <button class="btn btn-outline-secondary variable-picker-btn" type="button" data-target-input="${comparisonValueId}"><i class="bi bi-braces"></i></button>
                     </div>`;
                 row.querySelector('select').value = cond.operator;
@@ -548,13 +520,13 @@ class SettingsRenderer {
                     actionBtn.innerHTML = '<i class="bi bi-trash"></i>';
                     actionBtn.addEventListener('click', (e) => {
                         e.preventDefault(); group.splice(condIndex, 1);
-                        this.workflow._updateSettingsPanel(); this.workflow._commitState("Xóa điều kiện");
+                        this.workflow._updateSettingsPanel(); this.workflow._commitState(i18n.get("settings.state_commit.condition_remove"));
                     });
                 } else {
-                    actionBtn.className = 'btn btn-sm btn-outline-primary'; actionBtn.textContent = 'và';
+                    actionBtn.className = 'btn btn-sm btn-outline-primary'; actionBtn.textContent = i18n.get('settings.controls.condition_and');
                     actionBtn.addEventListener('click', (e) => {
                         e.preventDefault(); group.push({ inputValue: '', operator: '==', comparisonValue: '' });
-                        this.workflow._updateSettingsPanel(); this.workflow._commitState("Thêm điều kiện");
+                        this.workflow._updateSettingsPanel(); this.workflow._commitState(i18n.get("settings.state_commit.condition_add"));
                     });
                 }
                 row.appendChild(actionBtn);
@@ -564,8 +536,13 @@ class SettingsRenderer {
         });
         const addGroupButton = document.createElement('button');
         addGroupButton.className = 'btn btn-sm btn-outline-primary w-100 mt-2';
-        addGroupButton.innerHTML = '<i class="bi bi-plus-lg"></i> Thêm nhóm quy tắc (hoặc)';
-        addGroupButton.dataset.action = 'add-condition-group';
+        addGroupButton.innerHTML = `<i class="bi bi-plus-lg"></i> ${i18n.get('settings.controls.add_rule_group')}`;
+        addGroupButton.addEventListener('click', (e) => {
+            e.preventDefault();
+            conditionGroups.push([{ inputValue: '', operator: '==', comparisonValue: '' }]);
+            this.workflow._updateSettingsPanel();
+            this.workflow._commitState(i18n.get("settings.state_commit.condition_add"));
+        });
         container.appendChild(addGroupButton);
         return container;
     }
@@ -579,34 +556,43 @@ class SettingsRenderer {
     
     _renderJsonBuilderUI(container, items, dataPath) {
         container.innerHTML = ''; 
+        const node = this.workflow.selectedNodes[0];
+        const generateDataNodeConfig = this.workflow._findNodeConfig('generate_data');
+        const lang = i18n.currentLanguage;
+        const nodeLocale = generateDataNodeConfig.locales?.[lang]?.settings || {};
         const dataTypeOptions = document.createElement('select');
-        const nodeConfig = this.workflow._findNodeConfig('generate_data');
-        if (nodeConfig) {
-            this.workflow.settingsRenderer.renderAndBind(nodeConfig.settings, 'temp', {}).querySelectorAll('select[data-field="generationType"] optgroup').forEach(optgroup => {
-                const newOptgroup = document.createElement('optgroup');
-                newOptgroup.label = optgroup.label;
-                optgroup.querySelectorAll('option').forEach(opt => {
-                    if(opt.value && opt.value !== 'structured_json') { 
-                        const newOpt = document.createElement('option');
-                        newOpt.value = opt.value; newOpt.textContent = opt.textContent; newOptgroup.appendChild(newOpt);
-                    }
-                });
-                if (newOptgroup.label === 'Dữ liệu có cấu trúc') {
-                    newOptgroup.innerHTML += '<option value="object">Object (Nhóm)</option>';
+        
+        if (generateDataNodeConfig) {
+            generateDataNodeConfig.settings.forEach(setting => {
+                if (setting.dataField === 'generationType' && setting.optionGroups) {
+                    setting.optionGroups.forEach(groupData => {
+                        const optgroup = document.createElement('optgroup');
+                        optgroup.label = nodeLocale[groupData.labelKey] || groupData.label;
+                        const groupOptions = nodeLocale[groupData.optionsKey] || {};
+                        Object.entries(groupOptions).forEach(([value, text]) => {
+                             if(value && value !== 'structured_json') { 
+                                optgroup.appendChild(new Option(text, value));
+                            }
+                        });
+                         if (groupData.labelKey === 'structured_data_group') { // Assuming a key for this group
+                            optgroup.appendChild(new Option('Object', 'object'));
+                        }
+                        dataTypeOptions.appendChild(optgroup);
+                    });
                 }
-                dataTypeOptions.appendChild(newOptgroup);
             });
         }
+        
         items.forEach((item, index) => {
             const currentPath = `${dataPath}.${index}`;
             const itemWrapper = document.createElement('div');
             itemWrapper.className = 'json-builder-item';
             const row = document.createElement('div'); row.className = 'json-builder-row';
             const keyInput = document.createElement('input');
-            Object.assign(keyInput, { type: 'text', className: 'form-control form-control-sm', placeholder: 'Key', value: item.key || '' });
+            Object.assign(keyInput, { type: 'text', className: 'form-control form-control-sm', placeholder: i18n.get('settings.controls.key_placeholder'), value: item.key || '' });
             keyInput.addEventListener('input', (e) => {
                 this.workflow._setProperty(this.workflow.selectedNodes[0].data, `${currentPath}.key`, e.target.value);
-                this.workflow._commitState("Sửa khóa JSON");
+                this.workflow._commitState(i18n.get("settings.state_commit.json_key_edit"));
             });
             const valueSelect = dataTypeOptions.cloneNode(true);
             valueSelect.className = 'form-select form-select-sm';
@@ -617,13 +603,13 @@ class SettingsRenderer {
                 if (newType === 'object' && !item.children) {
                     this.workflow._setProperty(this.workflow.selectedNodes[0].data, `${currentPath}.children`, []);
                 }
-                this.workflow._updateSettingsPanel(); this.workflow._commitState("Sửa loại trường JSON");
+                this.workflow._updateSettingsPanel(); this.workflow._commitState(i18n.get("settings.state_commit.json_type_edit"));
             });
             const removeBtn = document.createElement('button');
             removeBtn.className = 'btn btn-sm btn-outline-danger'; removeBtn.innerHTML = '&times;';
             removeBtn.addEventListener('click', (e) => {
                 e.preventDefault(); items.splice(index, 1);
-                this.workflow._updateSettingsPanel(); this.workflow._commitState("Xóa trường JSON");
+                this.workflow._updateSettingsPanel(); this.workflow._commitState(i18n.get("settings.state_commit.json_field_remove"));
             });
             row.append(keyInput, valueSelect, removeBtn);
             itemWrapper.appendChild(row);
@@ -638,27 +624,28 @@ class SettingsRenderer {
         });
         const addButton = document.createElement('button');
         addButton.className = 'btn btn-sm btn-outline-secondary w-100 mt-2';
-        addButton.innerHTML = '<i class="bi bi-plus-lg"></i> Thêm Trường';
+        addButton.innerHTML = `<i class="bi bi-plus-lg"></i> ${i18n.get('settings.controls.add_field')}`;
         addButton.addEventListener('click', (e) => {
             e.preventDefault(); items.push({ key: '', type: 'uuid' });
-            this.workflow._updateSettingsPanel(); this.workflow._commitState("Thêm trường JSON");
+            this.workflow._updateSettingsPanel(); this.workflow._commitState(i18n.get("settings.state_commit.json_field_add"));
         });
         container.appendChild(addButton);
     }
 
-    _renderButton(control) {
+    _renderButton(control, nodeLocale) {
         const button = document.createElement('button');
         button.type = 'button';
         button.className = `btn btn-sm ${control.class || 'btn-secondary'}`;
         button.dataset.action = control.action;
-        button.innerHTML = control.text;
+        button.innerHTML = nodeLocale[control.textKey] || control.text;
         return button;
     }
 
-    _renderOutputDisplay(control) {
+    _renderOutputDisplay(control, nodeLocale) {
         const wrapper = document.createElement('div');
         wrapper.className = 'mt-2';
-        wrapper.innerHTML = `<label class="form-label small text-muted">${control.label}</label><pre data-ref="${control.ref}" class="p-2 bg-light border rounded" style="min-height: 50px; white-space: pre-wrap; word-break: break-all; font-family: monospace; font-size: 0.8rem;"></pre>`;
+        const labelText = nodeLocale[control.labelKey] || control.label;
+        wrapper.innerHTML = `<label class="form-label small text-muted">${labelText}</label><pre data-ref="${control.ref}" class="p-2 bg-light border rounded" style="min-height: 50px; white-space: pre-wrap; word-break: break-all; font-family: monospace; font-size: 0.8rem;"></pre>`;
         return wrapper;
     }
 
@@ -672,8 +659,8 @@ class SettingsRenderer {
                     if (found) return found;
                 }
             }
-            if (control.controls) {
-                const found = this._findControlConfig(control.controls, dataField);
+            if (control.controls || control.fields) {
+                const found = this._findControlConfig(control.controls || control.fields, dataField);
                 if (found) return found;
             }
         }
