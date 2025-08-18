@@ -98,6 +98,10 @@ body {
     background-color: var(--light-hover-color);
 }
 
+.tab-item:hover .close-tab-btn {
+    display: flex;
+}
+
 .tab-item:after {
     content: '';
     width: 1px;
@@ -146,6 +150,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
+    display: none;
 }
 
 .add-tab-btn {
