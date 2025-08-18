@@ -293,3 +293,26 @@ body { font-family: 'Poppins', sans-serif; overflow: hidden; background-image: l
     flex: 1;
     padding: 0 !important;
 }
+
+/* --- LOADING OVERLAY --- */
+#loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: #fff;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+    transition: opacity 0.3s ease-in-out;
+}
+
+#loading-overlay .spinner {
+    width: 50px;
+    height: 50px;
+    border: 5px solid #f3f3f3;
+    border-top: 5px solid #3498db;
+    border-radius: 50%;
+}

@@ -7,6 +7,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const initialWorkflowId = urlParams.get('workflowId') ? parseInt(urlParams.get('workflowId'), 10) : null;
     const tabId = urlParams.get('tabId');
 
+    // --- LOADING OVERLAY ---
+    const loadingOverlay = document.getElementById('loading-overlay');
+    const showLoading = () => loadingOverlay.style.display = 'flex';
+    const hideLoading = () => setTimeout(() => {
+        loadingOverlay.style.display = 'none';
+    }, 1000);
+
     // --- KHỞI TẠO CÁC THÀNH PHẦN CHÍNH ---
     const workflowBuilder = new WorkflowBuilder('app-container', workflowConfig, null, {
         apiKey: "ABC-123-XYZ",
@@ -90,6 +97,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const loadWorkflowById = async (workflowId) => {
         if (!workflowId) return;
+        showLoading();
         try {
             const workflows = await db.getWorkflows();
             const wfToLoad = workflows.find(w => w.id === workflowId);
@@ -119,6 +127,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (error) {
             workflowBuilder.logger.error(`Lỗi khi tải workflow: ${error.message}`);
+        } finally {
+            hideLoading();
         }
     };
 
@@ -160,10 +170,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const handleRestoreVersion = (versionData) => {
         if (confirm("Sếp có chắc muốn khôi phục phiên bản này không? Mọi thay đổi chưa lưu sẽ bị mất.")) {
-            workflowBuilder.loadWorkflow(versionData);
-            const nodesTab = new bootstrap.Tab(document.getElementById('nodes-tab'));
-            nodesTab.show();
-            workflowBuilder.logger.system(`Đã khôi phục workflow về phiên bản cũ.`);
+            showLoading();
+            setTimeout(() => { // Thêm timeout nhỏ để UI kịp cập nhật
+                try {
+                    workflowBuilder.loadWorkflow(versionData);
+                    const nodesTab = new bootstrap.Tab(document.getElementById('nodes-tab'));
+                    nodesTab.show();
+                    workflowBuilder.logger.system(`Đã khôi phục workflow về phiên bản cũ.`);
+                } finally {
+                    hideLoading();
+                }
+            }, 100);
         }
     };
     
@@ -205,6 +222,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             workflowBuilder.logger.system("Bắt đầu workflow mới.");
             stopAutoSaveTimer();
+            hideLoading(); // Ẩn loading nếu là workflow mới
         }
     };
 
