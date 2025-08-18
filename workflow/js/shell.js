@@ -1,6 +1,7 @@
 // workflow/js/shell.js
 document.addEventListener('DOMContentLoaded', () => {
     const { ipcRenderer } = require('electron');
+    const path = require('path');
 
     // DOM Elements
     const minimizeBtn = document.getElementById('minimize-btn');
@@ -25,6 +26,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    // --- Helper function để tạo URL tuyệt đối ---
+    const getWebviewUrl = (tabId, workflowId = null) => {
+        const query = new URLSearchParams({ tabId });
+        if (workflowId !== null) {
+            query.set('workflowId', workflowId);
+        }
+        const filePath = path.join(__dirname, 'workflow.html');
+        return `file://${filePath}?${query.toString()}`;
+    };
+
     // --- UI State Management ---
     const updateUiState = () => {
         const tabs = document.querySelectorAll('.tab-item');
@@ -35,28 +46,23 @@ document.addEventListener('DOMContentLoaded', () => {
             isStartTabActive = true;
         }
 
-        // Show/Hide Overlay
         startPageOverlay.style.display = isStartTabActive ? 'flex' : 'none';
         if(isStartTabActive) {
             populateStartPage();
         }
 
-        // Reset visibility for all close buttons first
         tabs.forEach(tab => {
             const closeBtn = tab.querySelector('.close-tab-btn');
             if (closeBtn) closeBtn.style.display = '';
         });
 
-        // Hide Add Tab button if any start tab exists
         const anyStartTabExists = !!document.querySelector('.tab-item[data-workflow-id="null"]');
         addTabBtn.style.display = anyStartTabExists ? 'none' : 'flex';
 
-        // Disable/Enable sorting
         if (sortableInstance) {
             sortableInstance.option('disabled', anyStartTabExists);
         }
 
-        // Hide close button on single start tab
         if (tabs.length === 1 && anyStartTabExists) {
             const singleTab = tabs[0];
             const closeBtn = singleTab.querySelector('.close-tab-btn');
@@ -85,7 +91,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const webview = document.createElement('webview');
         webview.id = `webview-${tabId}`;
         webview.className = 'workflow-webview';
-        const url = `workflow.html?tabId=${tabId}` + (workflowId ? `&workflowId=${workflowId}` : '');
+        const url = getWebviewUrl(tabId, workflowId);
         webview.setAttribute('src', url);
         webview.setAttribute('webpreferences', 'contextIsolation=false, nodeIntegration=true');
 
@@ -94,13 +100,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const [data] = args;
             if (channel === 'updateTabTitle') {
                 updateTab(data.tabId, { title: data.title, workflowId: data.workflowId });
-            } else if (channel === 'switchToWorkflow') {
-                const tabToSwitch = findTabByWorkflowId(data.workflowId);
-                if (tabToSwitch) {
-                    switchToTab(tabToSwitch.dataset.tabId);
-                    tabToSwitch.classList.add('tab-flash');
-                    setTimeout(() => tabToSwitch.classList.remove('tab-flash'), 500);
-                }
             }
         });
         webviewContainer.appendChild(webview);
@@ -134,27 +133,30 @@ document.addEventListener('DOMContentLoaded', () => {
         const tabEl = document.querySelector(`.tab-item[data-tab-id="${tabId}"]`);
         const webview = document.getElementById(`webview-${tabId}`);
         if (!tabEl || !webview) return;
-
-        const currentWorkflowId = tabEl.dataset.workflowId;
-        const isBecomingReal = ((currentWorkflowId === 'null' || currentWorkflowId === 'creating') && !isNaN(parseInt(workflowId, 10)));
-        const isStartingNew = (currentWorkflowId === 'null' && workflowId === 'creating');
-
-        if (isBecomingReal) {
-            const newUrl = new URL(`workflow.html?tabId=${tabId}&workflowId=${workflowId}`, window.location.href).href;
-            const script = `history.replaceState({}, '', '${newUrl}');`;
-            webview.executeJavaScript(script).catch(err => console.error('Failed to update URL:', err));
-        } else if (isStartingNew) {
-            // Do nothing to the webview, just update state
-        } else if (String(currentWorkflowId) !== String(workflowId)) {
-            const newUrl = new URL(`workflow.html?tabId=${tabId}&workflowId=${workflowId}`, window.location.href).href;
-            if (newUrl) webview.loadURL(newUrl);
-        }
-        
+    
+        const currentIdOnTab = tabEl.dataset.workflowId;
+        const newId = String(workflowId);
+    
         tabEl.querySelector('.tab-title').textContent = title;
-        tabEl.dataset.workflowId = String(workflowId);
-        
-        if (focus) switchToTab(tabId);
-        else updateUiState();
+        tabEl.dataset.workflowId = newId;
+    
+        if (currentIdOnTab !== newId) {
+            const isOpeningFromStartPage = (currentIdOnTab === 'null' && !isNaN(parseInt(newId, 10)));
+    
+            if (isOpeningFromStartPage) {
+                const newUrl = getWebviewUrl(tabId, newId);
+                webview.loadURL(newUrl);
+            } else {
+                const newUrl = getWebviewUrl(tabId, newId);
+                webview.executeJavaScript(`history.replaceState({}, '', '${newUrl}');`).catch(console.error);
+            }
+        }
+    
+        if (focus) {
+            switchToTab(tabId);
+        } else {
+            updateUiState();
+        }
     };
 
     const closeTab = (tabId) => {
@@ -172,17 +174,29 @@ document.addEventListener('DOMContentLoaded', () => {
             switchToTab(sibling.dataset.tabId);
         } else if (document.querySelectorAll('.tab-item').length === 0) {
             activeTabId = null;
-            createNewTab();
+            createNewTab({ workflowId: null });
         }
+        
+        // *** BẮT ĐẦU SỬA LỖI: Cập nhật lại trang bắt đầu nếu nó đang mở ***
+        const activeTabNow = document.querySelector('.tab-item.active');
+        if (activeTabNow && activeTabNow.dataset.workflowId === 'null') {
+            populateStartPage();
+        }
+        // *** KẾT THÚC SỬA LỖI ***
+
         updateUiState();
     };
 
     // --- Start Page Logic ---
     const populateStartPage = async () => {
         try {
-            const openIds = new Set(Array.from(document.querySelectorAll('.tab-item[data-workflow-id]'))
-                .map(tab => parseInt(tab.dataset.workflowId, 10))
-                .filter(id => !isNaN(id) && id > 0));
+            // *** BẮT ĐẦU SỬA LỖI: Lấy danh sách các workflow đang mở ***
+            const openIds = new Set(
+                Array.from(document.querySelectorAll('.tab-item[data-workflow-id]'))
+                    .map(tab => parseInt(tab.dataset.workflowId, 10))
+                    .filter(id => !isNaN(id) && id > 0)
+            );
+            // *** KẾT THÚC SỬA LỖI ***
             
             const workflows = await db.getWorkflows();
             startPageWorkflowList.innerHTML = '';
@@ -198,6 +212,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     item.innerHTML = `<div><h5 class="${isOpen ? 'text-primary' : ''}">${wf.name}</h5><small>Cập nhật: ${new Date(wf.updatedAt).toLocaleString()}</small></div>`;
                     
+                    // *** BẮT ĐẦU SỬA LỖI: Hiển thị nút "Chuyển Tab" nếu tab đang mở ***
                     if (isOpen) {
                         const switchBtn = document.createElement('button');
                         switchBtn.className = 'btn btn-sm btn-primary';
@@ -213,6 +228,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         item.dataset.id = wf.id;
                         item.dataset.name = wf.name;
                     }
+                    // *** KẾT THÚC SỬA LỖI ***
                     startPageWorkflowList.appendChild(item);
                 });
             }
@@ -223,12 +239,16 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const handleStartPageAction = (e) => {
+        // *** BẮT ĐẦU SỬA LỖI: Thêm logic xử lý cho nút "Chuyển Tab" ***
         const switchBtn = e.target.closest('[data-action="switch-tab"]');
         if (switchBtn) {
             const tabToSwitch = findTabByWorkflowId(switchBtn.dataset.workflowId);
-            if (tabToSwitch) switchToTab(tabToSwitch.dataset.tabId);
+            if (tabToSwitch) {
+                switchToTab(tabToSwitch.dataset.tabId);
+            }
             return;
         }
+        // *** KẾT THÚC SỬA LỖI ***
 
         const openBtn = e.target.closest('[data-action="open-workflow"]');
         if (openBtn) {
@@ -242,7 +262,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Event Listeners ---
     createNewWorkflowBtn.addEventListener('click', () => {
         if (activeTabId) {
-            updateTab(activeTabId, { title: 'Workflow Chưa Lưu', workflowId: 'creating' });
+            const webview = document.getElementById(`webview-${activeTabId}`);
+            if (webview) {
+                const newUrl = getWebviewUrl(activeTabId, null);
+                webview.loadURL(newUrl);
+            }
+            updateTab(activeTabId, { title: 'Workflow Chưa Lưu', workflowId: null });
         }
     });
     startPageWorkflowList.addEventListener('click', handleStartPageAction);
@@ -253,12 +278,15 @@ document.addEventListener('DOMContentLoaded', () => {
     ipcRenderer.on('window-state-changed', (event, { isMaximized }) => {
         maximizeBtnIcon.className = isMaximized ? 'ri-file-copy-2-line' : 'ri-checkbox-blank-line';
     });
-    addTabBtn.addEventListener('click', () => createNewTab());
+    addTabBtn.addEventListener('click', () => createNewTab({ workflowId: null }));
     tabBar.addEventListener('click', (e) => {
         const targetTab = e.target.closest('.tab-item');
         if (!targetTab) return;
-        if (e.target.closest('.close-tab-btn')) closeTab(targetTab.dataset.tabId);
-        else switchToTab(targetTab.dataset.tabId);
+        if (e.target.closest('.close-tab-btn')) {
+            closeTab(targetTab.dataset.tabId);
+        } else {
+            switchToTab(targetTab.dataset.tabId);
+        }
     });
     tabBar.addEventListener('wheel', (e) => {
         if (e.deltaY !== 0) { e.preventDefault(); tabBar.scrollLeft += e.deltaY; }
@@ -271,5 +299,5 @@ document.addEventListener('DOMContentLoaded', () => {
         dragClass: 'tab-dragging',
     });
 
-    createNewTab();
+    createNewTab({ workflowId: null });
 });

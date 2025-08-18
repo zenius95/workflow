@@ -1,3 +1,4 @@
+// workflow/js/database.js
 const { Sequelize, DataTypes } = require('sequelize');
 const path = require('path');
 const { app } = require('electron'); // Sử dụng module app của electron trực tiếp
@@ -66,7 +67,7 @@ class DatabaseManager {
 
     async initialize() {
         try {
-            // *** BẮT ĐẦU SỬA LỖI: Thay alter: true bằng sync() đơn giản để ổn định hơn ***
+            // *** SỬA LỖI QUAN TRỌNG: Đảm bảo chỉ dùng sync() để ổn định database ***
             await this.db.sync(); 
             // *** KẾT THÚC SỬA LỖI ***
             console.log('Database initialized successfully.');

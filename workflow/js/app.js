@@ -99,6 +99,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 workflowBuilder.logger.system(`Đã mở workflow "${wfToLoad.name}".`);
                 currentWorkflowId = wfToLoad.id;
                 lastSavedVersionState = JSON.stringify(wfToLoad.data);
+
+                // *** BẮT ĐẦU SỬA LỖI: Thêm lệnh giao tiếp với shell sau khi tải xong ***
+                // Báo cho cửa sổ chính (shell.js) biết rằng tab này đã tải xong
+                // workflow, để nó có thể cập nhật lại trạng thái và tiêu đề.
+                if (tabId) {
+                    ipcRenderer.sendToHost('updateTabTitle', {
+                        tabId: tabId,
+                        title: wfToLoad.name,
+                        workflowId: currentWorkflowId
+                    });
+                }
+                // *** KẾT THÚC SỬA LỖI ***
+
                 startAutoSaveTimer();
                 updateHistoryTabContent();
             } else {
@@ -199,7 +212,8 @@ document.addEventListener('DOMContentLoaded', () => {
     confirmSaveBtn.addEventListener('click', handleConfirmSave);
     historyTab.addEventListener('show.bs.tab', updateHistoryTabContent);
     workflowBuilder.addEventListener('workflow:cleared', resetOnClearOrImport);
-    workflowBuilder.addEventListener('workflow:loaded', resetOnClearOrImport);
+    // Gỡ bỏ listener này để tránh reset ID sai thời điểm
+    // workflowBuilder.addEventListener('workflow:loaded', resetOnClearOrImport);
 
     initializeView();
 });
