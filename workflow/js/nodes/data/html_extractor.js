@@ -33,10 +33,11 @@ module.exports = {
         }
     ],
     execute: (data, logger) => {
+        const cheerio = require('cheerio');
         const { htmlContent, extractions } = data;
         if (!htmlContent) throw new Error('Nội dung HTML không được để trống.');
 
-        const doc = new DOMParser().parseFromString(htmlContent, 'text/html');
+        const $ = cheerio.load(htmlContent);
         const results = {};
 
         if (logger) logger.info(`Bắt đầu trích xuất từ HTML...`);
@@ -45,14 +46,17 @@ module.exports = {
             if (!ext.key || !ext.selector) return;
 
             try {
+                const elements = $(ext.selector);
                 if (ext.extractType === 'multiple') {
-                    const elements = doc.querySelectorAll(ext.selector);
-                    results[ext.key] = Array.from(elements).map(el => {
-                        return ext.attribute ? el.getAttribute(ext.attribute) : el.textContent.trim();
-                    });
+                    results[ext.key] = elements.map((i, el) => {
+                        const element = $(el);
+                        return ext.attribute ? element.attr(ext.attribute) : element.text().trim();
+                    }).get();
                 } else { // 'single'
-                    const element = doc.querySelector(ext.selector);
-                    results[ext.key] = element ? (ext.attribute ? element.getAttribute(ext.attribute) : element.textContent.trim()) : null;
+                    const firstElement = elements.first();
+                    results[ext.key] = firstElement.length 
+                        ? (ext.attribute ? firstElement.attr(ext.attribute) : firstElement.text().trim()) 
+                        : null;
                 }
             } catch (e) {
                 if(logger) logger.error(`Lỗi với selector "${ext.selector}": ${e.message}`);

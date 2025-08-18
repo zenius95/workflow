@@ -100,11 +100,12 @@ module.exports = {
         }
     ],
     execute: async (data, logger) => {
+        const fetch = require('node-fetch');
+        const { URL, URLSearchParams } = require('url');
+        const { Headers } = require('node-fetch');
+
         const { url, method = 'GET', timeout = 30000, auth, queryParams, headers: customHeaders, body } = data;
         if (!url) throw new Error('URL không được để trống.');
-
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), parseInt(timeout, 10));
 
         const finalUrl = new URL(url);
         if (queryParams && Array.isArray(queryParams)) {
@@ -117,9 +118,9 @@ module.exports = {
         }
 
         if (auth && auth.type === 'bearer' && auth.token) requestHeaders.set('Authorization', `Bearer ${auth.token}`);
-        else if (auth && auth.type === 'basic' && auth.username) requestHeaders.set('Authorization', `Basic ${btoa(`${auth.username}:${auth.password || ''}`)}`);
+        else if (auth && auth.type === 'basic' && auth.username) requestHeaders.set('Authorization', `Basic ${Buffer.from(`${auth.username}:${auth.password || ''}`).toString('base64')}`);
 
-        const options = { method, signal: controller.signal, headers: requestHeaders };
+        const options = { method, timeout: parseInt(timeout, 10), headers: requestHeaders };
 
         if (['POST', 'PUT', 'PATCH'].includes(method.toUpperCase())) {
             if (body && body.type === 'json' && body.json) {
@@ -136,7 +137,6 @@ module.exports = {
         if (logger) logger.info(`=> ${method} ${finalUrl.toString()}`);
         try {
             const response = await fetch(finalUrl.toString(), options);
-            clearTimeout(timeoutId);
 
             const responseHeaders = {};
             response.headers.forEach((value, key) => { responseHeaders[key] = value; });
@@ -150,7 +150,7 @@ module.exports = {
                     responseBody = await response.text();
                 }
             } catch (e) {
-                responseBody = await response.text(); // Fallback to text if JSON parsing fails
+                responseBody = await response.text();
             }
 
             const result = { statusCode: response.status, ok: response.ok, headers: responseHeaders, body: responseBody };
@@ -163,8 +163,7 @@ module.exports = {
             if (logger) logger.success(`<= ${response.status} ${response.statusText}`);
             return result;
         } catch (error) {
-            clearTimeout(timeoutId);
-            if (error.name === 'AbortError') {
+            if (error.name === 'AbortError' || error.type === 'request-timeout') {
                 throw new Error(`Request timed out after ${timeout}ms.`);
             }
             throw error;
