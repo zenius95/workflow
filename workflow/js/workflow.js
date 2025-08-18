@@ -101,10 +101,8 @@ class WorkflowBuilder extends EventTarget {
         }
 
         if (this.initialWorkflow) {
-            this.hideStartPage();
             setTimeout(() => this.loadWorkflow(this.initialWorkflow, false), 0);
         } else {
-            this.showStartPage();
             this._commitState("Initial State");
         }
         
@@ -114,23 +112,6 @@ class WorkflowBuilder extends EventTarget {
     }
 
     // --- PUBLIC API ---
-
-    // *** BẮT ĐẦU THAY ĐỔI: Thêm hàm để quản lý trang bắt đầu và giao diện chính ***
-    setMainUIVisibility(visible) {
-        this.dom.mainUi?.classList.toggle('hidden', !visible);
-    }
-
-    showStartPage() {
-        this.dom.startPage?.classList.remove('hidden');
-        this.setMainUIVisibility(false);
-    }
-
-    hideStartPage() {
-        this.dom.startPage?.classList.add('hidden');
-        this.setMainUIVisibility(true);
-    }
-    // *** KẾT THÚC THAY ĐỔI ***
-
     loadWorkflow(workflowObject, commit = true) { this._importWorkflow(JSON.stringify(workflowObject), commit); }
     getWorkflow() { return this._getCurrentState(); }
     clear() { this._clearCanvas(true); }

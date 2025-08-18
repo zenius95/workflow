@@ -69,14 +69,12 @@ body {
     min-width: 0;
 }
 
-/* *** BẮT ĐẦU THAY ĐỔI: Cho phép tab-bar cuộn ngang khi cần *** */
 .tab-bar {
     display: flex;
     align-items: flex-end; 
-    overflow-x: auto; /* Kích hoạt cuộn ngang khi nội dung tràn */
-    overflow-y: hidden; /* Tắt cuộn dọc */
+    overflow-x: auto;
+    overflow-y: hidden;
 }
-/* *** KẾT THÚC THAY ĐỔI *** */
 
 .tab-bar::-webkit-scrollbar { display: none; } 
 
@@ -84,17 +82,12 @@ body {
     position: relative;
     display: flex;
     align-items: center;
-    /* Cho phép tab co giãn đến một giới hạn */
-    flex: 1 1 auto;
+    flex: 1 1 0;
     min-width: 70px;
     max-width: 220px;
-
     font-weight: 500;
-
     -webkit-app-region: no-drag;
-
     font-size: 14px;
-
     margin-right: 5px;
     padding-right: 5px;
 }
@@ -129,6 +122,7 @@ body {
     cursor: pointer;
     color: #fff;
     padding-right: 30px;
+    width: 100%;
 }
 
 .tab-item.active .close-tab-btn {
@@ -207,3 +201,92 @@ body {
 .sortable-fallback {
     display: none !important;
 }
+
+/* *** BẮT ĐẦU: CSS cho Trang Bắt Đầu *** */
+.start-page-container {
+    position: absolute;
+    /* Lớp phủ sẽ nằm trên header và main content */
+    top: 50px; 
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: none; /* Mặc định ẩn */
+    align-items: center;
+    justify-content: center;
+    background-color: #f0f2f5;
+    color: #343a40;
+    text-align: center;
+    padding: 2rem;
+    z-index: 1000;
+}
+
+.start-page-content {
+    max-width: 800px;
+    width: 100%;
+}
+
+.start-page-title {
+    font-size: 3.5rem;
+    font-weight: 700;
+    color: #212529;
+}
+
+.start-page-subtitle {
+    font-size: 1.25rem;
+    color: #6c757d;
+    margin-bottom: 2.5rem;
+}
+
+.start-actions {
+    margin-bottom: 3rem;
+}
+
+.workflow-list-container {
+    background-color: #ffffff;
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: 0 6px 12px rgba(0,0,0,0.08);
+    text-align: left;
+}
+
+.workflow-list-header {
+    font-size: 1.2rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.workflow-list {
+    max-height: 40vh;
+    overflow-y: auto;
+}
+
+.workflow-list-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.2s ease-in-out, transform 0.2s ease-in-out;
+}
+.workflow-list-item:not(:last-child) {
+    border-bottom: 1px solid #f1f3f5;
+}
+
+.workflow-list-item:hover {
+    background-color: #f8f9fa;
+    transform: translateY(-2px);
+}
+
+.workflow-list-item h5 {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 500;
+}
+
+.workflow-list-item small {
+    color: #adb5bd;
+}
+/* *** KẾT THÚC: CSS cho Trang Bắt Đầu *** */

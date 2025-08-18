@@ -14,7 +14,7 @@
                 <div class="tab-bar" id="tab-bar"></div>
                 <button id="add-tab-btn" class="add-tab-btn"><i class="ri-add-line"></i></button>
             </div>
-            </div>
+        </div>
 
         <div class="window-controls">
             <button id="minimize-btn"><i class="ri-subtract-line"></i></button>
@@ -22,7 +22,21 @@
             <button id="close-btn"><i class="ri-close-line"></i></button>
         </div>
     </header>
-    
+
+    <div id="start-page-overlay" class="start-page-container">
+        <div class="start-page-content">
+            <h1 class="start-page-title">Workflow Builder</h1>
+            <p class="start-page-subtitle">Tự động hóa công việc của sếp một cách trực quan.</p>
+            <div class="d-grid gap-2 d-sm-flex justify-content-sm-center start-actions">
+                <button data-action="create-new-workflow" type="button" class="btn btn-primary btn-lg px-4 gap-3">Tạo Workflow Mới</button>
+            </div>
+            <div class="workflow-list-container">
+                <h2 class="workflow-list-header">Hoặc mở một workflow gần đây</h2>
+                <div id="start-page-workflow-list" class="list-group list-group-flush workflow-list">
+                </div>
+            </div>
+        </div>
+    </div>
     <main id="webview-container" class="webview-container">
     </main>
 
