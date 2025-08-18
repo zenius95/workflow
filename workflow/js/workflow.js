@@ -968,7 +968,7 @@ class WorkflowBuilder extends EventTarget {
     }
     
     _loadState(state) {
-        this._clearCanvas(false);
+        this._clearCanvas(false, false); // Thay đổi ở đây: thêm tham số 'false'
         const idMap = new Map();
         this.nodeTypeCounts = {};
         
@@ -1354,13 +1354,15 @@ class WorkflowBuilder extends EventTarget {
         if (state !== 'idle') node.element.classList.add(state);
     }
 
-    _clearCanvas(commit = true) {
+    _clearCanvas(commit = true, dispatchClearedEvent = true) {
         this.dom.connectorSvg.innerHTML = '';
         this.nodes.forEach(node => node.element.remove());
         this.nodes = []; this.connections = []; this.nodeTypeCounts = {}; this._clearSelection();
         if (this.formBuilder) { this.formBuilder.clearCanvas(false); }
         if (commit) this._commitState("Xóa canvas");
-        this.dispatchEvent(new CustomEvent('workflow:cleared'));
+        if (dispatchClearedEvent) {
+            this.dispatchEvent(new CustomEvent('workflow:cleared'));
+        }
     }
 
     _exportWorkflow() {

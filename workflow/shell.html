@@ -32,10 +32,19 @@
                 <button data-action="create-new-workflow" type="button" class="btn btn-primary btn-lg px-4 gap-3">Tạo Workflow Mới</button>
             </div>
             <div class="workflow-list-container">
-                <h2 class="workflow-list-header">Hoặc mở một workflow gần đây</h2>
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h2 class="workflow-list-header mb-0">Mở workflow gần đây</h2>
+                    <div class="input-group" style="max-width: 250px;">
+                        <span class="input-group-text"><i class="ri-search-line"></i></span>
+                        <input type="search" id="workflow-search-input" class="form-control" placeholder="Tìm kiếm workflow...">
+                    </div>
+                </div>
                 <div id="start-page-workflow-list" class="list-group list-group-flush workflow-list">
                 </div>
-            </div>
+                <div id="load-more-container" class="text-center mt-3" style="display: none;">
+                    <button id="load-more-btn" class="btn btn-outline-secondary">Tải thêm</button>
+                </div>
+                </div>
         </div>
     </div>
     <main id="webview-container" class="webview-container">

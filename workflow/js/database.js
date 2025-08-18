@@ -1,7 +1,8 @@
 // workflow/js/database.js
-const { Sequelize, DataTypes } = require('sequelize');
+
+const { Sequelize, DataTypes, Op } = require('sequelize'); // Thêm 'Op'
 const path = require('path');
-const { app } = require('electron'); // Sử dụng module app của electron trực tiếp
+const { app } = require('electron');
 
 const userDataPath = app ? app.getPath('userData') : './'; 
 const dbPath = path.join(userDataPath, 'workflows.sqlite');
@@ -12,6 +13,7 @@ const sequelize = new Sequelize({
     logging: false 
 });
 
+// ... (Models definition remains the same)
 const Workflow = sequelize.define('Workflow', {
     id: {
         type: DataTypes.INTEGER,
@@ -57,6 +59,7 @@ const WorkflowVersion = sequelize.define('WorkflowVersion', {
 Workflow.hasMany(WorkflowVersion, { foreignKey: 'workflowId' });
 WorkflowVersion.belongsTo(Workflow, { foreignKey: 'workflowId' });
 
+
 class DatabaseManager {
     constructor() {
         this.db = sequelize;
@@ -67,9 +70,7 @@ class DatabaseManager {
 
     async initialize() {
         try {
-            // *** SỬA LỖI QUAN TRỌNG: Đảm bảo chỉ dùng sync() để ổn định database ***
             await this.db.sync(); 
-            // *** KẾT THÚC SỬA LỖI ***
             console.log('Database initialized successfully.');
         } catch (error) {
             console.error('Failed to initialize database:', error);
@@ -91,17 +92,35 @@ class DatabaseManager {
         }
     }
 
-    async getWorkflows() {
-        return this.Workflow.findAll({
-            order: [['updatedAt', 'DESC']]
-        });
-    }
+    // *** BẮT ĐẦU THAY ĐỔI: Cập nhật getWorkflows để hỗ trợ tìm kiếm và phân trang ***
+    async getWorkflows(options = {}) {
+        const { limit, offset = 0, searchTerm = '' } = options;
+        const where = {};
+        if (searchTerm) {
+            where.name = {
+                [Op.like]: `%${searchTerm}%`
+            };
+        }
 
-    async deleteWorkflow(id) {
-        return this.Workflow.destroy({
-            where: { id }
+        return this.Workflow.findAndCountAll({
+            where,
+            order: [['updatedAt', 'DESC']],
+            limit,
+            offset
         });
     }
+    // *** KẾT THÚC THAY ĐỔI ***
+
+    // *** BẮT ĐẦU THÊM MỚI: Thêm hàm xóa workflow ***
+    async deleteWorkflow(id) {
+        const workflow = await this.Workflow.findByPk(id);
+        if (workflow) {
+            await workflow.destroy();
+            return { success: true, id };
+        }
+        return { success: false, message: `Không tìm thấy workflow với ID: ${id}` };
+    }
+    // *** KẾT THÚC THÊM MỚI ***
     
     async saveWorkflowVersion(workflowId, data) {
         if (!workflowId) {

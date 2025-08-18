@@ -14,19 +14,32 @@ document.addEventListener('DOMContentLoaded', () => {
     const startPageOverlay = document.getElementById('start-page-overlay');
     const createNewWorkflowBtn = document.querySelector('[data-action="create-new-workflow"]');
     const startPageWorkflowList = document.getElementById('start-page-workflow-list');
+    const workflowSearchInput = document.getElementById('workflow-search-input');
+    const loadMoreContainer = document.getElementById('load-more-container');
+    const loadMoreBtn = document.getElementById('load-more-btn');
+
 
     // State
     let tabCounter = 0;
     let activeTabId = null;
     let sortableInstance = null;
+    let currentPage = 0;
+    const WORKFLOWS_PER_PAGE = 15;
+    let totalWorkflows = 0;
+    let currentSearchTerm = '';
+    let isFetching = false;
+
 
     const db = {
-        async getWorkflows() {
-            return await ipcRenderer.invoke('db-get-workflows');
+        async getWorkflows(options) {
+            return await ipcRenderer.invoke('db-get-workflows', options);
+        },
+        async deleteWorkflow(id) {
+            return await ipcRenderer.invoke('db-delete-workflow', id);
         }
     };
 
-    // --- Helper function để tạo URL tuyệt đối ---
+    // ... (getWebviewUrl, findTabByWorkflowId, createNewTab, switchToTab, updateTab, closeTab - không thay đổi)
     const getWebviewUrl = (tabId, workflowId = null) => {
         const query = new URLSearchParams({ tabId });
         if (workflowId !== null) {
@@ -35,43 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const filePath = path.join(__dirname, 'workflow.html');
         return `file://${filePath}?${query.toString()}`;
     };
-
-    // --- UI State Management ---
-    const updateUiState = () => {
-        const tabs = document.querySelectorAll('.tab-item');
-        let isStartTabActive = false;
-        
-        const activeTabEl = document.querySelector('.tab-item.active');
-        if (activeTabEl && activeTabEl.dataset.workflowId === 'null') {
-            isStartTabActive = true;
-        }
-
-        startPageOverlay.style.display = isStartTabActive ? 'flex' : 'none';
-        if(isStartTabActive) {
-            populateStartPage();
-        }
-
-        tabs.forEach(tab => {
-            const closeBtn = tab.querySelector('.close-tab-btn');
-            if (closeBtn) closeBtn.style.display = '';
-        });
-        
-        const anyStartTabExists = !!document.querySelector('.tab-item[data-workflow-id="null"]');
-        // *** THAY ĐỔI: Ẩn nút + nếu có tab "Trang bắt đầu" ***
-        addTabBtn.style.display = anyStartTabExists ? 'none' : 'flex';
-
-        if (sortableInstance) {
-            sortableInstance.option('disabled', anyStartTabExists);
-        }
-
-        if (tabs.length === 1 && anyStartTabExists) {
-            const singleTab = tabs[0];
-            const closeBtn = singleTab.querySelector('.close-tab-btn');
-            if (closeBtn) closeBtn.style.display = 'none';
-        }
-    };
-
-    // --- Tab Management ---
+    
     const findTabByWorkflowId = (workflowId) => {
         if (!workflowId || String(workflowId) === 'null') return null;
         return document.querySelector(`.tab-item[data-workflow-id="${workflowId}"]`);
@@ -185,78 +162,163 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const activeTabNow = document.querySelector('.tab-item.active');
         if (activeTabNow && activeTabNow.dataset.workflowId === 'null') {
-            populateStartPage();
+            resetAndPopulateStartPage();
         }
 
         updateUiState();
     };
 
     // --- Start Page Logic ---
-    const populateStartPage = async () => {
+    const resetAndPopulateStartPage = () => {
+        currentPage = 0;
+        totalWorkflows = 0;
+        startPageWorkflowList.innerHTML = '';
+        loadMoreContainer.style.display = 'none';
+        populateStartPage();
+    };
+
+    const populateStartPage = async (append = false) => {
+        if (isFetching) return;
+        isFetching = true;
+        loadMoreBtn.disabled = true;
+
         try {
             const openIds = new Set(
                 Array.from(document.querySelectorAll('.tab-item[data-workflow-id]'))
                     .map(tab => parseInt(tab.dataset.workflowId, 10))
                     .filter(id => !isNaN(id) && id > 0)
             );
-            
-            const workflows = await db.getWorkflows();
-            startPageWorkflowList.innerHTML = '';
 
-            if (workflows.length === 0) {
-                startPageWorkflowList.innerHTML = '<p class="text-center text-muted p-3">Sếp chưa lưu workflow nào cả.</p>';
+            const { count, rows: workflows } = await db.getWorkflows({
+                limit: WORKFLOWS_PER_PAGE,
+                offset: currentPage * WORKFLOWS_PER_PAGE,
+                searchTerm: currentSearchTerm
+            });
+            totalWorkflows = count;
+
+            if (!append) {
+                startPageWorkflowList.innerHTML = '';
+            }
+            
+            if (workflows.length === 0 && !append) {
+                startPageWorkflowList.innerHTML = '<p class="text-center text-muted p-3">Sếp chưa lưu workflow nào cả (hoặc không tìm thấy kết quả).</p>';
             } else {
                 workflows.forEach(wf => {
                     const isOpen = openIds.has(wf.id);
                     const item = document.createElement('div');
-                    item.className = 'list-group-item list-group-item-action workflow-list-item d-flex justify-content-between align-items-center';
+                    item.className = 'list-group-item workflow-list-item d-flex justify-content-between align-items-center';
                     if (isOpen) item.classList.add('bg-light');
 
-                    item.innerHTML = `<div><h5 class="${isOpen ? 'text-primary' : ''}">${wf.name}</h5><small>Cập nhật: ${new Date(wf.updatedAt).toLocaleString()}</small></div>`;
-                    
-                    if (isOpen) {
-                        const switchBtn = document.createElement('button');
-                        switchBtn.className = 'btn btn-sm btn-primary';
-                        switchBtn.innerHTML = 'Chuyển Tab <i class="ri-arrow-right-line ms-1"></i>';
-                        switchBtn.dataset.action = 'switch-tab';
-                        switchBtn.dataset.workflowId = wf.id;
-                        item.appendChild(switchBtn);
-                    } else {
-                        const icon = document.createElement('i');
-                        icon.className = 'ri-arrow-right-s-line';
-                        item.appendChild(icon);
-                        item.dataset.action = 'open-workflow';
-                        item.dataset.id = wf.id;
-                        item.dataset.name = wf.name;
-                    }
+                    item.innerHTML = `
+                        <div class="workflow-list-item-main d-flex align-items-center" data-action="open-workflow" data-id="${wf.id}" data-name="${wf.name}">
+                            <div class="flex-grow-1">
+                                <h5 class="${isOpen ? 'text-primary' : ''}">${wf.name}</h5>
+                                <small>Cập nhật: ${new Date(wf.updatedAt).toLocaleString()}</small>
+                            </div>
+                            ${isOpen 
+                                ? `<button class="btn btn-sm btn-primary ms-3" data-action="switch-tab" data-workflow-id="${wf.id}">Chuyển Tab <i class="ri-arrow-right-line ms-1"></i></button>`
+                                : '<i class="ri-arrow-right-s-line ms-3"></i>'
+                            }
+                        </div>
+                        <div class="workflow-list-item-actions">
+                            <button class="btn btn-sm btn-outline-danger" data-action="delete-workflow" data-id="${wf.id}" data-name="${wf.name}"><i class="ri-delete-bin-line"></i></button>
+                        </div>
+                    `;
                     startPageWorkflowList.appendChild(item);
                 });
             }
+
+            const workflowsDisplayed = startPageWorkflowList.children.length;
+            if (workflowsDisplayed < totalWorkflows) {
+                loadMoreContainer.style.display = 'block';
+            } else {
+                loadMoreContainer.style.display = 'none';
+            }
+
         } catch (error) {
             console.error(error);
             startPageWorkflowList.innerHTML = '<p class="text-center text-danger p-3">Không thể tải danh sách workflow.</p>';
-        }
-    };
-
-    const handleStartPageAction = (e) => {
-        const switchBtn = e.target.closest('[data-action="switch-tab"]');
-        if (switchBtn) {
-            const tabToSwitch = findTabByWorkflowId(switchBtn.dataset.workflowId);
-            if (tabToSwitch) {
-                switchToTab(tabToSwitch.dataset.tabId);
-            }
-            return;
-        }
-
-        const openBtn = e.target.closest('[data-action="open-workflow"]');
-        if (openBtn) {
-            const id = parseInt(openBtn.dataset.id, 10);
-            const name = openBtn.dataset.name;
-            updateTab(activeTabId, { title: name, workflowId: id });
-            return;
+        } finally {
+            isFetching = false;
+            loadMoreBtn.disabled = false;
         }
     };
     
+    // --- UI State Management (Updated) ---
+    const updateUiState = () => {
+        // ... (phần code cũ không thay đổi)
+        const isStartTabActive = !!(document.querySelector('.tab-item.active')?.dataset.workflowId === 'null');
+        startPageOverlay.style.display = isStartTabActive ? 'flex' : 'none';
+        
+        if(isStartTabActive && startPageWorkflowList.innerHTML.trim() === '') {
+            resetAndPopulateStartPage();
+        }
+
+        const anyStartTabExists = !!document.querySelector('.tab-item[data-workflow-id="null"]');
+        addTabBtn.style.display = anyStartTabExists ? 'none' : 'flex';
+
+        if (sortableInstance) {
+            sortableInstance.option('disabled', anyStartTabExists);
+        }
+        
+        const tabs = document.querySelectorAll('.tab-item');
+        tabs.forEach(tab => {
+            const closeBtn = tab.querySelector('.close-tab-btn');
+            if (closeBtn) closeBtn.style.display = '';
+        });
+
+        if (tabs.length === 1 && anyStartTabExists) {
+            const singleTab = tabs[0];
+            const closeBtn = singleTab.querySelector('.close-tab-btn');
+            if (closeBtn) closeBtn.style.display = 'none';
+        }
+    };
+
+
+    const handleStartPageAction = async (e) => {
+        const target = e.target.closest('[data-action]');
+        if (!target) return;
+        
+        const action = target.dataset.action;
+        const workflowId = target.dataset.id || target.dataset.workflowId;
+        
+        switch (action) {
+            case 'switch-tab': {
+                const tabToSwitch = findTabByWorkflowId(workflowId);
+                if (tabToSwitch) switchToTab(tabToSwitch.dataset.tabId);
+                break;
+            }
+            case 'open-workflow': {
+                const name = target.dataset.name;
+                updateTab(activeTabId, { title: name, workflowId: workflowId });
+                break;
+            }
+            case 'delete-workflow': {
+                const name = target.dataset.name;
+                const { response } = await ipcRenderer.invoke('show-confirm-dialog', {
+                    type: 'warning',
+                    buttons: ['Hủy', 'Xóa'],
+                    defaultId: 0,
+                    title: 'Xác nhận xóa',
+                    message: `Sếp có chắc chắn muốn xóa workflow "${name}" không?`,
+                    detail: 'Hành động này không thể hoàn tác.'
+                });
+                
+                if (response === 1) { // 1 là index của nút "Xóa"
+                    const result = await db.deleteWorkflow(workflowId);
+                    if (result.success) {
+                        const tabToDelete = findTabByWorkflowId(workflowId);
+                        if (tabToDelete) closeTab(tabToDelete.dataset.tabId);
+                        resetAndPopulateStartPage();
+                    } else {
+                        console.error("Lỗi khi xóa workflow:", result.message);
+                    }
+                }
+                break;
+            }
+        }
+    };
+
     // --- Event Listeners ---
     createNewWorkflowBtn.addEventListener('click', () => {
         if (activeTabId) {
@@ -265,7 +327,22 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     startPageWorkflowList.addEventListener('click', handleStartPageAction);
+    
+    let searchTimeout;
+    workflowSearchInput.addEventListener('input', () => {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+            currentSearchTerm = workflowSearchInput.value.trim();
+            resetAndPopulateStartPage();
+        }, 300); // Debounce
+    });
 
+    loadMoreBtn.addEventListener('click', () => {
+        currentPage++;
+        populateStartPage(true); // append = true
+    });
+    
+    // ... (các event listeners còn lại không đổi)
     minimizeBtn.addEventListener('click', () => ipcRenderer.send('minimize-window'));
     maximizeBtn.addEventListener('click', () => ipcRenderer.send('maximize-window'));
     closeBtn.addEventListener('click', () => ipcRenderer.send('close-window'));
@@ -295,7 +372,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.deltaY !== 0) { e.preventDefault(); tabBar.scrollLeft += e.deltaY; }
     });
 
-    // *** BẮT ĐẦU THÊM MỚI: Thêm phím tắt F12 để mở DevTools ***
     document.addEventListener('keydown', (e) => {
         if (e.key === 'F12') {
             e.preventDefault();
@@ -305,8 +381,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     });
-    // *** KẾT THÚC THÊM MỚI ***
-
+    
     // --- Initialization ---
     sortableInstance = new Sortable(tabBar, {
         animation: 200,

@@ -1,8 +1,8 @@
 // main.js
 
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog } = require('electron'); // Thêm dialog
 const path = require('path');
-const db = require('./workflow/js/database.js'); // Import database manager
+const db = require('./workflow/js/database.js');
 
 const remoteMain = require('@electron/remote/main');
 remoteMain.initialize();
@@ -11,40 +11,48 @@ app.on('web-contents-created', (event, webContents) => {
   remoteMain.enable(webContents);
 });
 
-// Khởi tạo DB khi app sẵn sàng
 app.whenReady().then(() => {
   db.initialize();
 });
 
-// *** BẮT ĐẦU SỬA LỖI: Chuyển đổi dữ liệu Sequelize sang object thường trước khi gửi qua IPC ***
 
-ipcMain.handle('db-get-workflows', async () => {
-  const workflows = await db.getWorkflows();
-  // Chuyển đổi từng instance Sequelize thành object thường
-  return workflows.map(wf => wf.get({ plain: true }));
+// *** BẮT ĐẦU THAY ĐỔI: Cập nhật các hàm IPC ***
+ipcMain.handle('db-get-workflows', async (event, options) => {
+  const { count, rows } = await db.getWorkflows(options);
+  return { count, rows: rows.map(wf => wf.get({ plain: true })) };
 });
 
 ipcMain.handle('db-save-workflow', async (event, { name, data, id }) => {
   const savedWorkflow = await db.saveWorkflow(name, data, id);
-  // Chuyển đổi instance thành object thường
   return savedWorkflow ? savedWorkflow.get({ plain: true }) : null;
 });
 
 ipcMain.handle('db-get-versions', async (event, workflowId) => {
   const versions = await db.getWorkflowVersions(workflowId);
-  // Chuyển đổi từng instance thành object thường
   return versions.map(v => v.get({ plain: true }));
 });
 
 ipcMain.handle('db-save-version', async (event, { workflowId, data }) => {
   const savedVersion = await db.saveWorkflowVersion(workflowId, data);
-  // Chuyển đổi instance thành object thường
   return savedVersion ? savedVersion.get({ plain: true }) : null;
 });
 
-// *** KẾT THÚC SỬA LỖI ***
+// Thêm IPC handler để xóa workflow
+ipcMain.handle('db-delete-workflow', async (event, id) => {
+  return await db.deleteWorkflow(id);
+});
+
+// Thêm IPC handler để hiển thị hộp thoại xác nhận
+ipcMain.handle('show-confirm-dialog', async (event, options) => {
+    const focusedWindow = BrowserWindow.fromWebContents(event.sender);
+    const result = await dialog.showMessageBox(focusedWindow, options);
+    return result;
+});
+// *** KẾT THÚC THAY ĐỔI ***
+
 
 const createWindow = () => {
+  // ... (Phần còn lại của file không đổi)
   const win = new BrowserWindow({
     width: 1600,
     height: 1000,
