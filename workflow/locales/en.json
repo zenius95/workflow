@@ -22,7 +22,9 @@
     "confirm_delete_message": "Are you sure you want to delete the workflow \"{name}\"?",
     "confirm_delete_detail": "This action cannot be undone.",
     "switch_tab": "Switch Tab",
-    "delete_error": "Error deleting workflow:"
+    "delete_error": "Error deleting workflow:",
+    "recent_files": "Recent files",
+    "create_new": "Create New"
   },
    "app": {
     "unsaved_workflow": "Untitled",

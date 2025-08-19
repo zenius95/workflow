@@ -2,7 +2,7 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <title>Workflow Builder Tabs</title>
+    <title data-i18n="shell.start_page">Workflow Builder Tabs</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/remixicon@4.6.0/fonts/remixicon.min.css" rel="stylesheet">
     <link rel="stylesheet" href="css/shell.css">
@@ -29,20 +29,20 @@
         <div class="mx-auto p-5" style="width: 800px;">
             <div class="start-page-content">
                 <div class="d-flex justify-content-between align-items-center mb-3">
-                    <strong class="start-page-title fs-5">Recent files</strong>
-                    <button data-action="create-new-workflow" type="button" class="btn btn-primary rounded-pill fw-medium shadow-sm"><i class="ri-add-circle-line"></i> Tạo mới</button>
+                    <strong class="start-page-title fs-5" data-i18n="shell.recent_files"></strong>
+                    <button data-action="create-new-workflow" type="button" class="btn btn-primary rounded-pill fw-medium shadow-sm"><i class="ri-add-circle-line"></i> <span data-i18n="shell.create_new"></span></button>
                 </div>
                 <div class="workflow-list-container">
                     <div class="d-flex justify-content-between align-items-center mb-3 position-relative">
                         <i class="ri-search-line position-absolute start-0 fs-5 ms-3"></i>
-                        <input type="search" id="workflow-search-input" class="form-control rounded-3 ps-5 shadow-sm rounded-pill py-3 px-4" placeholder="Tìm kiếm workflow...">
+                        <input type="search" id="workflow-search-input" class="form-control rounded-3 ps-5 shadow-sm rounded-pill py-3 px-4" data-i18n-placeholder="shell.search_placeholder">
                     </div>
                     
                     <div id="start-page-workflow-list" class="list-group list-group-flush workflow-list">
                     </div>
 
                     <div id="load-more-container" class="text-center mt-3" style="display: none;">
-                        <button id="load-more-btn" class="btn btn-outline-secondary">Tải thêm</button>
+                        <button id="load-more-btn" class="btn btn-outline-secondary" data-i18n="shell.load_more"></button>
                     </div>
                 </div>
             </div>
