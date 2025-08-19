@@ -15,10 +15,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- LOADING OVERLAY ---
     const loadingOverlay = document.getElementById('loading-overlay');
-    const showLoading = () => loadingOverlay.style.display = 'flex';
+    const showLoading = () => {};
     const hideLoading = () => setTimeout(() => {
         loadingOverlay.style.display = 'none';
-    }, 1000);
+    }, 2000);
 
     // --- KHỞI TẠO CÁC THÀNH PHẦN CHÍNH ---
     const workflowBuilder = new WorkflowBuilder('app-container', workflowConfig, null, {
@@ -285,5 +285,12 @@ document.addEventListener('DOMContentLoaded', () => {
     historyTab.addEventListener('show.bs.tab', updateHistoryTabContent);
     workflowBuilder.addEventListener('workflow:cleared', resetOnClearOrImport);
     
+    // **FIX:** Lắng nghe tin nhắn từ shell để cập nhật tiêu đề
+    ipcRenderer.on('workflow-renamed', (event, { newName }) => {
+        if (newName) {
+            updateWorkflowTitle(newName);
+        }
+    });
+
     initializeView();
 });

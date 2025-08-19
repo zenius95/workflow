@@ -8,7 +8,9 @@
     "delete": "Delete",
     "cancel": "Cancel",
     "close": "Close",
-    "save": "Save"
+    "save": "Save",
+    "rename": "Rename",
+    "duplicate": "Duplicate"
   },
   "shell": {
     "start_page": "Start Page",

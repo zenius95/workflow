@@ -1,113 +1,114 @@
-// main.js
-
-const { app, BrowserWindow, ipcMain, dialog } = require('electron'); // Thêm dialog
+const { app, BrowserWindow, ipcMain, Menu, dialog } = require('electron');
 const path = require('path');
-const db = require('./workflow/js/database.js');
-
+const Database = require('./workflow/js/database.js');
+// THÊM DÒNG NÀY: Import module @electron/remote
 const remoteMain = require('@electron/remote/main');
+
+const db = new Database(path.join(app.getPath('userData'), 'workflows.db'));
+
+// THÊM DÒNG NÀY: Khởi tạo module @electron/remote
 remoteMain.initialize();
 
-app.on('web-contents-created', (event, webContents) => {
-  remoteMain.enable(webContents);
+function createWindow() {
+    const mainWindow = new BrowserWindow({
+        width: 1200,
+        height: 800,
+        minWidth: 940,
+        minHeight: 600,
+        frame: false,
+        titleBarStyle: 'hidden',
+        trafficLightPosition: { x: 15, y: 15 },
+        webPreferences: {
+            preload: path.join(__dirname, 'preload.js'),
+            nodeIntegration: true,
+            contextIsolation: false,
+            webviewTag: true
+        },
+        backgroundColor: '#fff',
+        icon: path.join(__dirname, 'workflow/assets/icon.png')
+    });
+
+    // THÊM DÒNG NÀY: Kích hoạt module cho cửa sổ này
+    remoteMain.enable(mainWindow.webContents);
+
+    mainWindow.loadFile('workflow/shell.html');
+    // mainWindow.webContents.openDevTools();
+
+    // --- Window Control Listeners ---
+    ipcMain.on('minimize-window', () => {
+        mainWindow.minimize();
+    });
+    ipcMain.on('maximize-window', () => {
+        if (mainWindow.isMaximized()) {
+            mainWindow.unmaximize();
+        } else {
+            mainWindow.maximize();
+        }
+    });
+    ipcMain.on('close-window', () => {
+        mainWindow.close();
+    });
+    mainWindow.on('maximize', () => {
+        mainWindow.webContents.send('window-state-changed', { isMaximized: true });
+    });
+    mainWindow.on('unmaximize', () => {
+        mainWindow.webContents.send('window-state-changed', { isMaximized: false });
+    });
+}
+
+app.whenReady().then(async () => {
+    try {
+        await db.init();
+        createWindow();
+    } catch (error) {
+        console.error("Failed to initialize database and create window:", error);
+        app.quit();
+    }
+    
+    app.on('activate', function () {
+        if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    });
 });
 
-app.whenReady().then(() => {
-  db.initialize();
+app.on('window-all-closed', function () {
+    if (process.platform !== 'darwin') {
+        db.close();
+        app.quit();
+    }
 });
 
-
-// *** BẮT ĐẦU THAY ĐỔI: Cập nhật các hàm IPC ***
+// --- Database IPC Handlers ---
 ipcMain.handle('db-get-workflows', async (event, options) => {
-  const { count, rows } = await db.getWorkflows(options);
-  return { count, rows: rows.map(wf => wf.get({ plain: true })) };
+    return db.getWorkflows(options);
 });
 
 ipcMain.handle('db-save-workflow', async (event, { name, data, id }) => {
-  const savedWorkflow = await db.saveWorkflow(name, data, id);
-  return savedWorkflow ? savedWorkflow.get({ plain: true }) : null;
+    if (id) {
+        return db.updateWorkflow(id, { name, data });
+    } else {
+        return db.createWorkflow({ name, data });
+    }
+});
+
+ipcMain.handle('db-delete-workflow', async (event, id) => {
+    return db.deleteWorkflow(id);
 });
 
 ipcMain.handle('db-get-versions', async (event, workflowId) => {
-  const versions = await db.getWorkflowVersions(workflowId);
-  return versions.map(v => v.get({ plain: true }));
+    return db.getWorkflowVersions(workflowId);
 });
 
 ipcMain.handle('db-save-version', async (event, { workflowId, data }) => {
-  const savedVersion = await db.saveWorkflowVersion(workflowId, data);
-  return savedVersion ? savedVersion.get({ plain: true }) : null;
+    return db.createWorkflowVersion(workflowId, data);
 });
 
-// Thêm IPC handler để xóa workflow
-ipcMain.handle('db-delete-workflow', async (event, id) => {
-  return await db.deleteWorkflow(id);
+ipcMain.handle('db-get-workflow-by-id', async (event, id) => {
+    return db.getWorkflowById(id);
 });
 
-// Thêm IPC handler để hiển thị hộp thoại xác nhận
+// --- Dialog IPC Handler ---
 ipcMain.handle('show-confirm-dialog', async (event, options) => {
     const focusedWindow = BrowserWindow.fromWebContents(event.sender);
     const result = await dialog.showMessageBox(focusedWindow, options);
     return result;
-});
-// *** KẾT THÚC THAY ĐỔI ***
-
-
-const createWindow = () => {
-  // ... (Phần còn lại của file không đổi)
-  const win = new BrowserWindow({
-    width: 1600,
-    height: 1000,
-    frame: false,
-    titleBarStyle: 'hidden',
-    webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false,
-      webviewTag: true
-    }
-  });
-
-  win.setMenuBarVisibility(false)
-
-  remoteMain.enable(win.webContents);
-
-  win.on('maximize', () => {
-    win.webContents.send('window-state-changed', { isMaximized: true });
-  });
-
-  win.on('unmaximize', () => {
-    win.webContents.send('window-state-changed', { isMaximized: false });
-  });
-
-  win.loadFile('workflow/shell.html');
-
-  ipcMain.on('minimize-window', () => {
-    win.minimize();
-  });
-
-  ipcMain.on('maximize-window', () => {
-    if (win.isMaximized()) {
-      win.unmaximize();
-    } else {
-      win.maximize();
-    }
-  });
-
-  ipcMain.on('close-window', () => {
-    win.close();
-  });
-};
-
-app.whenReady().then(() => {
-  createWindow();
-
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
-    }
-  });
-});
-
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
 });

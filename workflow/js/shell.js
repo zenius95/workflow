@@ -35,12 +35,10 @@ document.addEventListener('DOMContentLoaded', () => {
     let isFetching = false;
 
     const db = {
-        async getWorkflows(options) {
-            return await ipcRenderer.invoke('db-get-workflows', options);
-        },
-        async deleteWorkflow(id) {
-            return await ipcRenderer.invoke('db-delete-workflow', id);
-        }
+        async getWorkflows(options) { return await ipcRenderer.invoke('db-get-workflows', options); },
+        async deleteWorkflow(id) { return await ipcRenderer.invoke('db-delete-workflow', id); },
+        async getWorkflowById(id) { return await ipcRenderer.invoke('db-get-workflow-by-id', id); },
+        async saveWorkflow(name, data, id) { return await ipcRenderer.invoke('db-save-workflow', { name, data, id }); },
     };
 
     const getWebviewUrl = (tabId, workflowId = null) => {
@@ -218,17 +216,18 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <i class="ri-git-pull-request-line"></i>
                             </div>
                             <div class="flex-grow-1 ps-3">
-                                <h5 class="${isOpen ? 'text-primary' : ''}">${wf.name}</h5>
-                                <span>${i18n.get('shell.updated_at')}: ${new Date(wf.updatedAt).toLocaleString()}</span>
+                                <div class="position-relative">
+                                    <strong class="workflow-name-display d-block ${isOpen ? 'text-primary' : ''}">${wf.name}</strong>
+                                    <input type="text" class="fw-bold workflow-name-input position-absolute top-0" value="${wf.name}" style="display: none;" />
+                                </div>
+                                <span class="small">${i18n.get('shell.updated_at')}: ${new Date(wf.updatedAt).toLocaleString()}</span>
                             </div>
                             ${isOpen 
                                 ? `<button class="btn btn-sm btn-primary me-2" data-action="switch-tab" data-workflow-id="${wf.id}">${i18n.get('shell.switch_tab')} <i class="ri-arrow-right-line ms-1"></i></button>`
                                 : '<button class="btn rounded-3 btn-sm btn-light me-2"><i class="ri-folder-open-line"></i></button>'
                             }
-                            <!-- data-action="delete-workflow" data-id="${wf.id}" data-name="${wf.name}" -->
                             <button class="btn rounded-3 btn-sm btn-light" data-action="workflow-setting"><i class="ri-more-fill"></i></button>
                         </div>
-                       
                     `;
                     startPageWorkflowList.appendChild(item);
                 });
@@ -261,10 +260,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const anyStartTabExists = !!document.querySelector('.tab-item[data-workflow-id="null"]');
         addTabBtn.style.display = anyStartTabExists ? 'none' : 'flex';
-
-        if (sortableInstance) {
-            sortableInstance.option('disabled', anyStartTabExists);
-        }
         
         const tabs = document.querySelectorAll('.tab-item');
         tabs.forEach(tab => {
@@ -279,46 +274,200 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    // --- Các hàm quản lý Menu cho từng Workflow Item ---
+    const hideWorkflowMenu = () => {
+        const existingMenu = document.getElementById('workflow-item-menu');
+        if (existingMenu) {
+            existingMenu.remove();
+        }
+        document.removeEventListener('click', hideWorkflowMenu);
+    };
+
+    const showWorkflowMenu = (workflowId, name, targetButton) => {
+        const existingMenu = document.getElementById('workflow-item-menu');
+        if (existingMenu && existingMenu.dataset.openerId === String(workflowId)) {
+            hideWorkflowMenu();
+            return;
+        }
+
+        hideWorkflowMenu();
+
+        const rect = targetButton.getBoundingClientRect();
+        const menu = document.createElement('div');
+        menu.id = 'workflow-item-menu';
+        menu.className = 'context-menu';
+        menu.dataset.openerId = workflowId;
+        
+        menu.style.top = `${rect.bottom + 5}px`;
+        menu.style.left = `${rect.right}px`;
+        menu.style.transform = 'translateX(-100%)';
+
+        const renameItem = document.createElement('div');
+        renameItem.className = 'context-menu-item';
+        renameItem.innerHTML = `<i class="ri-pencil-line"></i> ${i18n.get('common.rename')}`;
+        renameItem.addEventListener('click', () => handleRenameAction(workflowId));
+
+        const duplicateItem = document.createElement('div');
+        duplicateItem.className = 'context-menu-item';
+        duplicateItem.innerHTML = `<i class="ri-file-copy-line"></i> ${i18n.get('common.duplicate')}`;
+        duplicateItem.addEventListener('click', () => handleDuplicateAction(workflowId, name));
+
+        const separator = document.createElement('div');
+        separator.className = 'context-menu-separator';
+
+        const deleteItem = document.createElement('div');
+        deleteItem.className = 'context-menu-item context-menu-item-danger';
+        deleteItem.innerHTML = `<i class="ri-delete-bin-line"></i> ${i18n.get('common.delete')}`;
+        deleteItem.addEventListener('click', () => handleDeleteAction(workflowId, name));
+
+        menu.appendChild(renameItem);
+        menu.appendChild(duplicateItem);
+        menu.appendChild(separator);
+        menu.appendChild(deleteItem);
+
+        document.body.appendChild(menu);
+
+        setTimeout(() => {
+            document.addEventListener('click', hideWorkflowMenu, { once: true });
+        }, 0);
+    };
+
+    // --- Các hàm xử lý hành động từ Menu ---
+    const handleRenameAction = (workflowId) => {
+        hideWorkflowMenu();
+        const itemElement = startPageWorkflowList.querySelector(`[data-id="${workflowId}"]`).closest('.workflow-list-item');
+        const nameDisplay = itemElement.querySelector('.workflow-name-display');
+        const nameInput = itemElement.querySelector('.workflow-name-input');
+        
+        nameDisplay.style.display = 'none';
+        nameInput.style.display = 'block';
+        nameInput.focus();
+        nameInput.select();
+
+        const saveRename = async () => {
+            nameInput.removeEventListener('blur', saveRename);
+            nameInput.removeEventListener('keydown', handleKeydown);
+            
+            const newName = nameInput.value.trim();
+            nameInput.style.display = 'none';
+            nameDisplay.style.display = 'block';
+
+            const originalName = nameDisplay.textContent;
+
+            if (newName && newName !== originalName) {
+                try {
+                    const workflow = await db.getWorkflowById(workflowId);
+                    if (workflow) {
+                        await db.saveWorkflow(newName, workflow.data, workflowId);
+                        nameDisplay.textContent = newName;
+                        itemElement.querySelector('.workflow-list-item-main').dataset.name = newName;
+                        
+                        const tabToUpdate = findTabByWorkflowId(workflowId);
+                        if (tabToUpdate) {
+                            // Cập nhật tiêu đề tab cha
+                            updateTab(tabToUpdate.dataset.tabId, { title: newName, workflowId });
+                            
+                            // **FIX:** Gửi tin nhắn vào webview con để nó tự cập nhật
+                            const webview = document.getElementById(`webview-${tabToUpdate.dataset.tabId}`);
+                            if (webview) {
+                                webview.send('workflow-renamed', { newName: newName });
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.error("Failed to rename workflow:", error);
+                    nameDisplay.textContent = originalName; // Hoàn tác lại nếu lỗi
+                }
+            }
+        };
+        
+        const handleKeydown = (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                saveRename();
+            } else if (e.key === 'Escape') {
+                nameInput.value = nameDisplay.textContent;
+                saveRename();
+            }
+        };
+
+        nameInput.addEventListener('blur', saveRename);
+        nameInput.addEventListener('keydown', handleKeydown);
+    };
+
+    const handleDuplicateAction = async (workflowId, name) => {
+        hideWorkflowMenu();
+        try {
+            const workflowToDuplicate = await db.getWorkflowById(workflowId);
+            if (workflowToDuplicate) {
+                const newName = `${name} (Copy)`;
+                const newWorkflow = await db.saveWorkflow(newName, workflowToDuplicate.data, null);
+                if (newWorkflow) {
+                    resetAndPopulateStartPage();
+                }
+            }
+        } catch(error) {
+            console.error("Failed to duplicate workflow:", error);
+        }
+    };
+
+    const handleDeleteAction = async (workflowId, name) => {
+        hideWorkflowMenu();
+        const { response } = await ipcRenderer.invoke('show-confirm-dialog', {
+            type: 'warning',
+            buttons: [i18n.get('common.cancel'), i18n.get('common.delete')],
+            defaultId: 0,
+            title: i18n.get('shell.confirm_delete_title'),
+            message: i18n.get('shell.confirm_delete_message', { name: name }),
+            detail: i18n.get('shell.confirm_delete_detail')
+        });
+
+        if (response === 1) { // Nút "Delete"
+            const result = await db.deleteWorkflow(workflowId);
+            if (result.success) {
+                const tabToDelete = findTabByWorkflowId(workflowId);
+                if (tabToDelete) closeTab(tabToDelete.dataset.tabId);
+                resetAndPopulateStartPage();
+            } else {
+                console.error(i18n.get('shell.delete_error'), result.message);
+            }
+        }
+    };
 
     const handleStartPageAction = async (e) => {
+        if (e.target.classList.contains('workflow-name-input')) {
+            return;
+        }
+
         const target = e.target.closest('[data-action]');
         if (!target) return;
-        
+
         const action = target.dataset.action;
-        const workflowId = target.dataset.id || target.dataset.workflowId;
-        
+        const listItemMain = target.closest('.workflow-list-item-main');
+
         switch (action) {
             case 'switch-tab': {
+                const workflowId = target.dataset.workflowId;
                 const tabToSwitch = findTabByWorkflowId(workflowId);
                 if (tabToSwitch) switchToTab(tabToSwitch.dataset.tabId);
                 break;
             }
             case 'open-workflow': {
-                const name = target.dataset.name;
-                updateTab(activeTabId, { title: name, workflowId: workflowId });
+                const workflowId = listItemMain.dataset.id;
+                const existingTab = findTabByWorkflowId(workflowId);
+                if (existingTab) {
+                    switchToTab(existingTab.dataset.tabId);
+                } else {
+                    const name = listItemMain.dataset.name;
+                    updateTab(activeTabId, { title: name, workflowId: workflowId });
+                }
                 break;
             }
-            case 'delete-workflow': {
-                const name = target.dataset.name;
-                const { response } = await ipcRenderer.invoke('show-confirm-dialog', {
-                    type: 'warning',
-                    buttons: [i18n.get('common.cancel'), i18n.get('common.delete')],
-                    defaultId: 0,
-                    title: i18n.get('shell.confirm_delete_title'),
-                    message: i18n.get('shell.confirm_delete_message', { name: name }),
-                    detail: i18n.get('shell.confirm_delete_detail')
-                });
-                
-                if (response === 1) { // 1 is the index for the "Delete" button
-                    const result = await db.deleteWorkflow(workflowId);
-                    if (result.success) {
-                        const tabToDelete = findTabByWorkflowId(workflowId);
-                        if (tabToDelete) closeTab(tabToDelete.dataset.tabId);
-                        resetAndPopulateStartPage();
-                    } else {
-                        console.error(i18n.get('shell.delete_error'), result.message);
-                    }
-                }
+            case 'workflow-setting': {
+                e.stopPropagation(); 
+                const workflowId = listItemMain.dataset.id;
+                const workflowName = listItemMain.querySelector('.workflow-name-display').textContent;
+                showWorkflowMenu(workflowId, workflowName, target);
                 break;
             }
         }
@@ -391,7 +540,7 @@ document.addEventListener('DOMContentLoaded', () => {
         animation: 200,
         ghostClass: 'tab-ghost',
         dragClass: 'tab-dragging',
-        filter: '#add-tab-btn',
+        filter: '#add-tab-btn, .no-drag',
     });
 
     createNewTab({ workflowId: null });
