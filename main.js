@@ -1,13 +1,11 @@
 const { app, BrowserWindow, ipcMain, Menu, dialog } = require('electron');
 const path = require('path');
 const Database = require('./workflow/js/database.js');
-// THÊM DÒNG NÀY: Import module @electron/remote
-const remoteMain = require('@electron/remote/main');
+
+require('@electron/remote/main').initialize();
 
 const db = new Database(path.join(app.getPath('userData'), 'workflows.db'));
 
-// THÊM DÒNG NÀY: Khởi tạo module @electron/remote
-remoteMain.initialize();
 
 function createWindow() {
     const mainWindow = new BrowserWindow({
@@ -20,16 +18,17 @@ function createWindow() {
         trafficLightPosition: { x: 15, y: 15 },
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
-            nodeIntegration: false,
-            contextIsolation: true,
+            nodeIntegration: true,
+            contextIsolation: false,
             webviewTag: true
         },
         backgroundColor: '#fff',
         icon: path.join(__dirname, 'workflow/assets/icon.png')
     });
 
-    // THÊM DÒNG NÀY: Kích hoạt module cho cửa sổ này
-    remoteMain.enable(mainWindow.webContents);
+     mainWindow.webContents.on('did-attach-webview', (event, webContents) => {
+        require('@electron/remote/main').enable(webContents);
+    });
 
     mainWindow.loadFile('workflow/shell.html');
     // mainWindow.webContents.openDevTools();
