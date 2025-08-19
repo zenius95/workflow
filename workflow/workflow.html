@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="vi">
- <head>
+<head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title data-i18n="workflow_page.title">Workflow Builder (Bootstrap Version)</title>
@@ -89,7 +89,7 @@
             </aside>
             <div class="canvas-bg d-flex flex-column w-100">
                 <header data-ref="workflow-header" class="workflow-header bg-white">
-                    <div class="d-flex align-items-center">
+                    <div class="workflow-header-title d-flex align-items-center">
                         <div class="text-white d-flex align-items-center justify-content-center rounded-3 bg-primary me-2" style="width: 35px; height: 35px;">
                             <i class="ri-git-pull-request-line"></i>
                         </div>
@@ -100,6 +100,7 @@
                             </div>
                             <div data-ref="save-status" class="small save-status"></div>
                         </div>
+                        <button data-action="workflow-setting" class="btn btn-sm btn-light border p-1 rounded-circle p-0 d-flex align-items-center justify-content-center ms-3 d-none" style="width: 25px; height: 25px;"><i class="ri-arrow-down-s-line"></i></button>
                     </div>
                     <div class="workflow-actions">
                         <button data-action="import-json" class="d-none btn btn-info text-white me-2" data-i18n="workflow_page.header.import_button"></button>

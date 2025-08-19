@@ -68,7 +68,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const tabTitle = workflowId === null ? i18n.get('shell.start_page') : title;
         tabEl.innerHTML = `<div class="tab-title">${tabTitle}</div><button class="close-tab-btn"><i class="ri-close-line"></i></button>`;
         
-        tabBar.insertBefore(tabEl, addTabBtn);
+        tabBar.appendChild(tabEl);
 
         const webview = document.createElement('webview');
         webview.id = `webview-${tabId}`;
@@ -259,7 +259,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const anyStartTabExists = !!document.querySelector('.tab-item[data-workflow-id="null"]');
-        addTabBtn.style.display = anyStartTabExists ? 'none' : 'flex';
         
         const tabs = document.querySelectorAll('.tab-item');
         tabs.forEach(tab => {
@@ -504,12 +503,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     addTabBtn.addEventListener('click', () => {
-        const existingStartTab = document.querySelector('.tab-item[data-workflow-id="null"]');
-        if (existingStartTab) {
-            switchToTab(existingStartTab.dataset.tabId);
-        } else {
-            createNewTab({ workflowId: null });
-        }
+        createNewTab({ workflowId: null });
     });
 
     tabBar.addEventListener('click', (e) => {
@@ -540,7 +534,9 @@ document.addEventListener('DOMContentLoaded', () => {
         animation: 200,
         ghostClass: 'tab-ghost',
         dragClass: 'tab-dragging',
-        filter: '#add-tab-btn, .no-drag',
+        filter: '.no-drag',
+        forceFallback: true, // This is it!
+
     });
 
     createNewTab({ workflowId: null });

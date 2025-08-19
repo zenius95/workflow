@@ -44,6 +44,11 @@ body { font-family: 'SFProDisplay', sans-serif; font-size: 13px; overflow: hidde
     border-bottom: 1px solid #dee2e6;
     flex-shrink: 0;
 }
+
+.workflow-header-title:hover [data-action="workflow-setting"] {
+    display: flex!important;
+}
+
 .workflow-title-container {
     flex-grow: 1;
     min-width: 0;
