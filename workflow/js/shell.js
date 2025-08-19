@@ -68,7 +68,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const tabTitle = workflowId === null ? i18n.get('shell.start_page') : title;
         tabEl.innerHTML = `<div class="tab-title">${tabTitle}</div><button class="close-tab-btn"><i class="ri-close-line"></i></button>`;
         
-        tabBar.appendChild(tabEl);
+        tabBar.insertBefore(tabEl, addTabBtn);
 
         const webview = document.createElement('webview');
         webview.id = `webview-${tabId}`;
@@ -536,6 +536,13 @@ document.addEventListener('DOMContentLoaded', () => {
         dragClass: 'tab-dragging',
         filter: '.no-drag',
         forceFallback: true, // This is it!
+        onMove: function (e) {
+    
+            if (e.related.classList.contains('add-tab-btn')) { 
+                return false;
+            }
+            
+        },
 
     });
 

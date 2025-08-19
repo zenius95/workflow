@@ -59,6 +59,7 @@ body {
 }
 
 .drag-region {
+    flex-grow: 1;
     -webkit-app-region: drag; 
     display: flex;
     align-items: flex-end;

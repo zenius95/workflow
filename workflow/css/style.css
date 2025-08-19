@@ -45,8 +45,12 @@ body { font-family: 'SFProDisplay', sans-serif; font-size: 13px; overflow: hidde
     flex-shrink: 0;
 }
 
+.workflow-header-title [data-action="workflow-setting"] {
+    opacity: 0;
+}
+
 .workflow-header-title:hover [data-action="workflow-setting"] {
-    display: flex!important;
+    opacity: 1;
 }
 
 .workflow-title-container {
@@ -214,6 +218,7 @@ body { font-family: 'SFProDisplay', sans-serif; font-size: 13px; overflow: hidde
     display: none;
 }
 .context-menu-item {
+    font-weight: 500;
     padding: 8px 12px; color: #495057; cursor: pointer;
     border-radius: 4px; display: flex; justify-content: space-between; align-items: center;
 }

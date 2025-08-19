@@ -207,6 +207,7 @@ class WorkflowBuilder extends EventTarget {
         this.dom.canvasContainer.addEventListener('wheel', (e) => this._handleWheel(e));
         this.dom.canvasContainer.addEventListener('mousedown', (e) => this._handleCanvasMouseDown(e));
         this.dom.canvasContainer.addEventListener('contextmenu', (e) => this._handleCanvasContextMenu(e));
+        
         window.addEventListener('mousemove', (e) => this._handleMouseMove(e));
         window.addEventListener('mouseup', (e) => this._handleMouseUp(e));
         window.addEventListener('keydown', (e) => this._handleKeyDown(e));
@@ -215,15 +216,6 @@ class WorkflowBuilder extends EventTarget {
         
         this.dom.settingsPanel.addEventListener('mousedown', (e) => e.stopPropagation());
 
-        document.addEventListener('click', (e) => {
-            this._hideAllContextMenus();
-            if (!e.target.closest('.variable-picker-popup') && !e.target.closest('.variable-picker-btn')) {
-                this._hideVariablePicker();
-            }
-            if (!e.target.closest('.connector-line')) {
-                this._deselectAllConnections();
-            }
-        });
         this.dom.nodeContextMenu.addEventListener('click', (e) => this._handleContextMenuClick(e));
         this.dom.canvasContextMenu.addEventListener('click', (e) => this._handleContextMenuClick(e));
         this.dom.variableContextMenu.addEventListener('click', (e) => this._handleVariableContextMenuClick(e));
@@ -243,6 +235,19 @@ class WorkflowBuilder extends EventTarget {
 
         this.container.querySelector('[data-action="clear-console"]').addEventListener('click', () => this.logger.clear());
         this.container.querySelector('[data-action="toggle-console"]').addEventListener('click', () => this._toggleConsole());
+
+        this.dom.workflowHeader.querySelector('[data-action="workflow-setting"]').addEventListener('click', (e) => this._handleWorkflowSettingClick(e));
+
+        document.addEventListener('click', (e) => {
+            // Đã bao gồm logic đóng workflow-setting-menu khi click ra ngoài
+            this._hideAllContextMenus(); 
+            if (!e.target.closest('.variable-picker-popup') && !e.target.closest('.variable-picker-btn')) {
+                this._hideVariablePicker();
+            }
+            if (!e.target.closest('.connector-line')) {
+                this._deselectAllConnections();
+            }
+        });
 
         this._setupConsoleResizer();
 
@@ -927,10 +932,38 @@ class WorkflowBuilder extends EventTarget {
         Object.assign(menu.style, { display: 'block', left: `${e.clientX}px`, top: `${e.clientY}px` });
     }
 
+    _handleWorkflowSettingClick(e) {
+        e.stopPropagation(); // Ngăn sự kiện click lan ra document, tránh việc menu bị đóng ngay lập tức
+        const menu = this.dom.workflowSettingMenu;
+        const button = e.currentTarget;
+
+        // Kiểm tra xem menu đang mở hay không
+        const isMenuOpen = menu.style.display === 'block';
+
+        // Đóng tất cả các menu khác trước khi thực hiện hành động
+        this._hideAllContextMenus();
+
+        if (!isMenuOpen) {
+            // Nếu menu đang đóng, thì mở nó ra
+            const buttonRect = button.getBoundingClientRect();
+            Object.assign(menu.style, {
+                display: 'block',
+                left: `${buttonRect.left}px`,
+                top: `${buttonRect.bottom + 5}px`
+            });
+            
+            // Yêu cầu của sếp là có class d-flex, nút này đã có sẵn. 
+            // Tôi thêm class 'active' để sếp tiện style, ví dụ đổi màu nền.
+            // Nút này vốn đã có class `d-flex` rồi sếp nhé!
+        }
+        // Nếu isMenuOpen là true, hàm _hideAllContextMenus() đã được gọi ở trên sẽ đóng nó lại.
+    }
+
     _hideAllContextMenus() {
         this.dom.nodeContextMenu.style.display = 'none';
         this.dom.canvasContextMenu.style.display = 'none';
         this.dom.variableContextMenu.style.display = 'none';
+        this.dom.workflowSettingMenu.style.display = 'none';
     }
 
     _handleContextMenuClick(e) {

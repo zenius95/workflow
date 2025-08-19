@@ -100,11 +100,13 @@
                             </div>
                             <div data-ref="save-status" class="small save-status"></div>
                         </div>
-                        <button data-action="workflow-setting" class="btn btn-sm btn-light border p-1 rounded-circle p-0 d-flex align-items-center justify-content-center ms-3 d-none" style="width: 25px; height: 25px;"><i class="ri-arrow-down-s-line"></i></button>
+                        <button data-action="workflow-setting" class="btn btn-sm btn-light border p-1 rounded-circle p-0 align-items-center d-flex justify-content-center ms-3" style="width: 20px; height: 20px;"><i class="ri-arrow-down-s-line"></i></button>
+                        <div data-ref="workflow-setting-menu" class="context-menu">
+                            <div class="context-menu-item" data-action="import-json"><span data-i18n="workflow_page.header.import_button">Import JSON</span></div>
+                            <div class="context-menu-item" data-action="export-json"><span data-i18n="workflow_page.header.export_button">Export JSON</span></div>
+                        </div>
                     </div>
                     <div class="workflow-actions">
-                        <button data-action="import-json" class="d-none btn btn-info text-white me-2" data-i18n="workflow_page.header.import_button"></button>
-                        <button data-action="export-json" class="d-none btn btn-dark me-2" data-i18n="workflow_page.header.export_button"></button>
                         
                         <button data-action="run-simulation" class="btn shadow-sm border d-flex align-items-center gap-1 py-1 fs-6">
                             <i class="ri-play-circle-fill text-success"></i> <small class="fw-bold" data-i18n="workflow_page.header.run_button"></small>
@@ -162,6 +164,7 @@
     </div>
 
     <input type="file" id="json-import-input" accept="application/json" class="d-none">
+
 
     <div data-ref="node-context-menu" class="context-menu">
         <div class="context-menu-item" data-action="copy"><span data-i18n="workflow_page.context_menu.copy"></span> <span class="context-menu-shortcut">Ctrl+C</span></div>
