@@ -55,10 +55,12 @@ class I18nManager {
      * Applies translations to all DOM elements with a data-i18n attribute.
      */
     translateUI() {
+        // Xử lý các trường hợp data-i18n="key" đơn giản (như phiên bản gốc)
         document.querySelectorAll('[data-i18n]').forEach(element => {
             const key = element.getAttribute('data-i18n');
             const translation = this.get(key);
             if (translation !== key) {
+                // Mặc định là 'innerHTML', trừ khi có data-i18n-target chỉ định khác
                 const targetAttr = element.getAttribute('data-i18n-target') || 'innerHTML';
                 if (targetAttr === 'innerHTML') {
                     element.innerHTML = translation;
@@ -68,9 +70,38 @@ class I18nManager {
             }
         });
 
+        // Xử lý các trường hợp mở rộng data-i18n-attr="key"
+        document.querySelectorAll('*').forEach(element => {
+            for (const attr of element.attributes) {
+                if (attr.name.startsWith('data-i18n-') && attr.name !== 'data-i18n-target' && attr.name !== 'data-i18n-title') {
+                    const key = attr.value;
+                    if (!key) continue;
+
+                    const targetAttr = attr.name.substring('data-i18n-'.length);
+                    const translation = this.get(key);
+
+                    if (translation !== key) {
+                        if (targetAttr === 'text' || targetAttr === 'html') {
+                            element.innerHTML = translation;
+                        } else {
+                            element.setAttribute(targetAttr, translation);
+                        }
+                    }
+                }
+            }
+        });
+
+        // Giữ lại phần dịch cho title của trang
         const titleKey = document.body.getAttribute('data-i18n-title');
         if (titleKey) {
             document.title = this.get(titleKey);
+        } else {
+            // Trường hợp title của trang dùng data-i18n
+            const titleElement = document.querySelector('title[data-i18n]');
+            if(titleElement){
+                const key = titleElement.getAttribute('data-i18n');
+                document.title = this.get(key);
+            }
         }
     }
 }

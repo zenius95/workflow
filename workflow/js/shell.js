@@ -225,7 +225,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                 ? `<button class="btn btn-sm btn-primary me-2" data-action="switch-tab" data-workflow-id="${wf.id}">${i18n.get('shell.switch_tab')} <i class="ri-arrow-right-line ms-1"></i></button>`
                                 : '<button class="btn rounded-3 btn-sm btn-light me-2"><i class="ri-folder-open-line"></i></button>'
                             }
-                            <button class="btn rounded-3 btn-sm btn-light" data-action="delete-workflow" data-id="${wf.id}" data-name="${wf.name}"><i class="ri-more-fill"></i></button>
+                            <!-- data-action="delete-workflow" data-id="${wf.id}" data-name="${wf.name}" -->
+                            <button class="btn rounded-3 btn-sm btn-light" data-action="workflow-setting"><i class="ri-more-fill"></i></button>
                         </div>
                        
                     `;
