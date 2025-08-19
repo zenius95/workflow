@@ -7,7 +7,8 @@
     "confirm": "Confirm",
     "delete": "Delete",
     "cancel": "Cancel",
-    "close": "Close"
+    "close": "Close",
+    "save": "Save"
   },
   "shell": {
     "start_page": "Start Page",
@@ -220,5 +221,75 @@
       "loop_complete": "Loop finished.",
       "node_error": "Error executing node {title}: {message}",
       "error_caught": "Error caught by Try/Catch block: {title}. Redirecting to 'catch' port."
+  },
+  "workflow_page": {
+    "title": "Workflow Builder (Bootstrap Version)",
+    "tabs": {
+        "nodes": "Nodes",
+        "variables": "Variables",
+        "history": "History",
+        "form": "Form"
+    },
+    "nodes_tab": {
+        "search_placeholder": "Search nodes..."
+    },
+    "variables_tab": {
+        "global_title": "Global",
+        "key_placeholder": "Variable Name",
+        "value_placeholder": "Value (JSON)",
+        "add_button": "Add",
+        "node_outputs_title": "Node Outputs"
+    },
+    "history_tab": {
+        "title": "Version History",
+        "description": "Auto-saves every 10 seconds. Select a version to restore."
+    },
+    "header": {
+        "unsaved_workflow": "Unsaved Workflow",
+        "import_button": "Import JSON",
+        "export_button": "Export JSON",
+        "run_button": "Run Workflow"
+    },
+    "console": {
+        "title": "Workflow Log",
+        "clear_button": "Clear"
+    },
+    "context_menu": {
+        "copy": "Copy",
+        "paste": "Paste",
+        "delete": "Delete",
+        "undo": "Undo",
+        "redo": "Redo"
+    },
+    "variable_context_menu": {
+        "copy_value": "Copy value",
+        "copy_key": "Copy key",
+        "copy_path": "Copy path"
+    },
+    "curl_modal": {
+        "title": "Import from cURL Command",
+        "description": "Paste a cURL command into the text area below.",
+        "import_button": "Import"
+    },
+    "form_builder_modal": {
+        "title": "Settings Node Generator",
+        "toolbox_title": "Toolbox",
+        "canvas_tab": "Canvas",
+        "preview_tab": "Preview",
+        "canvas_title": "Canvas",
+        "clear_canvas_button": "Clear",
+        "canvas_placeholder": "Drag components from the Toolbox here",
+        "preview_title": "Form Preview",
+        "properties_title": "Properties"
+    },
+    "load_workflow_modal": {
+        "title": "Open Saved Workflow",
+        "description": "Select a workflow from the list to open it."
+    },
+    "save_workflow_modal": {
+        "title": "Save Workflow",
+        "name_label": "Workflow Name",
+        "save_button": "Save"
+    }
   }
 }
