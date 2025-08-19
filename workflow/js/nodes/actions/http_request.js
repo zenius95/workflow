@@ -2,7 +2,7 @@ module.exports = {
     type: 'http_request',
     title: 'HTTP Request',
     displayName: 'HTTP Request',
-    icon: '<i class="bi bi-globe"></i>',
+    icon: '<i class="ri-global-line"></i>',
     outputs: ['success', 'error'],
     defaultData: {
         url: '', method: 'GET', timeout: 30000,

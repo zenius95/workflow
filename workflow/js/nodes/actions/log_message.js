@@ -2,7 +2,7 @@ module.exports = {
     type: 'log_message',
     title: 'Log Message',
     displayName: 'Log Message',
-    icon: '<i class="bi bi-chat-left-text"></i>',
+    icon: '<i class="ri-message-2-line"></i>',
     outputs: ['success'],
     defaultData: { message: 'Hello from workflow!', level: 'info' },
     settings: [

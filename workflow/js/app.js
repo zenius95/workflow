@@ -55,11 +55,11 @@ document.addEventListener('DOMContentLoaded', () => {
         saveStatusEl.className = `save-status ${status}`;
         const text = message || i18n.get(`app.${status}_status`);
         saveStatusEl.innerHTML = `
-            <div class="spinner-sm" role="status"></div>
-            <i class="icon saved bi bi-check-circle-fill"></i>
-            <i class="icon unsaved bi bi-hdd-fill"></i>
-            <i class="icon error bi bi-x-circle-fill"></i>
-            <span>${text}</span>`;
+            <span>${new Date().toLocaleString()}</span>
+            <div class="spinner-sm" role="status"><i class="ri-loop-left-line"></i></div>
+            <i class="icon saved ri-checkbox-circle-fill"></i>
+            <i class="icon unsaved ri-upload-cloud-fill"></i>
+            <i class="icon error ri-close-circle-fill"></i>`;
     };
 
     // --- LOGIC LƯU TỰ ĐỘNG ---

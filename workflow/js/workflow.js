@@ -46,17 +46,17 @@ class WorkflowBuilder extends EventTarget {
     _getDefaultTemplates() {
         return {
             nodeContent: `
-                <div class="d-flex justify-content-between align-items-start p-3">
-                    <div class="d-flex align-items-center gap-2" style="min-width: 0;">
-                        <div class="node-status-indicator"></div>
-                        <span class="node-icon text-secondary flex-shrink-0">{{icon}}</span>
+                <div class="node-container d-flex justify-content-between align-items-start p-3">
+                    <div class="d-flex align-items-center gap-3" style="min-width: 0;">
+                        <!--div class="node-status-indicator"></div-->
+                        <span class="node-icon d-flex align-items-center justify-content-center text-secondary flex-shrink-0 rounded-3 text-white fs-5" style="background: #00a8ff; width: 35px; height: 35px">{{icon}}</span>
                         <div>
                             <div class="node-title fw-bold text-dark text-truncate">{{title}}</div>
-                            <div class="small text-muted font-monospace mt-n1">{{id}}</div>
+                            <div class="text-muted font-monospace mt-n1">{{id}}</div>
                         </div>
                     </div>
                     <button class="node-settings-btn btn btn-light btn-sm p-0 rounded-circle flex-shrink-0" style="width: 24px; height: 24px;">
-                        <i class="bi bi-gear-fill"></i>
+                        <i class="ri-settings-3-fill"></i>
                     </button>
                 </div>`,
             settingsPanel: `
@@ -182,14 +182,17 @@ class WorkflowBuilder extends EventTarget {
             gridDiv.className = 'palette-grid';
             category.nodes.forEach(nodeConfig => {
                 const nodeEl = document.createElement('div');
-                nodeEl.className = 'palette-node';
+                nodeEl.className = 'd-flex align-items-center palette-node p-3 bg-body-tertiary rounded-3';
                 nodeEl.draggable = true;
                 nodeEl.dataset.type = nodeConfig.type;
                 const lang = i18n.currentLanguage;
                 const nodeLocale = nodeConfig.locales?.[lang] || {};
                 const displayName = nodeLocale.displayName || nodeConfig.displayName;
 
-                nodeEl.innerHTML = `<span class="text-secondary">${nodeConfig.icon}</span><span>${displayName}</span>`;
+                nodeEl.innerHTML = `
+                    <span class="rounded-3 text-white d-flex align-items-center justify-content-center me-2" style="width: 25px; height: 25px; background: ${category.color}">${nodeConfig.icon}</span>
+                    <span class="fw-bold">${displayName}</span>
+                `;
                 nodeEl.addEventListener('dragstart', (e) => {
                     e.dataTransfer.setData('application/json', JSON.stringify({ type: e.target.dataset.type }));
                 });
@@ -1111,6 +1114,7 @@ class WorkflowBuilder extends EventTarget {
             return Object.assign(document.createElement('span'), { className: 'text-muted fst-italic ps-3', textContent: i18n.get('workflow.no_data') });
         }
         const root = document.createElement('div');
+        
         for (const key in obj) {
             if (key === '_status') continue;
             const currentPath = parentPath ? `${parentPath}.${key}` : key;

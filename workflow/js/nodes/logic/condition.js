@@ -2,7 +2,7 @@ module.exports = {
     type: 'condition',
     title: 'Điều kiện',
     displayName: 'Điều kiện (If)',
-    icon: '<i class="bi bi-sign-split"></i>',
+    icon: '<i class="ri-git-pull-request-line"></i>',
     outputs: ['true', 'false'],
     defaultData: {
         conditionGroups: [

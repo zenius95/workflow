@@ -18,45 +18,45 @@
 
     <div id="app-container" class="vw-100 vh-100 d-flex flex-column">
         <main data-ref="main-ui" class="d-flex flex-grow-1 position-relative overflow-hidden">
-        <nav class="h-100 border-end bg-blur-2" style="width: 100px; padding: 10px">
+            <nav class="h-100 border-end bg-white" style="width: 100px; padding: 10px">
+                
                 <ul class="nav nav-tabs nav-pills border-0" id="left-panel-tabs" role="tablist">
-
-                    <li class="nav-item w-100" role="presentation">
+                    <li class="nav-item w-100 mb-3" role="presentation">
                         <a href="javascript:;" class="text-black fw-medium text-decoration-none p-0 d-flex align-items-center justify-content-center w-100 active" style="width: 60px; height: 60px;" id="nodes-tab" data-bs-toggle="tab" data-bs-target="#tab-pane-nodes" role="tab" aria-controls="tab-pane-nodes" aria-selected="true">
                             <span class="d-flex flex-column align-items-center">
-                                <i class="ri-function-add-line fs-5"></i>
-                                Khối
+                                <i class="ri-function-add-line fs-4"></i>
+                                <span class="fw-bold">Khối</span>
                             </span>
                         </a>
                     </li>
-                    <li class="nav-item w-100" role="presentation">
+                    <li class="nav-item w-100 mb-3" role="presentation">
                         <a href="javascript:;" class="text-black fw-medium text-decoration-none p-0 d-flex align-items-center justify-content-center w-100" style="width: 60px; height: 60px;" id="variables-tab" data-bs-toggle="tab" data-bs-target="#tab-pane-variables" role="tab" aria-controls="tab-pane-variables" aria-selected="false">
                             <span class="d-flex flex-column align-items-center">
-                                <i class="ri-braces-line fs-5"></i>
-                                Biến
+                                <i class="ri-braces-line fs-4"></i>
+                                <span class="fw-bold">Biến</span>
                             </span>
                         </a>
                     </li>
-                    <li class="nav-item w-100" role="presentation">
+                    <li class="nav-item w-100 mb-3" role="presentation">
                         <a href="javascript:;" class="text-black fw-medium text-decoration-none p-0 d-flex align-items-center justify-content-center w-100" style="width: 60px; height: 60px;" id="history-tab" data-bs-toggle="tab" data-bs-target="#tab-pane-history" role="tab" aria-controls="tab-pane-history" aria-selected="false">
                             <span class="d-flex flex-column align-items-center">
-                                <i class="ri-history-line fs-5"></i>
-                                Lịch sử
+                                <i class="ri-history-line fs-4"></i>
+                                <span class="fw-bold">Lịch sử</span>
                             </span>
                         </a>
                     </li>
                     <li class="nav-item w-100" role="presentation">
                         <a href="javascript:;" class="text-black fw-medium text-decoration-none p-0 d-flex align-items-center justify-content-center w-100" style="width: 60px; height: 60px;" data-bs-toggle="modal" data-bs-target="#form-builder-modal">
                             <span class="d-flex flex-column align-items-center">
-                                <i class="ri-list-indefinite fs-5"></i>
-                                Form
+                                <i class="ri-list-indefinite fs-4"></i>
+                                <span class="fw-bold">Form</span>
                             </span>
                         </a>
                     </li>
                 </ul>
             </nav>
 
-            <aside class="d-flex flex-column flex-shrink-0 border-end bg-blur h-100" style="width: 380px;">
+            <aside class="d-flex flex-column flex-shrink-0 border-end bg-white h-100" style="width: 380px;">
                 <div class="tab-content overflow-auto h-100" id="left-panel-tab-content">
                     <div class="tab-pane show active p-3" id="tab-pane-nodes" role="tabpanel" aria-labelledby="nodes-tab">
                         <input type="search" data-ref="palette-search" placeholder="Tìm kiếm khối..." class="form-control form-control-sm mb-3">
@@ -87,49 +87,57 @@
                         </div>
                     </div>
             </aside>
-            <div class="d-flex flex-column w-100 bg-blur-2">
-                <header data-ref="workflow-header" class="workflow-header">
-                    <div class="workflow-title-container">
-                        <h2 data-ref="workflow-title-display" class="workflow-title-display">Workflow Chưa Lưu</h2>
-                        <input type="text" data-ref="workflow-title-edit" class="workflow-title-edit" style="display: none;">
+            <div class="canvas-bg d-flex flex-column w-100">
+                <header data-ref="workflow-header" class="workflow-header bg-white">
+                    <div class="d-flex align-items-center">
+                        <div class="text-white d-flex align-items-center justify-content-center rounded-3 bg-primary me-2" style="width: 35px; height: 35px;">
+                            <i class="ri-git-pull-request-line"></i>
+                        </div>
+                        <div>
+                            <div class="workflow-title-container">
+                                <span data-ref="workflow-title-display" class="workflow-title-display">Workflow Chưa Lưu</span>
+                                <input type="text" data-ref="workflow-title-edit" class="workflow-title-edit outline-none" style="display: none;">
+                            </div>
+                            <div data-ref="save-status" class="small save-status"></div>
+                        </div>
                     </div>
                     <div class="workflow-actions">
-                        <div data-ref="save-status" class="save-status"></div>
-                        <button data-action="import-json" class="btn btn-info text-white me-2">Import JSON</button>
-                        <button data-action="export-json" class="btn btn-dark me-2">Export JSON</button>
-                        <button data-action="run-simulation" class="btn btn-success d-flex align-items-center gap-2">
-                            <i class="bi bi-play-fill"></i> Chạy Mô phỏng
+                        <button data-action="import-json" class="d-none btn btn-info text-white me-2">Import JSON</button>
+                        <button data-action="export-json" class="d-none btn btn-dark me-2">Export JSON</button>
+                        
+                        <button data-action="run-simulation" class="btn shadow-sm border d-flex align-items-center gap-1 py-1 fs-6">
+                            <i class="ri-play-circle-fill text-success"></i> <small class="fw-bold">Run Workflow</small>
                         </button>
                     </div>
                 </header>
 
                 <div data-ref="canvas-container" class="canvas-container position-relative">
                     <div class="position-absolute start-0 d-flex bottom-0 m-3" style="z-index: 998;">
-                        <div class="shadow-sm border rounded bg-white overflow-hidden me-2 d-flex">
-                            <button data-action="undo" class="border-0 border-end bg-transparent" style="width: 30px; height: 30px;">
-                                <i class="ri-arrow-go-back-line"></i>
+                        <div class="shadow-sm border rounded-3 bg-white overflow-hidden me-2 d-flex">
+                            <button data-action="undo" class="border-0 border-end bg-transparent" style="width: 40px; height: 40px;">
+                                <i style="font-size: 16px" class="ri-arrow-go-back-line"></i>
                             </button>
-                            <button data-action="redo" class="border-0 bg-transparent" style="width: 30px; height: 30px;">
-                                <i class="ri-arrow-go-forward-line"></i>
+                            <button data-action="redo" class="border-0 bg-transparent" style="width: 40px; height: 40px;">
+                                <i style="font-size: 16px" class="ri-arrow-go-forward-line"></i>
                             </button>
                         </div>
-                        <div class="shadow-sm border rounded bg-white me-2 overflow-hidden">
-                            <button data-action="zoom-out" class="border-0 border-end bg-transparent" style="width: 30px; height: 30px;">
-                                <i class="ri-zoom-out-line"></i>
+                        <div class="shadow-sm border rounded-3 bg-white me-2 overflow-hidden">
+                            <button data-action="zoom-out" class="border-0 border-end bg-transparent" style="width: 40px; height: 40px;">
+                                <i style="font-size: 16px" class="ri-zoom-out-line"></i>
                             </button>
                             <span data-ref="zoom-level" class="d-inline-block" style="width: 50px; text-align: center;">100%</span>
-                            <button data-action="zoom-in" class="border-0 border-start bg-transparent" style="width: 30px; height: 30px;">
-                                <i class="ri-zoom-in-line"></i>
+                            <button data-action="zoom-in" class="border-0 border-start bg-transparent" style="width: 40px; height: 40px;">
+                                <i style="font-size: 16px" class="ri-zoom-in-line"></i>
                             </button>
                         </div>
-                        <div class="shadow-sm border rounded bg-white me-2 overflow-hidden d-flex">
-                            <button data-action="reset-view" class="border-0 border-end bg-transparent" style="width: 30px; height: 30px;">
-                                <i class="ri-reset-left-line"></i>
+                        <div class="shadow-sm border rounded-3 bg-white me-2 overflow-hidden d-flex">
+                            <button data-action="reset-view" class="border-0 border-end bg-transparent" style="width: 40px; height: 40px;">
+                                <i style="font-size: 16px" class="ri-reset-left-line"></i>
                             </button>
                         </div>
-                        <div class="shadow-sm border rounded bg-white overflow-hidden d-flex">
-                            <button data-action="toggle-console" class="border-0 border-end bg-transparent" style="width: 30px; height: 30px;">
-                                <i class="ri-terminal-box-line"></i>
+                        <div class="shadow-sm border rounded-3 bg-white overflow-hidden d-flex">
+                            <button data-action="toggle-console" class="border-0 border-end bg-transparent" style="width: 40px; height: 40px;">
+                                <i style="font-size: 16px" class="ri-terminal-box-line"></i>
                             </button>
                         </div>
                     </div>
@@ -141,7 +149,7 @@
                 <footer data-ref="console-panel" class="bg-white border-top d-flex flex-column flex-shrink-0 m-3 mt-0 rounded-3 overflow-hidden" style="height: 200px;">
                     <div data-ref="console-resizer" class="w-100" style="height: 3px; cursor: ns-resize; background-color: #000;"></div>
                     <div class="p-2 d-flex justify-content-between align-items-center bg-dark flex-shrink-0">
-                        <small class="mb-0 text-light fw-medium">Workflow Log</small>
+                        <span class="mb-0 text-light fw-medium">Workflow Log</span>
                         <button data-action="clear-console" class="btn btn-sm btn-light">
                             <i class="ri-delete-bin-line"></i> Clear
                         </button>

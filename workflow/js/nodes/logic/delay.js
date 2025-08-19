@@ -2,7 +2,7 @@ module.exports = {
     type: 'delay',
     title: 'Delay',
     displayName: 'Delay',
-    icon: '<i class="bi bi-clock-history"></i>',
+    icon: '<i class="ri-alarm-line"></i>',
     outputs: ['success'],
     defaultData: { delay: 1000 },
     settings: [

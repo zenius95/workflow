@@ -2,7 +2,7 @@ module.exports = {
     type: 'send_email',
     title: 'Gửi Email',
     displayName: 'Gửi Email',
-    icon: '<i class="bi bi-envelope"></i>',
+    icon: '<i class="ri-mail-send-line"></i>',
     outputs: ['success', 'error'],
     defaultData: { subject: 'Thông báo quan trọng', recipient: '' },
     settings: [

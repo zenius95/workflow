@@ -2,7 +2,7 @@ module.exports = {
     type: 'read_file',
     title: 'Đọc File',
     displayName: 'Đọc File',
-    icon: '<i class="bi bi-file-earmark-text"></i>',
+    icon: '<i class="ri-file-text-line"></i>',
     outputs: ['success', 'error'],
     defaultData: { filePath: '', encoding: 'utf8' },
     settings: [

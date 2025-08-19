@@ -2,7 +2,7 @@ module.exports = {
     type: 'loop',
     title: 'Vòng lặp',
     displayName: 'Vòng lặp (Loop)',
-    icon: '<i class="bi bi-arrow-repeat"></i>',
+    icon: '<i class="ri-repeat-line"></i>',
     outputs: ['loop', 'done'],
     defaultData: {
         inputArray: ''

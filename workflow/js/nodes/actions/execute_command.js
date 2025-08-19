@@ -2,7 +2,7 @@ module.exports = {
     type: 'execute_command',
     title: 'Chạy Lệnh',
     displayName: 'Chạy Lệnh',
-    icon: '<i class="bi bi-terminal"></i>',
+    icon: '<i class="ri-terminal-box-line"></i>',
     outputs: ['success', 'error'],
     defaultData: { command: '' },
     settings: [

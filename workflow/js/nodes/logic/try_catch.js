@@ -2,7 +2,7 @@ module.exports = {
     type: 'try_catch',
     title: 'Try / Catch',
     displayName: 'Try / Catch',
-    icon: '<i class="bi bi-shield-shaded"></i>',
+    icon: '<i class="ri-shield-check-fill"></i>',
     outputs: ['try', 'catch'],
     defaultData: {},
     settings: [

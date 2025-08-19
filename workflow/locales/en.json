@@ -25,8 +25,8 @@
     "delete_error": "Error deleting workflow:"
   },
    "app": {
-    "unsaved_workflow": "Unsaved Workflow",
-    "new_workflow_default": "New Workflow {number}",
+    "unsaved_workflow": "Untitled",
+    "new_workflow_default": "Untitled",
     "workflow_not_found": "Workflow Not Found",
     "creating_status": "Creating...",
     "save_failed_status": "Save failed",

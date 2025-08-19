@@ -7,6 +7,7 @@ const tryCatchNode = require('./try_catch.js');
 
 module.exports = {
     name: 'Logic',
+    color: '#e84118',
     nodes: [
         conditionNode,
         loopNode,

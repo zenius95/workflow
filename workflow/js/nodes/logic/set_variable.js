@@ -2,7 +2,7 @@ module.exports = {
     type: 'set_variable',
     title: 'Set Variable',
     displayName: 'Set Variable',
-    icon: '<i class="bi bi-braces-asterisk"></i>',
+    icon: '<i class="ri-braces-line"></i>',
     outputs: ['success'],
     defaultData: { variables: [{ key: '', value: '' }] },
     settings: [

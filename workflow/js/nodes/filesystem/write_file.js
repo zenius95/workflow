@@ -2,7 +2,7 @@ module.exports = {
     type: 'write_file',
     title: 'Ghi File',
     displayName: 'Ghi File',
-    icon: '<i class="bi bi-file-earmark-plus"></i>',
+    icon: '<i class="ri-draft-line"></i>',
     outputs: ['success', 'error'],
     defaultData: { folderPath: '', fileName: 'output.txt', content: '', writeMode: 'overwrite' },
     settings: [

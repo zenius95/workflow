@@ -2,7 +2,7 @@ module.exports = {
     type: 'generate_data',
     title: 'Tạo Dữ liệu',
     displayName: 'Tạo Dữ liệu',
-    icon: '<i class="bi bi-magic"></i>',
+    icon: '<i class="ri-magic-line"></i>',
     outputs: ['success', 'error'],
     defaultData: {
         generationType: 'string.uuid',

@@ -209,23 +209,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 workflows.forEach(wf => {
                     const isOpen = openIds.has(wf.id);
                     const item = document.createElement('div');
-                    item.className = 'list-group-item workflow-list-item d-flex justify-content-between align-items-center';
+                    item.className = 'workflow-list-item mb-3 rounded-3 shadow-sm p-3 bg-white';
                     if (isOpen) item.classList.add('bg-light');
 
                     item.innerHTML = `
-                        <div class="workflow-list-item-main d-flex align-items-center" data-action="open-workflow" data-id="${wf.id}" data-name="${wf.name}">
-                            <div class="flex-grow-1">
+                        <div class="workflow-list-item-main d-flex align-items-center position-relative" data-action="open-workflow" data-id="${wf.id}" data-name="${wf.name}">
+                            <div class="text-white d-flex align-items-center justify-content-center rounded-3 bg-primary" style="width: 35px; height: 35px;">
+                                <i class="ri-git-pull-request-line"></i>
+                            </div>
+                            <div class="flex-grow-1 ps-3">
                                 <h5 class="${isOpen ? 'text-primary' : ''}">${wf.name}</h5>
-                                <small>${i18n.get('shell.updated_at')}: ${new Date(wf.updatedAt).toLocaleString()}</small>
+                                <span>${i18n.get('shell.updated_at')}: ${new Date(wf.updatedAt).toLocaleString()}</span>
                             </div>
                             ${isOpen 
-                                ? `<button class="btn btn-sm btn-primary ms-3" data-action="switch-tab" data-workflow-id="${wf.id}">${i18n.get('shell.switch_tab')} <i class="ri-arrow-right-line ms-1"></i></button>`
-                                : '<i class="ri-arrow-right-s-line ms-3"></i>'
+                                ? `<button class="btn btn-sm btn-primary me-2" data-action="switch-tab" data-workflow-id="${wf.id}">${i18n.get('shell.switch_tab')} <i class="ri-arrow-right-line ms-1"></i></button>`
+                                : '<button class="btn rounded-3 btn-sm btn-light me-2"><i class="ri-folder-open-line"></i></button>'
                             }
+                            <button class="btn rounded-3 btn-sm btn-light" data-action="delete-workflow" data-id="${wf.id}" data-name="${wf.name}"><i class="ri-more-fill"></i></button>
                         </div>
-                        <div class="workflow-list-item-actions">
-                            <button class="btn btn-sm btn-outline-danger" data-action="delete-workflow" data-id="${wf.id}" data-name="${wf.name}"><i class="ri-delete-bin-line"></i></button>
-                        </div>
+                       
                     `;
                     startPageWorkflowList.appendChild(item);
                 });
@@ -250,7 +252,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- UI State Management (Updated) ---
     const updateUiState = () => {
         const isStartTabActive = !!(document.querySelector('.tab-item.active')?.dataset.workflowId === 'null');
-        startPageOverlay.style.display = isStartTabActive ? 'flex' : 'none';
+        startPageOverlay.style.display = isStartTabActive ? 'block' : 'none';
         
         if (isStartTabActive) {
             resetAndPopulateStartPage();
@@ -348,7 +350,7 @@ document.addEventListener('DOMContentLoaded', () => {
     maximizeBtn.addEventListener('click', () => ipcRenderer.send('maximize-window'));
     closeBtn.addEventListener('click', () => ipcRenderer.send('close-window'));
     ipcRenderer.on('window-state-changed', (event, { isMaximized }) => {
-        maximizeBtnIcon.className = isMaximized ? 'ri-file-copy-2-line' : 'ri-checkbox-blank-line';
+        maximizeBtnIcon.className = isMaximized ? 'ri-file-copy-line' : 'ri-checkbox-blank-line';
     });
     
     addTabBtn.addEventListener('click', () => {

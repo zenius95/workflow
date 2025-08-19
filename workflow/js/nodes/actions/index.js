@@ -5,6 +5,7 @@ const sendEmailNode = require('./send_email.js');
 
 module.exports = {
     name: 'Actions',
+    color: '#00a8ff',
     nodes: [
         httpRequestNode,
         sendEmailNode,

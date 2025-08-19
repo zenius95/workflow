@@ -2,7 +2,7 @@ module.exports = {
     type: 'html_extractor',
     title: 'Trích xuất HTML',
     displayName: 'Trích xuất HTML',
-    icon: '<i class="bi bi-magnet"></i>',
+    icon: '<i class="ri-code-s-slash-line"></i>',
     outputs: ['success', 'error'],
     defaultData: {
         htmlContent: '',
