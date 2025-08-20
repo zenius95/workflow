@@ -252,6 +252,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- UI State Management (Updated) ---
     const updateUiState = () => {
         const isStartTabActive = !!(document.querySelector('.tab-item.active')?.dataset.workflowId === 'null');
+        
         startPageOverlay.style.display = isStartTabActive ? 'block' : 'none';
         
         if (isStartTabActive) {
