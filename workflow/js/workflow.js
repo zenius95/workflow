@@ -157,6 +157,7 @@ class WorkflowBuilder extends EventTarget {
     }
     setFormBuilderData(data) {
         this.formBuilderData = JSON.parse(JSON.stringify(data));
+        this._commitState(i18n.get('workflow.state_commit.form_edit')); 
     }
 
     // --- INTERNAL METHODS ---
@@ -1002,11 +1003,12 @@ class WorkflowBuilder extends EventTarget {
 
     _getCurrentState() {
         return {
-            nodes: this.nodes.map(n => ({ 
-                id: n.id, type: n.type, x: n.x, y: n.y, data: JSON.parse(JSON.stringify(n.data)) 
+            nodes: this.nodes.map(n => ({
+                id: n.id, type: n.type, x: n.x, y: n.y, data: JSON.parse(JSON.stringify(n.data))
             })),
             connections: this.connections.map(c => ({ from: c.from, fromPort: c.fromPort, to: c.to })),
-            formBuilder: this.formBuilderData 
+            // Dòng quan trọng đã được thêm vào đây
+            formBuilder: this.formBuilderData
         };
     }
     

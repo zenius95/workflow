@@ -74,7 +74,8 @@
       "import": "Import File",
       "title_edit": "Edit Title",
       "settings_edit": "Edit Settings",
-      "curl_import": "Import from cURL"
+      "curl_import": "Import from cURL",
+      "form_edit": "Update Form Builder"
     },
     "logs": {
       "container_not_found": "Container with id \"{id}\" not found.",
