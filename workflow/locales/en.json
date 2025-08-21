@@ -241,6 +241,7 @@
         "key_placeholder": "Variable Name",
         "value_placeholder": "Value (JSON)",
         "add_button": "Add",
+        "form_data_title": "Form Data",
         "node_outputs_title": "Node Outputs"
     },
     "history_tab": {

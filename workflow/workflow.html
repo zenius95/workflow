@@ -72,6 +72,10 @@
                                 <div class="col-12"><button type="submit" class="btn btn-primary btn-sm w-100" data-i18n="workflow_page.variables_tab.add_button"></button></div>
                             </form>
                         </div>
+                        <div class="mb-3">
+                            <h4 class="h6 fw-semibold text-secondary mb-2 border-bottom pb-1" data-i18n="workflow_page.variables_tab.form_data_title"></h4>
+                            <div data-ref="form-data-container" class="tree-view p-2 bg-light rounded border"></div>
+                        </div>
                         <div>
                             <h4 class="h6 fw-semibold text-secondary mb-2 border-bottom pb-1" data-i18n="workflow_page.variables_tab.node_outputs_title"></h4>
                             <div data-ref="node-outputs-container" class="tree-view p-2 bg-light rounded border"></div>
@@ -100,7 +104,7 @@
                             </div>
                             <div data-ref="save-status" class="small save-status"></div>
                         </div>
-                        <button data-action="workflow-setting" class="btn btn-sm btn-light border p-1 rounded-circle p-0 align-items-center d-flex justify-content-center ms-3" style="width: 20px; height: 20px;"><i class="ri-arrow-down-s-line"></i></button>
+                        <button data-action="workflow-setting" class="btn btn-sm btn-light border p-1 rounded-circle p-0 align-items-center d-flex justify-content-center ms-2" style="width: 20px; height: 20px;"><i class="ri-arrow-down-s-line"></i></button>
                         <div data-ref="workflow-setting-menu" class="context-menu">
                             <div class="context-menu-item" data-action="import-json"><span data-i18n="workflow_page.header.import_button">Import JSON</span></div>
                             <div class="context-menu-item" data-action="export-json"><span data-i18n="workflow_page.header.export_button">Export JSON</span></div>
@@ -190,13 +194,9 @@
         <div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" data-i18n="workflow_page.curl_modal.title"></h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><p class="text-muted small" data-i18n="workflow_page.curl_modal.description"></p><textarea id="curl-input-textarea" class="form-control font-monospace" rows="10" placeholder="curl 'https://api.example.com/...'"></textarea></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-i18n="common.close"></button><button type="button" class="btn btn-primary" id="process-curl-import-btn" data-i18n="workflow_page.curl_modal.import_button"></button></div></div></div>
     </div>
 
-    <div class="modal fade" id="form-builder-modal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-xl">
+    <div class="modal" id="form-builder-modal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-fullscreen">
             <div class="modal-content d-flex flex-column">
-                <div class="modal-header">
-                    <h5 class="modal-title h4 fw-bold"><i class="bi bi-tools me-2"></i> <span data-i18n="workflow_page.form_builder_modal.title">Settings Node Generator</span></h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
                 <div class="modal-body d-flex flex-grow-1 overflow-hidden p-0">
                     <aside class="palette border-end bg-light" style="width: 280px; min-width: 280px;">
                         <div class="p-3 border-bottom"><h5 class="fw-bold my-1" data-i18n="workflow_page.form_builder_modal.toolbox_title"></h5></div>

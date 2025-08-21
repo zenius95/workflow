@@ -24,7 +24,6 @@ class WorkflowBuilder extends EventTarget {
         this.connectionState = { isDrawing: false, startNode: null, startPortName: null, line: null };
         this.selectedNodes = [];
         this.selectedConnection = null;
-        this.clipboard = null;
         this.lastMousePosition = { x: 0, y: 0 };
         this.isSimulating = false;
         this.dom = {};
@@ -48,7 +47,6 @@ class WorkflowBuilder extends EventTarget {
             nodeContent: `
                 <div class="node-container d-flex justify-content-between align-items-start p-3">
                     <div class="d-flex align-items-center gap-3" style="min-width: 0;">
-                        <!--div class="node-status-indicator"></div-->
                         <span class="node-icon d-flex align-items-center justify-content-center text-secondary flex-shrink-0 rounded-3 text-white fs-5" style="background: #00a8ff; width: 35px; height: 35px">{{icon}}</span>
                         <div>
                             <div class="node-title fw-bold text-dark text-truncate">{{title}}</div>
@@ -403,7 +401,17 @@ class WorkflowBuilder extends EventTarget {
         }
         if (this.activeDrag.isDraggingNode) {
             this.dispatchEvent(new CustomEvent('node:drag:end', { detail: { nodes: this.activeDrag.draggedNodes.map(d => d.node) } }));
-            this._commitState(i18n.get('workflow.state_commit.node_move'));
+            
+            // Check if any node has actually moved
+            const hasMoved = this.activeDrag.draggedNodes.some(dragged => {
+                const { node, startX, startY } = dragged;
+                return node.x !== startX || node.y !== startY;
+            });
+    
+            if (hasMoved) {
+                this._commitState(i18n.get('workflow.state_commit.node_move'));
+            }
+    
             this.activeDrag.isDraggingNode = false;
             this.activeDrag.draggedNodes = [];
         }
@@ -1094,10 +1102,19 @@ class WorkflowBuilder extends EventTarget {
         if (!this.dom.variablesPanel) return;
         this.dom.variablesPanel.querySelectorAll('details').forEach(d => { this.treeViewStates.set(d.id, d.open); });
         
+        // Render Global Variables
         const globalContainer = this.dom.globalVariablesContainer;
         globalContainer.innerHTML = '';
         globalContainer.appendChild(this._createTreeView(this.globalVariables, 'global'));
         
+        // Render Form Data
+        if (this.dom.formDataContainer) {
+            const formDataContainer = this.dom.formDataContainer;
+            formDataContainer.innerHTML = '';
+            formDataContainer.appendChild(this._createTreeView(this.formData, 'form'));
+        }
+
+        // Render Node Outputs
         const nodeOutputsContainer = this.dom.nodeOutputsContainer;
         nodeOutputsContainer.innerHTML = '';
         nodeOutputsContainer.appendChild(this._createNodeOutputsTreeView(this.executionState));
@@ -1213,11 +1230,14 @@ class WorkflowBuilder extends EventTarget {
         const popup = this.dom.variablePickerPopup;
         popup.innerHTML = '';
         const createSection = (title, data, prefix) => {
-            const header = Object.assign(document.createElement('h6'), { className: "small text-uppercase text-muted fw-bold p-1 mt-2", textContent: title });
-            popup.appendChild(header);
-            popup.appendChild(this._createPickerTreeView(data, prefix));
+            if (Object.keys(data).length > 0) {
+                const header = Object.assign(document.createElement('h6'), { className: "small text-uppercase text-muted fw-bold p-1 mt-2", textContent: title });
+                popup.appendChild(header);
+                popup.appendChild(this._createPickerTreeView(data, prefix));
+            }
         };
         createSection(i18n.get('workflow.variables_panel.global'), this.globalVariables, 'global');
+        createSection(i18n.get('workflow.variables_panel.form_data'), this.formData, 'form');
         createSection(i18n.get('workflow.variables_panel.node_outputs'), this.executionState, '');
         const btnRect = button.getBoundingClientRect();
         popup.style.display = 'block';

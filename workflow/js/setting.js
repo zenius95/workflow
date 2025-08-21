@@ -136,37 +136,61 @@ class SettingsRenderer {
                 if (!dataField) return;
 
                 const findRepeaterConfig = (fields, targetField) => {
-                    for (const field of fields) {
-                        if (field.type === 'repeater' && field.dataField === targetField) return field;
-                        if (field.controls) {
-                            const found = findRepeaterConfig(field.controls, targetField);
-                            if (found) return found;
-                        }
-                        if (field.tabs) {
-                            for (const tab of field.tabs) {
-                                const found = findRepeaterConfig(tab.controls, targetField);
-                                if (found) return found;
+                    const pathSegments = targetField.split('.');
+                
+                    function find(currentFields, segmentIndex) {
+                        if (segmentIndex >= pathSegments.length) return null;
+                        
+                        let currentSegment = pathSegments[segmentIndex];
+                        
+                        for (const field of currentFields) {
+                            const config = field.config || field;
+                            
+                            if (config.dataField === currentSegment) {
+                                if (segmentIndex === pathSegments.length - 1) return config;
+                                
+                                const children = config.controls || config.fields;
+                                if (children) {
+                                    const found = find(children, segmentIndex + 2);
+                                    if (found) return found;
+                                }
                             }
                         }
+                        return null;
                     }
-                    return null;
+                    
+                    return find(fields, 0);
                 };
 
                 const repeaterConfig = findRepeaterConfig(settingsConfig, dataField);
                 const repeaterFields = repeaterConfig ? (repeaterConfig.fields || repeaterConfig.controls) : null;
-                if (!repeaterConfig || !repeaterFields) return;
+                if (!repeaterConfig || !repeaterFields) {
+                    console.error('Could not find repeater config for dataField:', dataField);
+                    return;
+                }
 
                 const newItem = {};
                 repeaterFields.forEach(fieldSource => {
                     const field = fieldSource.config ? fieldSource.config : fieldSource;
-                    if(field.dataField) newItem[field.dataField] = field.defaultValue || '';
+                    if(field.dataField) {
+                        // For nested repeaters or groups, initialize their data as an empty array/object
+                        if (field.isContainer && field.type === 'repeater') {
+                            newItem[field.dataField] = [];
+                        } else if (field.isContainer && field.type === 'group') {
+                            newItem[field.dataField] = {}; // Or handle based on group's structure
+                        } else {
+                            newItem[field.dataField] = field.defaultValue || '';
+                        }
+                    }
                 });
 
                 const items = this.workflow._getProperty(dataObject, dataField) || [];
                 items.push(newItem);
                 this.workflow._setProperty(dataObject, dataField, items);
                 
+                // This call is for the node settings panel
                 this.workflow._updateSettingsPanel();
+                // This commit is for the history state
                 this.workflow._commitState(i18n.get('settings.state_commit.repeater_add'));
             });
         });
@@ -443,25 +467,35 @@ class SettingsRenderer {
             container.innerHTML = `<p class="text-muted text-center small fst-italic">${i18n.get('settings.controls.no_fields_defined')}</p>`;
         }
         items.forEach((itemData, index) => {
-            const rowWrapper = document.createElement('div');
-            rowWrapper.className = 'repeater-row align-items-center mb-2';
-            if (fieldsToRender.length > 0) {
-                rowWrapper.style.display = 'grid';
-                rowWrapper.style.gap = '0.5rem';
-                rowWrapper.style.gridTemplateColumns = `repeat(${fieldsToRender.length}, 1fr) auto`;
-            }
+            const itemWrapper = document.createElement('div');
+            itemWrapper.className = 'repeater-row d-flex align-items-start gap-2 mb-2 p-2 border rounded';
+    
+            const fieldsContainer = document.createElement('div');
+            fieldsContainer.className = 'row g-2 flex-grow-1';
+    
             fieldsToRender.forEach(fieldSource => {
                 const fieldConfig = fieldSource.config ? fieldSource.config : fieldSource;
                 const fieldPath = `${control.dataField}.${index}.${fieldConfig.dataField}`;
-                const el = this._renderControl({ ...fieldConfig, dataField: fieldPath, col: null }, uniqueId, dataObject, nodeConfig);
-                if (el) rowWrapper.appendChild(el);
+                const el = this._renderControl({ ...fieldConfig, dataField: fieldPath }, uniqueId, dataObject, nodeConfig);
+                if (el) fieldsContainer.appendChild(el);
             });
+    
+            itemWrapper.appendChild(fieldsContainer);
+    
             const removeBtn = document.createElement('button');
-            removeBtn.className = 'btn btn-sm btn-outline-danger flex-shrink-0 align-self-center';
+            removeBtn.className = 'btn btn-sm btn-outline-danger flex-shrink-0';
             removeBtn.innerHTML = '<i class="bi bi-trash"></i>';
             Object.assign(removeBtn.dataset, { action: 'remove-repeater-item', field: control.dataField, index });
-            rowWrapper.appendChild(removeBtn);
-            container.appendChild(rowWrapper);
+            
+            const firstFieldLabel = fieldsContainer.querySelector('.form-label');
+            if (firstFieldLabel) {
+                const labelStyle = window.getComputedStyle(firstFieldLabel);
+                const labelMarginBottom = parseFloat(labelStyle.marginBottom);
+                removeBtn.style.marginTop = `${firstFieldLabel.offsetHeight + labelMarginBottom}px`;
+            }
+    
+            itemWrapper.appendChild(removeBtn);
+            container.appendChild(itemWrapper);
         });
         const lang = i18n.currentLanguage;
         const buttonText = nodeConfig.locales?.[lang]?.settings?.[control.addButtonTextKey] || control.addButtonText || i18n.get('settings.controls.add_item');

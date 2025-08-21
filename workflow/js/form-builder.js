@@ -23,7 +23,7 @@ class FormBuilder {
             'select': { name: i18n.get('form_builder.controls.select'), icon: 'bi-menu-button-wide', props: ['label', 'dataField', 'options', 'onChange', 'col', 'visibleWhen'] },
             'file-select': { name: i18n.get('form_builder.controls.file-select'), icon: 'bi-file-earmark-arrow-up', props: ['label', 'dataField', 'helpText', 'col', 'visibleWhen'] },
             'folder-select': { name: i18n.get('form_builder.controls.folder-select'), icon: 'bi-folder-plus', props: ['label', 'dataField', 'helpText', 'col', 'visibleWhen'] },
-            'group': { name: i18n.get('form_builder.controls.group'), icon: 'bi-collection', props: ['label', 'helpText', 'layoutColumns', 'visibleWhen'], isContainer: true },
+            'group': { name: i18n.get('form_builder.controls.group'), icon: 'bi-collection', props: ['label', 'helpText', 'visibleWhen'], isContainer: true },
             'tabs': { name: i18n.get('form_builder.controls.tabs'), icon: 'bi-segmented-nav', props: ['label', 'helpText', 'tabs'], isContainer: true, hasTabs: true },
             'repeater': { name: i18n.get('form_builder.controls.repeater'), icon: 'bi-plus-slash-minus', props: ['label', 'helpText', 'dataField', 'addButtonText'], isContainer: true },
             'button': { name: i18n.get('form_builder.controls.button'), icon: 'bi-hand-index-thumb', props: ['text', 'action', 'class'] },
@@ -93,13 +93,31 @@ class FormBuilder {
         this.renderPalette();
         this.setupDragAndDrop();
         this.clearCanvasBtn.addEventListener('click', () => this.clearCanvas());
+
+        // Listener for Repeater buttons
         this.previewPane.addEventListener('click', (e) => {
             const button = e.target.closest('button[data-action]');
              if (!button) return;
             if (button.dataset.action === 'add-repeater-item' || button.dataset.action === 'remove-repeater-item') {
-                 setTimeout(() => this.renderPreview(), 0);
+                 // The actual data change is handled by settings.js, we just need to re-render and update
+                 setTimeout(() => {
+                    this.renderPreview();
+                    this.workflow.setFormData(this.formData);
+                 }, 0);
             }
         });
+
+        // Listener for any data input changes
+        this.previewPane.addEventListener('input', (e) => {
+            // The listener in setting.js has already updated this.formData object
+            // because it runs on the target element before bubbling up to the pane.
+            // We just need to tell the main workflow instance that the data has changed
+            // so it can update the Variables panel.
+            if (e.target.dataset.field) {
+                this.workflow.setFormData(this.formData);
+            }
+        });
+
         this.renderCanvas();
     }
 
@@ -131,8 +149,6 @@ class FormBuilder {
                 const type = evt.item.dataset.type;
                 if (!type || !this.CONTROL_DEFINITIONS[type]) { evt.item.remove(); return; }
                 const newComponent = this.createComponent(type);
-                const parentCol = evt.to.closest('[data-col-index]');
-                if (parentCol) newComponent.config.colIndex = parseInt(parentCol.dataset.colIndex, 10);
                 evt.item.remove();
                 group.splice(evt.newIndex, 0, newComponent);
                 this.renderCanvas(activeTabId);
@@ -140,8 +156,6 @@ class FormBuilder {
             } else if (action === 'update') {
                 const movedItem = group.splice(evt.oldIndex, 1)[0];
                 group.splice(evt.newIndex, 0, movedItem);
-                const parentCol = evt.to.closest('[data-col-index]');
-                if (parentCol) movedItem.config.colIndex = parseInt(parentCol.dataset.colIndex, 10);
                 this.renderCanvas(activeTabId);
             }
             this._notifyWorkflowChanged();
@@ -156,7 +170,6 @@ class FormBuilder {
         if (def.props.includes('dataField')) component.config.dataField = `field_${this.nextId}`;
         if (def.props.includes('label')) component.config.label = def.name;
         if (type === 'tabs') component.config.tabs = [{ title: 'Tab 1', controls: [] }];
-        if (type === 'group') component.config.layoutColumns = [1, 1]; 
         if (type === 'repeater') component.config.addButtonText = i18n.get('form_builder.add_item');
         if (def.isContainer) component.config.controls = [];
         return component;
@@ -187,27 +200,7 @@ class FormBuilder {
         const header = `<div class="d-flex justify-content-between align-items-start"><div class="pe-4"><div class="component-label"><i class="bi ${def.icon} me-2"></i>${component.config.label || def.name}</div><div class="component-type">${component.config.dataField || `ID: ${component.id}`}</div></div><div class="component-actions btn-group"><button class="btn btn-sm btn-outline-danger btn-delete"><i class="bi bi-trash"></i></button></div></div>`;
         wrapper.innerHTML = header;
         
-        if (component.type === 'group') {
-            const layoutContainer = document.createElement('div');
-            layoutContainer.className = 'component-layout-container mt-3';
-            const cols = component.config.layoutColumns || [1];
-            const totalUnits = cols.reduce((sum, val) => sum + val, 0);
-            layoutContainer.style.gridTemplateColumns = cols.map(c => `${(c / totalUnits) * 100}%`).join(' ');
-            const childrenByCol = cols.map(() => []);
-            (component.config.controls || []).forEach(child => {
-                const colIndex = child.config.colIndex || 0;
-                if(childrenByCol[colIndex]) childrenByCol[colIndex].push(child); else childrenByCol[0].push(child);
-            });
-            cols.forEach((_, index) => {
-                const columnContent = document.createElement('div');
-                columnContent.className = 'component-container component-layout-column';
-                columnContent.dataset.colIndex = index;
-                childrenByCol[index].forEach(child => columnContent.appendChild(this.createComponentElement(child)));
-                this.makeSortable(columnContent, component.config.controls);
-                layoutContainer.appendChild(columnContent);
-            });
-            wrapper.appendChild(layoutContainer);
-        } else if (component.type === 'tabs') {
+        if (component.type === 'tabs') {
             const tabId = `canvas-tabs-${component.id}`;
             const tabWrapper = document.createElement('div');
             tabWrapper.className = 'mt-3';
@@ -275,45 +268,12 @@ class FormBuilder {
         def.props.forEach(prop => {
             if (prop === 'tabs' && component.type === 'tabs') {
                 this.propertiesPanel.appendChild(this._createTabsPropertyEditor(component));
-            } else if (prop === 'layoutColumns' && component.type === 'group') {
-                this.propertiesPanel.appendChild(this._createGroupLayoutEditor(component));
             } else {
                 this.propertiesPanel.appendChild(this.createPropertyInput(component, prop));
             }
         });
     }
 
-    _createGroupLayoutEditor(component) {
-        const wrapper = document.createElement('div');
-        wrapper.className = 'mb-3 prop-wrapper group-layout-editor';
-        wrapper.innerHTML = `<label class="form-label">${i18n.get('form_builder.props.layoutColumns')}</label>`;
-        const layoutContainer = document.createElement('div');
-        (component.config.layoutColumns || []).forEach((col, index) => {
-            const item = document.createElement('div');
-            item.className = 'layout-item';
-            item.innerHTML = `<span class="col-form-label">${i18n.get('form_builder.column')} ${index + 1}:</span><input type="number" class="form-control form-control-sm" value="${col}" min="1" step="0.1"><button class="btn btn-sm btn-outline-danger btn-remove-col"><i class="bi bi-trash"></i></button>`;
-            item.querySelector('input').addEventListener('input', e => {
-                component.config.layoutColumns[index] = parseFloat(e.target.value) || 1;
-                this.renderCanvas();
-                this._notifyWorkflowChanged();
-            });
-            const removeBtn = item.querySelector('.btn-remove-col');
-            if (component.config.layoutColumns.length <= 1) removeBtn.disabled = true;
-            removeBtn.addEventListener('click', () => this.removeColumnFromGroup(component, index));
-            layoutContainer.appendChild(item);
-        });
-        const addBtn = document.createElement('button');
-        addBtn.className = 'btn btn-sm btn-outline-secondary w-100 mt-2';
-        addBtn.innerHTML = `<i class="bi bi-plus-lg"></i> ${i18n.get('form_builder.add_column')}`;
-        addBtn.addEventListener('click', () => {
-            component.config.layoutColumns.push(1);
-            this.renderCanvas();
-            this._notifyWorkflowChanged();
-        });
-        wrapper.append(layoutContainer, addBtn);
-        return wrapper;
-    }
-    
     _createTabsPropertyEditor(component) {
         const wrapper = document.createElement('div');
         wrapper.className = 'mb-3 prop-wrapper tabs-editor';
@@ -399,20 +359,6 @@ class FormBuilder {
         });
     }
 
-    removeColumnFromGroup(groupComponent, colIndexToRemove) {
-        const cols = groupComponent.config.layoutColumns;
-        if (cols.length <= 1) return;
-        const targetColIndex = Math.max(0, colIndexToRemove - 1);
-        (groupComponent.config.controls || []).forEach(child => {
-            const currentChildCol = child.config.colIndex || 0;
-            if (currentChildCol === colIndexToRemove) child.config.colIndex = targetColIndex;
-            else if (currentChildCol > colIndexToRemove) child.config.colIndex = currentChildCol - 1;
-        });
-        cols.splice(colIndexToRemove, 1);
-        this.renderCanvas();
-        this._notifyWorkflowChanged();
-    }
-    
     deleteComponent(id) {
         const path = this.getComponentPath(id);
         if (path) {
