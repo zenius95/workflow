@@ -5,8 +5,15 @@
 class SettingsRenderer {
     constructor(workflowInstance) {
         this.workflow = workflowInstance;
-        this.dialog = window.api.dialog; 
-        
+        try {
+            this.dialog = require('@electron/remote').dialog;
+        } catch (e) {
+            console.error(i18n.get('settings.errors.electron_remote_fail'), e);
+            if (this.workflow && this.workflow.logger) {
+                this.workflow.logger.error(i18n.get('settings.errors.config_error_remote'));
+            }
+            this.dialog = null;
+        }
     }
 
     renderAndBind(settingsConfig, uniqueId, dataObject, nodeConfig = {}) {

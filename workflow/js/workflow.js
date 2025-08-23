@@ -1200,21 +1200,53 @@ class WorkflowBuilder extends EventTarget {
                 execute: async (data, logger, workflowInstance) => {
                     const { workflowId, inputs } = data;
                     if (!workflowId) {
-                        throw new Error("Sub Workflow node is not configured.");
+                        throw new Error("Sub Workflow node is not configured with a workflow ID.");
                     }
 
-                    // Gọi vào back-end (main.js) để chạy sub-workflow
-                    const response = await window.api.invoke('workflow:run-sub-workflow', {
-                        workflowId: workflowId,
-                        inputs: inputs,
-                        globalVariables: workflowInstance.globalVariables
-                    });
-
-                    if (!response.success) {
-                        throw new Error(response.error);
+                    // Lấy instance database an toàn từ WorkflowBuilder cha
+                    const db = workflowInstance.db;
+                    if (!db || typeof db.getWorkflowById !== 'function') {
+                        throw new Error("Database connection or getWorkflowById function is not available.");
                     }
 
-                    return response.result;
+                    const mainNodeConfig = workflowInstance.config;
+
+                    try {
+                        // Gọi đúng tên hàm: getWorkflowById
+                        const subWorkflowData = await db.getWorkflowById(workflowId);
+                        
+                        if (!subWorkflowData) {
+                            throw new Error(`Sub workflow with ID "${workflowId}" not found.`);
+                        }
+
+                        logger.info(`--- Starting Sub Workflow: "${subWorkflowData.name}" (ID: ${workflowId}) ---`);
+
+                        const subWorkflowDefinition = subWorkflowData.data;
+
+                        const subRunnerConfig = {
+                            workflow: subWorkflowDefinition,
+                            config: mainNodeConfig,
+                            logger: logger,
+                            globalVariables: workflowInstance.globalVariables,
+                            formData: inputs,
+                            isSubRunner: true
+                        };
+                        
+                        const WorkflowRunner = require('./js/runner.js');
+                        const subRunner = new WorkflowRunner(subRunnerConfig);
+                        const result = await subRunner.run();
+
+                        logger.info(`--- Finished Sub Workflow: "${subWorkflowData.name}" ---`);
+                        
+                        return result;
+
+                    } catch (error) {
+
+                        console.log(err)
+
+                        logger.error(`Error executing sub workflow (ID: ${workflowId}): ${error.message}`);
+                        throw error;
+                    }
                 }
             };
         }

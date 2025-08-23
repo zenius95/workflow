@@ -1,8 +1,14 @@
-const { i18n, invoke } = window.api; // Lấy i18n và invoke từ API an toàn
+// workflow/js/app.js
+const { ipcRenderer } = require('electron');
+const { workflowConfig } = require('./js/config.js');
+const i18n = require('./js/i18n.js');
 
 document.addEventListener('DOMContentLoaded', () => {
 
-    i18n.translateUI()
+    window.i18n = i18n
+    // Load language first
+    i18n.loadLanguage('en'); // or 'vi', or load from user settings
+    i18n.translateUI();
 
     // --- LẤY THÔNG TIN TỪ URL CỦA WEBVIEW ---
     const urlParams = new URLSearchParams(window.location.search);
@@ -17,12 +23,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 2000);
 
     const db = {
-        getWorkflows: (options) => invoke('db:getWorkflows', options),
-        getWorkflowById: (id) => invoke('db:getWorkflowById', id),
-        saveWorkflow: (name, data, id) => invoke('db:saveWorkflow', { name, data, id }),
-        deleteWorkflow: (id) => invoke('db:deleteWorkflow', id),
-        getWorkflowVersions: (workflowId) => invoke('db:getWorkflowVersions', workflowId),
-        createWorkflowVersion: (workflowId, data) => invoke('db:createWorkflowVersion', { workflowId, data })
+        async getWorkflows(options) { return await ipcRenderer.invoke('db-get-workflows', options); },
+        async saveWorkflow(name, data, id) { return await ipcRenderer.invoke('db-save-workflow', { name, data, id }); },
+        async getWorkflowVersions(workflowId) { return await ipcRenderer.invoke('db-get-versions', workflowId); },
+        async saveWorkflowVersion(workflowId, data) { return await ipcRenderer.invoke('db-save-version', { workflowId, data }); },
+        // --- BẮT ĐẦU THÊM MÃ MỚI ---
+        // Hàm này còn thiếu và rất quan trọng cho Sub Workflow
+        async getWorkflowById(id) { return await ipcRenderer.invoke('db-get-workflow-by-id', id); },
+        async deleteWorkflow(id) { return await ipcRenderer.invoke('db-delete-workflow', id); }
+        // --- KẾT THÚC THÊM MÃ MỚI ---
     };
 
     // --- KHỞI TẠO CÁC THÀNH PHẦN CHÍNH ---
@@ -31,7 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
         environment: "production",
         adminEmail: "admin@example.com",
         todoId: 1
-    }, db, i18n);
+    }, db);
 
     window.workflowBuilder = workflowBuilder;
 

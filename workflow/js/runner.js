@@ -118,7 +118,6 @@ class WorkflowRunner {
         if (!this.isSubRunner) {
             this.logger.clear();
         }
-        
         this.logger.system(this.i18n.get('runner.start_log'));
         this.executionState = {};
         if (this.builder) this.builder.executionState = this.executionState;

@@ -40,6 +40,7 @@ const initializeApi = async () => {
     // Expose toàn bộ API ra window
     contextBridge.exposeInMainWorld('api', {
         invoke: (channel, ...args) => ipcRenderer.invoke(channel, ...args),
+        sendToHost: (channel, ...args) => ipcRenderer.sendToHost(channel, ...args), // <== ADD THIS LINE
         send: (channel, ...args) => ipcRenderer.send(channel, ...args),
         on: (channel, func) => {
             const validChannels = ['window-state-changed', 'workflow-renamed'];
