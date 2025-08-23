@@ -26,10 +26,7 @@ class WorkflowBuilder extends EventTarget {
         this.selectedConnection = null;
         this.lastMousePosition = { x: 0, y: 0 };
         
-        // ---- THAY ĐỔI ----
-        // this.isSimulating = false; // Thuộc tính này sẽ do runner quản lý
-        this.runner = null; // Thêm thuộc tính runner
-        // ---- KẾT THÚC THAY ĐỔI ----
+        this.runner = null;
 
         this.dom = {};
         this.activeVariablePicker = { targetInput: null };
@@ -82,9 +79,7 @@ class WorkflowBuilder extends EventTarget {
         this.logger = new Logger(this.dom.consoleOutput);
         this.settingsRenderer = new SettingsRenderer(this);
         
-        // ---- THÊM MỚI ----
         this.runner = new WorkflowRunner(this);
-        // ---- KẾT THÚC ----
 
         const formBuilderModalEl = document.getElementById('form-builder-modal');
         if (formBuilderModalEl) {
@@ -128,10 +123,14 @@ class WorkflowBuilder extends EventTarget {
     updateNodeData(nodeId, newData) {
         const node = this.getNode(nodeId);
         if (node) {
-            Object.assign(node.data, newData);
-            if (node.data.title) {
+             // Sử dụng setProperty để xử lý các đường dẫn lồng nhau như 'inputs.apiKey'
+            Object.keys(newData).forEach(key => {
+                this._setProperty(node.data, key, newData[key]);
+            });
+
+            if (newData.title) {
                 const titleEl = node.element.querySelector('.node-title');
-                if (titleEl) titleEl.textContent = node.data.title;
+                if (titleEl) titleEl.textContent = newData.title;
             }
             if (this.selectedNodes.some(n => n.id === nodeId)) {
                 this._updateSettingsPanel();
@@ -167,14 +166,11 @@ class WorkflowBuilder extends EventTarget {
         this._commitState(i18n.get('workflow.state_commit.form_edit')); 
     }
 
-    // --- THAY ĐỔI ---
-    // Phương thức runSimulation giờ chỉ gọi runner
     runSimulation() {
         if (this.runner) {
             this.runner.run();
         }
     }
-    // ---- KẾT THÚC ----
 
     // --- INTERNAL METHODS ---
     _queryDOMElements() {
@@ -193,7 +189,7 @@ class WorkflowBuilder extends EventTarget {
             categoryDiv.className = 'palette-category';
             const title = document.createElement('h6');
             title.className = 'text-muted small fw-bold text-uppercase mb-2 mt-3';
-            title.textContent = category.name; // This name could also be internationalized if needed
+            title.textContent = category.name; 
             categoryDiv.appendChild(title);
             const gridDiv = document.createElement('div');
             gridDiv.className = 'palette-grid';
@@ -501,14 +497,19 @@ class WorkflowBuilder extends EventTarget {
         e.preventDefault();
         const data = JSON.parse(e.dataTransfer.getData('application/json'));
         if (!data || !data.type) return;
+
         const rect = this.dom.canvasContainer.getBoundingClientRect();
         const x = (e.clientX - rect.left - this.panState.translateX) / this.panState.scale;
         const y = (e.clientY - rect.top - this.panState.translateY) / this.panState.scale;
+        
         this._clearSelection();
-        const newNode = this._createNode(data.type, { x, y });
-        this._addNodeToSelection(newNode);
-        this._showSettingsPanel();
-        this._commitState(i18n.get('workflow.state_commit.node_create'));
+        const newNode = this._createNode(data.type, { x, y }, data.initialData);
+
+        if (newNode) {
+            this._addNodeToSelection(newNode);
+            this._showSettingsPanel();
+            this._commitState(i18n.get('workflow.state_commit.node_create'));
+        }
     }
 
     _handlePaletteSearch() {
@@ -529,14 +530,13 @@ class WorkflowBuilder extends EventTarget {
     _createNode(type, position, initialData = null, forcedId = null) {
         const nodeConfig = this._findNodeConfig(type);
         if (!nodeConfig) {
-            console.error(i18n.get('workflow.logs.invalid_node_config', { type }));
+            console.error(`Could not find configuration for node type "${type}".`);
             return null;
         }
+        
         const category = this.config.nodeCategories.find(c => c.nodes.some(n => n.type === type));
-        const categoryColor = category ? category.color : '#6c757d';
-
-        const lang = i18n.currentLanguage;
-        const nodeLocale = nodeConfig.locales?.[lang] || {};
+        // For sub_workflow, we can hardcode the color if not found in dynamic categories
+        const categoryColor = category ? category.color : (type === 'sub_workflow' ? '#9c27b0' : '#6c757d');
 
         const nodeType = nodeConfig.type;
         const nodeId = forcedId ? forcedId : (() => {
@@ -551,10 +551,10 @@ class WorkflowBuilder extends EventTarget {
         nodeElement.style.top = `${position.y}px`;
         nodeElement.style.setProperty('--node-category-color', categoryColor);
 
-
-        const nodeData = initialData ? JSON.parse(JSON.stringify(initialData)) : JSON.parse(JSON.stringify(nodeConfig.defaultData || {}));
-        nodeData.title = nodeData.title || nodeLocale.title || nodeConfig.title;
-
+        const defaultNodeData = JSON.parse(JSON.stringify(nodeConfig.defaultData || {}));
+        const nodeData = Object.assign(defaultNodeData, initialData || {});
+        nodeData.title = (initialData && initialData.title) || nodeConfig.title || 'Untitled';
+        
         nodeElement.innerHTML = this.templates.nodeContent
             .replace(/{{icon}}/g, nodeConfig.icon || '')
             .replace(/{{title}}/g, nodeData.title)
@@ -817,6 +817,23 @@ class WorkflowBuilder extends EventTarget {
         current[keys[keys.length - 1]] = value;
     }
     
+    _transformFormDefToSettingsConfig(formDefinition) {
+        if (!formDefinition || formDefinition.length === 0) {
+            return [];
+        }
+
+        return formDefinition.map(component => {
+            const setting = {
+                type: component.type,
+                name: `inputs.${component.name || component.id}`,
+                label: component.label,
+                placeholder: component.placeholder || '',
+                options: component.options || []
+            };
+            return setting;
+        });
+    }
+
     _updateSettingsPanel() {
         const content = this.dom.settingsPanel;
         if (this.selectedNodes.length !== 1) {
@@ -824,50 +841,46 @@ class WorkflowBuilder extends EventTarget {
             return;
         }
 
-        let activeTabId = null;
-        const activeTabButton = content.querySelector('.nav-tabs .nav-link.active');
-        if (activeTabButton) {
-            activeTabId = activeTabButton.getAttribute('data-bs-target');
-        }
-        
         const node = this.selectedNodes[0];
         const nodeConfig = this._findNodeConfig(node.type);
-        
+
         const panelTemplate = this.templates.settingsPanel;
         const titleValue = this._getProperty(node.data, 'title') || '';
         content.innerHTML = panelTemplate.replace('{{id}}', node.id).replace('{{title}}', titleValue);
 
         const titleInput = content.querySelector('#settings-title-input');
-        if(titleInput) {
+        if (titleInput) {
             titleInput.value = titleValue;
             titleInput.addEventListener('input', (e) => {
-                const newTitle = e.target.value;
-                this._setProperty(node.data, 'title', newTitle);
-                 const titleEl = node.element.querySelector('.node-title');
-                if (titleEl) titleEl.textContent = newTitle;
-                this._commitState(i18n.get('workflow.state_commit.title_edit'));
+                this.updateNodeData(node.id, { title: e.target.value });
             });
         }
-        
-        content.querySelector('[data-action="close-settings"]')?.addEventListener('click', () => this._hideSettingsPanel());
 
+        content.querySelector('[data-action="close-settings"]')?.addEventListener('click', () => this._hideSettingsPanel());
         const fieldsContainer = content.querySelector('[data-ref="fields-container"]');
-        if (fieldsContainer && nodeConfig.settings) {
+        
+        let settingsToRender = [];
+
+        if (node.type === 'sub_workflow') {
+            settingsToRender = this._transformFormDefToSettingsConfig(node.data.formDefinition);
+            if (settingsToRender.length === 0) {
+                fieldsContainer.innerHTML = `<p class="text-muted p-3">Workflow này không có form cài đặt.</p>`;
+            }
+        } else if (nodeConfig && nodeConfig.settings) {
+            settingsToRender = nodeConfig.settings;
+        }
+
+        if (fieldsContainer && settingsToRender.length > 0) {
             const formElements = this.settingsRenderer.renderAndBind(
-                nodeConfig.settings, 
-                node.id, 
+                settingsToRender,
+                node.id,
                 node.data,
                 nodeConfig
             );
             fieldsContainer.appendChild(formElements);
         }
 
-        if (activeTabId) {
-            const newTabButton = content.querySelector(`[data-bs-target="${activeTabId}"]`);
-            if (newTabButton) {
-                new bootstrap.Tab(newTabButton).show();
-            }
-        }
+        this._showSettingsPanel();
     }
 
     _handleInputPortMouseDown(e, endNode, endPort) {
@@ -884,7 +897,6 @@ class WorkflowBuilder extends EventTarget {
         if (connToDetach.label) {
             connToDetach.label.style.visibility = 'hidden';
         }
-
 
         const tempLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
         tempLabel.setAttribute('class', 'port-label');
@@ -1141,6 +1153,25 @@ class WorkflowBuilder extends EventTarget {
     }
 
     _findNodeConfig(type) {
+        // --- BẮT ĐẦU SỬA LỖI ---
+        // Xử lý đặc biệt cho "sub_workflow" vì nó không được tải động từ file
+        if (type === 'sub_workflow') {
+            return {
+                type: 'sub_workflow',
+                displayName: 'Workflow Node',
+                icon: '<i class="ri-git-merge-line"></i>',
+                defaultData: {
+                    title: 'Workflow',
+                    workflowId: null,
+                    formDefinition: [],
+                    inputs: {}
+                },
+                outputs: ['success', 'error']
+            };
+        }
+        // --- KẾT THÚC SỬA LỖI ---
+
+        // Logic cũ để tìm các node được tải động
         for (const category of this.config.nodeCategories) {
             const foundNode = category.nodes.find(node => node.type === type);
             if (foundNode) return foundNode;
@@ -1425,11 +1456,6 @@ class WorkflowBuilder extends EventTarget {
             return value;
         });
     }
-
-    // ---- LOGIC ĐÃ BỊ XÓA TỪ ĐÂY ----
-    // async runSimulation() { ... }
-    // async _executeNode(node, tryCatchStack) { ... }
-    // ---- KẾT THÚC ----
     
     async _animateConnection(connection) {
         const pulse = document.createElementNS('http://www.w3.org/2000/svg', 'path');

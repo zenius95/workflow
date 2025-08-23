@@ -13,6 +13,6 @@ if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         workflowConfig,
         getProperty,
-        setProperty
+        setProperty,
     };
 }

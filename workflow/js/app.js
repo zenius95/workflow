@@ -70,7 +70,21 @@ document.addEventListener('DOMContentLoaded', () => {
             
             item.className = 'd-flex align-items-center palette-node p-3 bg-body-tertiary rounded-3';
             item.draggable = true;
-            /*item.dataset.type = nodeConfig.type;*/
+            
+            item.addEventListener('dragstart', (e) => {
+                const workflowData = allWorkflowsCache.find(w => w.id === wf.id);
+                if (workflowData && workflowData.data) {
+                    const payload = {
+                        type: 'sub_workflow',
+                        initialData: {
+                            title: workflowData.name,
+                            workflowId: workflowData.id,
+                            formDefinition: workflowData.data.formBuilder || []
+                        }
+                    };
+                    e.dataTransfer.setData('application/json', JSON.stringify(payload));
+                }
+            });
 
             item.innerHTML = `
                 <span class="rounded-3 text-white d-flex align-items-center justify-content-center me-2 bg-primary" style="width: 25px; height: 25px;"><i class="ri-git-pull-request-line"></i></span>
@@ -85,12 +99,23 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
+    // --- BẮT ĐẦU THAY ĐỔI ---
+    const updateRenderedWorkflowList = () => {
+        const query = workflowSearchInput.value.toLowerCase();
+        // Lọc theo từ khóa tìm kiếm VÀ lọc bỏ workflow hiện tại
+        const filtered = allWorkflowsCache.filter(wf => 
+            wf.id !== currentWorkflowId && wf.name.toLowerCase().includes(query)
+        );
+        renderWorkflowList(filtered);
+    };
+    // --- KẾT THÚC THAY ĐỔI ---
+
     const loadWorkflowsToTab = async () => {
         workflowListContainer.innerHTML = `<p class="text-muted text-center p-3">${i18n.get('workflow_page.workflows_tab.loading')}</p>`;
         try {
             const result = await db.getWorkflows();
             allWorkflowsCache = result.rows;
-            renderWorkflowList(allWorkflowsCache);
+            updateRenderedWorkflowList(); // Sử dụng hàm cập nhật mới
         } catch (error) {
             console.error('Failed to load workflows for tab:', error);
             workflowListContainer.innerHTML = `<p class="text-danger text-center p-3">${i18n.get('workflow_page.workflows_tab.load_error')}</p>`;
@@ -101,11 +126,7 @@ document.addEventListener('DOMContentLoaded', () => {
         workflowsTabBtn.addEventListener('show.bs.tab', loadWorkflowsToTab);
     }
     if (workflowSearchInput) {
-        workflowSearchInput.addEventListener('input', () => {
-            const query = workflowSearchInput.value.toLowerCase();
-            const filtered = allWorkflowsCache.filter(wf => wf.name.toLowerCase().includes(query));
-            renderWorkflowList(filtered);
-        });
+        workflowSearchInput.addEventListener('input', updateRenderedWorkflowList); // Sử dụng hàm cập nhật mới
     }
     // --- *** KẾT THÚC: LOGIC CHO TAB WORKFLOWS *** ---
 
