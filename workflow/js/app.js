@@ -50,6 +50,66 @@ document.addEventListener('DOMContentLoaded', () => {
     const AUTOSAVE_INTERVAL_MS = 2000;
     const VERSION_INTERVAL_MS = 30000;
 
+    // --- *** BẮT ĐẦU: LOGIC CHO TAB WORKFLOWS *** ---
+    const workflowsTabBtn = document.getElementById('workflows-tab-btn');
+    const workflowListContainer = document.getElementById('workflow-list');
+    const workflowSearchInput = document.getElementById('workflow-list-search');
+    let allWorkflowsCache = []; // Cache để tìm kiếm nhanh hơn
+
+    /**
+     * [CẬP NHẬT] Render danh sách workflow với giao diện giống node
+     */
+    const renderWorkflowList = (workflows) => {
+        workflowListContainer.innerHTML = '';
+        if (workflows.length === 0) {
+            workflowListContainer.innerHTML = `<p class="text-muted text-center p-3">${i18n.get('workflow_page.workflows_tab.no_workflows')}</p>`;
+            return;
+        }
+        workflows.forEach(wf => {
+            const item = document.createElement('div');
+            
+            item.className = 'd-flex align-items-center palette-node p-3 bg-body-tertiary rounded-3';
+            item.draggable = true;
+            /*item.dataset.type = nodeConfig.type;*/
+
+            item.innerHTML = `
+                <span class="rounded-3 text-white d-flex align-items-center justify-content-center me-2 bg-primary" style="width: 25px; height: 25px;"><i class="ri-git-pull-request-line"></i></span>
+                <span class="fw-bold">${wf.name}</span>
+            `;
+
+            item.addEventListener('click', (e) => {
+                e.preventDefault();
+                ipcRenderer.send('open-workflow-in-new-tab', wf.id);
+            });
+            workflowListContainer.appendChild(item);
+        });
+    };
+
+    const loadWorkflowsToTab = async () => {
+        workflowListContainer.innerHTML = `<p class="text-muted text-center p-3">${i18n.get('workflow_page.workflows_tab.loading')}</p>`;
+        try {
+            const result = await db.getWorkflows();
+            allWorkflowsCache = result.rows;
+            renderWorkflowList(allWorkflowsCache);
+        } catch (error) {
+            console.error('Failed to load workflows for tab:', error);
+            workflowListContainer.innerHTML = `<p class="text-danger text-center p-3">${i18n.get('workflow_page.workflows_tab.load_error')}</p>`;
+        }
+    };
+
+    if (workflowsTabBtn) {
+        workflowsTabBtn.addEventListener('show.bs.tab', loadWorkflowsToTab);
+    }
+    if (workflowSearchInput) {
+        workflowSearchInput.addEventListener('input', () => {
+            const query = workflowSearchInput.value.toLowerCase();
+            const filtered = allWorkflowsCache.filter(wf => wf.name.toLowerCase().includes(query));
+            renderWorkflowList(filtered);
+        });
+    }
+    // --- *** KẾT THÚC: LOGIC CHO TAB WORKFLOWS *** ---
+
+
     // --- LOGIC TRẠNG THÁI LƯU ---
     const setSaveStatus = (status, message = '') => {
         saveStatusEl.className = `save-status ${status}`;
@@ -260,7 +320,7 @@ document.addEventListener('DOMContentLoaded', () => {
             setTimeout(() => {
                 try {
                     workflowBuilder.loadWorkflow(versionData);
-                    new bootstrap.Tab(document.getElementById('nodes-tab')).show();
+                    new bootstrap.Tab(document.getElementById('nodes-tab-btn')).show();
                     workflowBuilder.logger.system(i18n.get('app.restored_log'));
                 } finally {
                     hideLoading();

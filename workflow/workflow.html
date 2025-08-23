@@ -59,8 +59,36 @@
             <aside class="d-flex flex-column flex-shrink-0 border-end bg-white h-100" style="width: 380px;">
                 <div class="tab-content overflow-auto h-100" id="left-panel-tab-content">
                     <div class="tab-pane show active p-3" id="tab-pane-nodes" role="tabpanel" aria-labelledby="nodes-tab">
-                        <input type="search" data-ref="palette-search" data-i18n-placeholder="workflow_page.nodes_tab.search_placeholder" class="form-control form-control-sm mb-3">
-                        <div data-ref="palette-content"></div>
+
+                        <ul class="nav nav-tabs" id="side-panel-tabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="nodes-tab-btn" data-bs-toggle="tab" data-bs-target="#nodes-panel" type="button" role="tab" aria-controls="nodes-panel" aria-selected="true" data-i18n="workflow_page.tabs.nodes"></button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="workflows-tab-btn" data-bs-toggle="tab" data-bs-target="#workflows-panel" type="button" role="tab" aria-controls="workflows-panel" aria-selected="false" data-i18n="workflow_page.tabs.workflows"></button>
+                            </li>
+                        </ul>
+
+                        <div class="tab-content" id="side-panel-tab-content">
+                            <div class="tab-pane fade show active" id="nodes-panel" role="tabpanel" aria-labelledby="nodes-tab-btn">
+                                <div class="p-2">
+                                    <input type="search" data-ref="palette-search" data-i18n-placeholder="workflow_page.nodes_tab.search_placeholder" class="form-control form-control-sm mb-3">
+                                </div>
+                                <div data-ref="palette-content"></div>
+                            </div>
+                            <div class="tab-pane fade" id="workflows-panel" role="tabpanel" aria-labelledby="workflows-tab-btn">
+                                <div class="p-2">
+                                    <input type="search" id="workflow-list-search" id="workflow-list-search" data-i18n-placeholder="workflow_page.workflows_tab.search_placeholderr" class="form-control form-control-sm mb-3">
+                                </div>
+                                <div>
+                                    <div class="palette-category"><h6 class="text-muted small fw-bold text-uppercase mb-2 mt-3">Actions</h6>
+                                        <div class="palette-grid">
+                                            <div id="workflow-list"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     <div class="tab-pane p-3" id="tab-pane-variables" role="tabpanel" aria-labelledby="variables-tab" data-ref="variables-panel">
                          <div class="mb-4">
@@ -280,6 +308,7 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="js/logger.js"></script>
     <script src="js/setting.js"></script>
+    <script src="js/runner.js"></script>
     <script src="js/workflow.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     <script src="js/form-builder.js"></script>

@@ -231,7 +231,9 @@
         "nodes": "Nodes",
         "variables": "Variables",
         "history": "History",
-        "form": "Form"
+        "form": "Form",
+        "nodes": "Nodes",
+        "workflows": "Workflows"
     },
     "nodes_tab": {
         "search_placeholder": "Search nodes..."
@@ -294,6 +296,12 @@
         "title": "Save Workflow",
         "name_label": "Workflow Name",
         "save_button": "Save"
+    },
+    "workflows_tab": {
+        "no_workflows": "No workflows found.",
+        "loading": "Loading...",
+        "load_error": "Failed to load workflows.",
+        "search_placeholderr": "Search workflows..."
     }
   }
 }

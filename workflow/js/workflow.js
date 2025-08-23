@@ -25,7 +25,12 @@ class WorkflowBuilder extends EventTarget {
         this.selectedNodes = [];
         this.selectedConnection = null;
         this.lastMousePosition = { x: 0, y: 0 };
-        this.isSimulating = false;
+        
+        // ---- THAY ĐỔI ----
+        // this.isSimulating = false; // Thuộc tính này sẽ do runner quản lý
+        this.runner = null; // Thêm thuộc tính runner
+        // ---- KẾT THÚC THAY ĐỔI ----
+
         this.dom = {};
         this.activeVariablePicker = { targetInput: null };
         this.activeVariableContext = null;
@@ -77,6 +82,10 @@ class WorkflowBuilder extends EventTarget {
         this.logger = new Logger(this.dom.consoleOutput);
         this.settingsRenderer = new SettingsRenderer(this);
         
+        // ---- THÊM MỚI ----
+        this.runner = new WorkflowRunner(this);
+        // ---- KẾT THÚC ----
+
         const formBuilderModalEl = document.getElementById('form-builder-modal');
         if (formBuilderModalEl) {
             this.formBuilder = new FormBuilder(this);
@@ -158,6 +167,15 @@ class WorkflowBuilder extends EventTarget {
         this._commitState(i18n.get('workflow.state_commit.form_edit')); 
     }
 
+    // --- THAY ĐỔI ---
+    // Phương thức runSimulation giờ chỉ gọi runner
+    runSimulation() {
+        if (this.runner) {
+            this.runner.run();
+        }
+    }
+    // ---- KẾT THÚC ----
+
     // --- INTERNAL METHODS ---
     _queryDOMElements() {
         const DOMElements = document.querySelectorAll('[data-ref]');
@@ -238,7 +256,6 @@ class WorkflowBuilder extends EventTarget {
         this.dom.workflowHeader.querySelector('[data-action="workflow-setting"]').addEventListener('click', (e) => this._handleWorkflowSettingClick(e));
 
         document.addEventListener('click', (e) => {
-            // Đã bao gồm logic đóng workflow-setting-menu khi click ra ngoài
             this._hideAllContextMenus(); 
             if (!e.target.closest('.variable-picker-popup') && !e.target.closest('.variable-picker-btn')) {
                 this._hideVariablePicker();
@@ -393,11 +410,7 @@ class WorkflowBuilder extends EventTarget {
             this._drawConnectorPath(this.connectionState.line, startPos.x, startPos.y, endX, endY);
             
             if (this.connectionState.label) {
-                // ***LOGIC SỬA LỖI TẠI ĐÂY***
-                // Áp dụng logic tương tự cho label tạm thời
-                // Nếu điểm cuối (con trỏ chuột) thấp hơn điểm đầu, đặt label BÊN DƯỚI
                 const yOffset = (endY > startPos.y) ? 15 : -8;
-
                 this.connectionState.label.setAttribute('x', endX - 45);
                 this.connectionState.label.setAttribute('y', endY + yOffset);
                 this.connectionState.label.setAttribute('text-anchor', 'middle');
@@ -426,14 +439,10 @@ class WorkflowBuilder extends EventTarget {
 
         if (isDrawing && !e.target.closest('.port')) {
             if (detachingConnection) {
-                // Nếu đang gỡ và thả ra ngoài -> Xóa kết nối
                 this._deleteConnection(detachingConnection, true);
             } else {
-                // Nếu đang tạo mới và thả ra ngoài -> Hủy
                 if (line) line.remove();
                 
-                // ***SỬA LỖI LOGIC TẠI ĐÂY***
-                // Chỉ hiển thị lại label tĩnh nếu không còn kết nối nào khác từ port này
                 const hasExistingConnection = this.connections.some(c => c.from === startNode.id && c.fromPort === startPortName);
                 if (!hasExistingConnection) {
                     const staticLabel = startNode.element.querySelector(`.port-label[data-port-name="${startPortName}"]`);
@@ -461,13 +470,11 @@ class WorkflowBuilder extends EventTarget {
         }
     }
 
-
     _handleKeyDown(e) {
         if (this.isFormBuilderOpen) return;
         const activeEl = document.activeElement;
         if (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA') return;
 
-        // Nếu người dùng đang bôi đen text, không chặn Ctrl+C/V để trình duyệt xử lý copy/paste text
         const selection = window.getSelection();
         if (selection && selection.type === 'Range' && selection.toString().length > 0) return;
 
@@ -525,7 +532,6 @@ class WorkflowBuilder extends EventTarget {
             console.error(i18n.get('workflow.logs.invalid_node_config', { type }));
             return null;
         }
-        // Tìm category để lấy màu
         const category = this.config.nodeCategories.find(c => c.nodes.some(n => n.type === type));
         const categoryColor = category ? category.color : '#6c757d';
 
@@ -543,7 +549,6 @@ class WorkflowBuilder extends EventTarget {
         nodeElement.className = 'node';
         nodeElement.style.left = `${position.x}px`;
         nodeElement.style.top = `${position.y}px`;
-        // Lưu màu vào custom property để CSS có thể sử dụng
         nodeElement.style.setProperty('--node-category-color', categoryColor);
 
 
@@ -568,8 +573,7 @@ class WorkflowBuilder extends EventTarget {
             outPort.dataset.portName = portName;
             outPort.style.top = `${(index + 1) * (100 / (outputNames.length + 1))}%`;
             outPort.style.transform = 'translateY(-50%)';
-            // Tạo label dạng <span> bên trong port, CSS sẽ lo phần định vị
-            if (outputNames.length > 0) { // Luôn hiển thị label
+            if (outputNames.length > 0) {
                 outPort.innerHTML = `<span class="port-label" data-port-name="${portName}">${portName}</span>`;
             }
             nodeElement.appendChild(outPort);
@@ -691,18 +695,14 @@ class WorkflowBuilder extends EventTarget {
     _deleteConnection(connToDelete, commit = true) {
         if (!connToDelete) return;
 
-        // Lọc ra kết nối bị xóa
         this.connections = this.connections.filter(c => c.id !== connToDelete.id);
         connToDelete.line.remove();
         if (connToDelete.label) {
             connToDelete.label.remove();
         }
 
-        // ***SỬA LỖI LOGIC TẠI ĐÂY***
-        // Kiểm tra xem có còn kết nối nào khác từ port nguồn không
         const hasOtherConnections = this.connections.some(c => c.from === connToDelete.from && c.fromPort === connToDelete.fromPort);
 
-        // Nếu không còn, hiển thị lại label tĩnh
         if (!hasOtherConnections) {
             const startNode = this.nodes.find(n => n.id === connToDelete.from);
             if (startNode) {
@@ -872,14 +872,13 @@ class WorkflowBuilder extends EventTarget {
 
     _handleInputPortMouseDown(e, endNode, endPort) {
         e.stopPropagation();
-        e.preventDefault(); // Ngăn các sự kiện không mong muốn
+        e.preventDefault();
         const connToDetach = this.connections.find(c => c.to === endNode.id);
         if (!connToDetach) return;
 
         const startNode = this.nodes.find(n => n.id === connToDetach.from);
         if (!startNode) return;
 
-        // 1. "Gỡ" đường nối về mặt giao diện
         connToDetach.line.classList.add('connector-line-drawing');
         
         if (connToDetach.label) {
@@ -887,14 +886,12 @@ class WorkflowBuilder extends EventTarget {
         }
 
 
-        // 2. Tạo label tạm thời đi theo chuột
         const tempLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
         tempLabel.setAttribute('class', 'port-label');
         tempLabel.setAttribute('data-port-name', connToDetach.label.textContent);
         tempLabel.textContent = connToDetach.fromPort;
         this.dom.connectorSvg.appendChild(tempLabel);
 
-        // 3. Vào trạng thái vẽ, và lưu lại kết nối gốc đang được gỡ
         this.connectionState = {
             isDrawing: true,
             startNode: startNode,
@@ -911,13 +908,11 @@ class WorkflowBuilder extends EventTarget {
             const portName = port.dataset.portName;
             const line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
 
-            // Gán cả 2 class và data attribute để CSS có thể áp dụng màu sắc ngay lập tức
             line.setAttribute('class', 'connector-line connector-line-drawing');
             line.dataset.fromPort = portName;
             line.setAttribute('stroke-linejoin', 'round');
             line.setAttribute('stroke-linecap', 'round');
 
-            // Tạo label tạm thời để đi theo chuột
             const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
             label.setAttribute('class', 'port-label');
             label.setAttribute('data-port-name', portName);
@@ -926,7 +921,6 @@ class WorkflowBuilder extends EventTarget {
             this.dom.connectorSvg.appendChild(line);
             this.dom.connectorSvg.appendChild(label);
 
-            // Ẩn label tĩnh trên node
             const staticLabel = port.querySelector('.port-label');
             if (staticLabel) staticLabel.style.visibility = 'hidden';
 
@@ -936,7 +930,7 @@ class WorkflowBuilder extends EventTarget {
                 startPortName: portName,
                 line: line,
                 label: label,
-                startPortElement: port // Lưu lại port để hiển thị lại label nếu hủy kết nối
+                startPortElement: port
             };
         }
     }
@@ -947,19 +941,15 @@ class WorkflowBuilder extends EventTarget {
 
         if (isDrawing && endPort.dataset.portType === 'in') {
             if (startNode.id !== endNode.id) {
-                // Chỉ tạo kết nối mới. Việc xóa kết nối cũ (nếu có) đã được xử lý ở đầu
                 this._createConnection(startNode, startPortName, endNode);
                 this._commitState(i18n.get('workflow.state_commit.connection_create'));
             }
         }
         
-        // Luôn dọn dẹp trạng thái "vẽ" sau khi nhả chuột trên một port
-        // Bất kể kết nối thành công hay không. Đây là bước sửa lỗi đường nối thừa.
         if (isDrawing) {
             if (line) line.remove();
             if (label) label.remove();
             
-            // Tìm và hiển thị lại label tĩnh nếu thao tác bị hủy
             const existingConnection = this.connections.some(c => c.from === startNode.id && c.fromPort === startPortName);
             if (!existingConnection) {
                  const staticLabel = startNode.element.querySelector(`.port-label[data-port-name="${startPortName}"]`);
@@ -971,19 +961,16 @@ class WorkflowBuilder extends EventTarget {
     }
 
     _createConnection(startNode, startPortName, endNode) {
-        // Xóa kết nối cũ nếu port 'in' đã có dây
         const existingInConnection = this.connections.find(c => c.to === endNode.id);
         if (existingInConnection) {
             this._deleteConnection(existingInConnection, false);
         }
 
-        // Ẩn label tĩnh của port nguồn
         const staticLabel = startNode.element.querySelector(`.port-label[data-port-name="${startPortName}"]`);
         if (staticLabel) {
             staticLabel.style.visibility = 'hidden';
         }
 
-        // Tạo đường nối và label động
         const line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         line.setAttribute('class', 'connector-line');
         line.dataset.fromPort = startPortName;
@@ -1034,12 +1021,9 @@ class WorkflowBuilder extends EventTarget {
             
             const pathLength = connection.line.getTotalLength();
             
-            // Xác định hướng của đường nối để đặt label ở trên hoặc dưới
-            // Nếu điểm cuối (endPos.y) thấp hơn điểm đầu (startPos.y), đặt label BÊN DƯỚI
             const yOffset = (endPos.y > startPos.y) ? 16 : -8;
 
             if (pathLength > 30) {
-                // Lấy điểm gần cuối của đường nối để đặt label
                 const labelAnchorPoint = connection.line.getPointAtLength(pathLength - 25);
                 
                 connection.label.setAttribute('x', labelAnchorPoint.x);
@@ -1048,7 +1032,6 @@ class WorkflowBuilder extends EventTarget {
                 connection.label.setAttribute('class', 'port-label');
                 connection.label.setAttribute('data-port-name', connection.label.textContent);
             } else {
-                // Nếu đường nối quá ngắn, đặt ở giữa cho an toàn
                 const midPoint = connection.line.getPointAtLength(pathLength / 2);
                 connection.label.setAttribute('x', midPoint.x);
                 connection.label.setAttribute('y', midPoint.y + yOffset);
@@ -1085,7 +1068,6 @@ class WorkflowBuilder extends EventTarget {
         path.setAttribute('d', d);
     }
 
-
     _updateConnectionsForNode(node) {
         this.connections.forEach(conn => {
             if (conn.from === node.id || conn.to === node.id) {
@@ -1119,30 +1101,21 @@ class WorkflowBuilder extends EventTarget {
     }
 
     _handleWorkflowSettingClick(e) {
-        e.stopPropagation(); // Ngăn sự kiện click lan ra document, tránh việc menu bị đóng ngay lập tức
+        e.stopPropagation();
         const menu = this.dom.workflowSettingMenu;
         const button = e.currentTarget;
 
-        // Kiểm tra xem menu đang mở hay không
         const isMenuOpen = menu.style.display === 'block';
-
-        // Đóng tất cả các menu khác trước khi thực hiện hành động
         this._hideAllContextMenus();
 
         if (!isMenuOpen) {
-            // Nếu menu đang đóng, thì mở nó ra
             const buttonRect = button.getBoundingClientRect();
             Object.assign(menu.style, {
                 display: 'block',
                 left: `${buttonRect.left}px`,
                 top: `${buttonRect.bottom + 5}px`
             });
-            
-            // Yêu cầu của sếp là có class d-flex, nút này đã có sẵn. 
-            // Tôi thêm class 'active' để sếp tiện style, ví dụ đổi màu nền.
-            // Nút này vốn đã có class `d-flex` rồi sếp nhé!
         }
-        // Nếu isMenuOpen là true, hàm _hideAllContextMenus() đã được gọi ở trên sẽ đóng nó lại.
     }
 
     _hideAllContextMenus() {
@@ -1192,7 +1165,6 @@ class WorkflowBuilder extends EventTarget {
                 id: n.id, type: n.type, x: n.x, y: n.y, data: JSON.parse(JSON.stringify(n.data))
             })),
             connections: this.connections.map(c => ({ from: c.from, fromPort: c.fromPort, to: c.to })),
-            // Dòng quan trọng đã được thêm vào đây
             formBuilder: this.formBuilderData
         };
     }
@@ -1279,19 +1251,16 @@ class WorkflowBuilder extends EventTarget {
         if (!this.dom.variablesPanel) return;
         this.dom.variablesPanel.querySelectorAll('details').forEach(d => { this.treeViewStates.set(d.id, d.open); });
         
-        // Render Global Variables
         const globalContainer = this.dom.globalVariablesContainer;
         globalContainer.innerHTML = '';
         globalContainer.appendChild(this._createTreeView(this.globalVariables, 'global'));
         
-        // Render Form Data
         if (this.dom.formDataContainer) {
             const formDataContainer = this.dom.formDataContainer;
             formDataContainer.innerHTML = '';
             formDataContainer.appendChild(this._createTreeView(this.formData, 'form'));
         }
 
-        // Render Node Outputs
         const nodeOutputsContainer = this.dom.nodeOutputsContainer;
         nodeOutputsContainer.innerHTML = '';
         nodeOutputsContainer.appendChild(this._createNodeOutputsTreeView(this.executionState));
@@ -1457,37 +1426,11 @@ class WorkflowBuilder extends EventTarget {
         });
     }
 
-    async runSimulation() {
-        if (this.isSimulating) return;
-        
-        if (!this.dom.consolePanel.classList.contains('show')) {
-            this._toggleConsole();
-        }
-
-        this.isSimulating = true;
-        this.dispatchEvent(new CustomEvent('simulation:started'));
-        const runButton = this.container.querySelector('[data-action="run-simulation"]');
-        runButton.disabled = true;
-        runButton.classList.add('opacity-50');
-        this.logger.clear();
-        this.logger.system(i18n.get('workflow.logs.simulation_start'));
-        this.executionState = {};
-        this.treeViewStates.clear();
-        this._updateVariablesPanel();
-        this.nodes.forEach(node => this._setNodeState(node, 'idle'));
-        const startNodes = this.nodes.filter(n => !this.connections.some(c => c.to === n.id));
-        if (startNodes.length === 0 && this.nodes.length > 0) {
-            this.logger.error(i18n.get('workflow.logs.no_start_node'));
-        } else {
-            await Promise.allSettled(startNodes.map(node => this._executeNode(node, [])));
-        }
-        this.logger.system(i18n.get('workflow.logs.simulation_end'));
-        this.isSimulating = false;
-        runButton.disabled = false;
-        runButton.classList.remove('opacity-50');
-        this.dispatchEvent(new CustomEvent('simulation:ended', { detail: { finalState: this.executionState } }));
-    }
-
+    // ---- LOGIC ĐÃ BỊ XÓA TỪ ĐÂY ----
+    // async runSimulation() { ... }
+    // async _executeNode(node, tryCatchStack) { ... }
+    // ---- KẾT THÚC ----
+    
     async _animateConnection(connection) {
         const pulse = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         Object.assign(pulse.style, { stroke: window.getComputedStyle(connection.line).stroke, strokeDasharray: `20 ${connection.line.getTotalLength()}` });
@@ -1497,96 +1440,6 @@ class WorkflowBuilder extends EventTarget {
         pulse.setAttribute('stroke-linecap', 'round');
         this.dom.connectorSvg.appendChild(pulse);
         setTimeout(() => { pulse.remove(); }, 600);
-    }
-
-    async _executeNode(node, tryCatchStack) {
-        const nodeConfig = this._findNodeConfig(node.type);
-        this.executionState[node.id] = { _status: 'running' };
-        this._updateVariablesPanel();
-        this._setNodeState(node, 'running');
-        this.dispatchEvent(new CustomEvent('simulation:node:start', { detail: { node } }));
-        const resolvedNodeData = JSON.parse(JSON.stringify(node.data));
-        const resolutionContext = { global: this.globalVariables, form: this.formData, ...this.executionState };
-        const resolveRecursively = (obj) => {
-            for (const key in obj) {
-                if (typeof obj[key] === 'string') obj[key] = this._resolveVariables(obj[key], resolutionContext);
-                else if (typeof obj[key] === 'object' && obj[key] !== null) resolveRecursively(obj[key]);
-            }
-        };
-        resolveRecursively(resolvedNodeData);
-        const executeNextNodes = async (portName, newTryCatchStack, callingNodeId = node.id) => {
-            const nextConnections = this.connections.filter(c => c.from === callingNodeId && c.fromPort === portName);
-            for (const conn of nextConnections) {
-                await this._animateConnection(conn);
-                const nextNode = this.nodes.find(n => n.id === conn.to);
-                if (nextNode) await this._executeNode(nextNode, newTryCatchStack);
-            }
-        };
-        if (node.type === 'try_catch') {
-            this.logger.info(i18n.get('workflow.logs.try_catch_start', { title: node.data.title }));
-            this._setNodeState(node, 'success');
-            this.executionState[node.id] = { status: 'try_path_taken' };
-            this._updateVariablesPanel();
-            this.dispatchEvent(new CustomEvent('simulation:node:end', { detail: { node, result: this.executionState[node.id] } }));
-            await executeNextNodes('try', [...tryCatchStack, node]);
-            return;
-        }
-        try {
-            if (node.type === 'loop') {
-                const items = await nodeConfig.execute(resolvedNodeData, this.logger, this);
-                const loopConnection = this.connections.find(c => c.from === node.id && c.fromPort === 'loop');
-                if (loopConnection) {
-                    const loopBodyStartNode = this.nodes.find(n => n.id === loopConnection.to);
-                    if (loopBodyStartNode) {
-                        for (let i = 0; i < items.length; i++) {
-                            const item = items[i];
-                            this.logger.info(i18n.get('workflow.logs.loop_iteration', { index: i + 1, total: items.length, item: JSON.stringify(item) }));
-                            this.executionState[node.id] = { currentItem: item, currentIndex: i, totalItems: items.length, _status: 'running' };
-                            this._updateVariablesPanel();
-                            await this._animateConnection(loopConnection);
-                            await this._executeNode(loopBodyStartNode, [...tryCatchStack]); 
-                        }
-                    }
-                }
-                this.logger.success(i18n.get('workflow.logs.loop_complete'));
-                this.executionState[node.id] = { allItems: items, count: items.length };
-                this._setNodeState(node, 'success');
-                this.dispatchEvent(new CustomEvent('simulation:node:end', { detail: { node, result: this.executionState[node.id] } }));
-                await executeNextNodes('done', tryCatchStack);
-                return;
-            }
-            const result = await nodeConfig.execute(resolvedNodeData, this.logger, this);
-            if (result?.hasOwnProperty('selectedPort')) {
-                this.executionState[node.id] = result.data;
-                this._setNodeState(node, 'success');
-                this.dispatchEvent(new CustomEvent('simulation:node:end', { detail: { node, result: result.data } }));
-                await executeNextNodes(result.selectedPort, tryCatchStack);
-            } else {
-                this.executionState[node.id] = result;
-                this._setNodeState(node, 'success');
-                this.dispatchEvent(new CustomEvent('simulation:node:end', { detail: { node, result } }));
-                await executeNextNodes((nodeConfig.outputs || ['success'])[0], tryCatchStack);
-            }
-        } catch (error) {
-            const errorResult = { error: error.message, ...error.context };
-            this.logger.error(i18n.get('workflow.logs.node_error', { title: node.data.title, message: error.message }));
-            this.executionState[node.id] = errorResult;
-            this._setNodeState(node, 'error');
-            this.dispatchEvent(new CustomEvent('simulation:node:end', { detail: { node, error: errorResult } }));
-            this._updateVariablesPanel();
-            const lastTryCatchNode = tryCatchStack.pop();
-            if (lastTryCatchNode) {
-                this.logger.info(i18n.get('workflow.logs.error_caught', { title: lastTryCatchNode.data.title }));
-                this.executionState.error = { message: error.message, sourceNode: node.id, context: error.context };
-                this._setNodeState(lastTryCatchNode, 'error');
-                this._updateVariablesPanel();
-                await executeNextNodes('catch', tryCatchStack, lastTryCatchNode.id);
-            } else {
-                await executeNextNodes('error', tryCatchStack);
-            }
-        } finally {
-            if (node.type !== 'loop') this._updateVariablesPanel();
-        }
     }
 
     _setNodeState(node, state) {
