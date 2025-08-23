@@ -1,220 +1,139 @@
-const sqlite3 = require('sqlite3').verbose();
+const { Sequelize, DataTypes, Op } = require('sequelize');
+
+function parseDataField(data) {
+    if (typeof data === 'string') {
+        try {
+            return JSON.parse(data);
+        } catch {
+            return {};
+        }
+    }
+    if (typeof data === 'object' && data !== null) {
+        return data;
+    }
+    return {};
+}
 
 class Database {
     constructor(dbPath) {
         this.dbPath = dbPath;
-        this.db = null;
-    }
-
-    connect() {
-        return new Promise((resolve, reject) => {
-            this.db = new sqlite3.Database(this.dbPath, (err) => {
-                if (err) {
-                    console.error('Could not connect to database', err);
-                    reject(err);
-                } else {
-                    console.log('Connected to database');
-                    resolve();
-                }
-            });
+        this.sequelize = new Sequelize({
+            dialect: 'sqlite',
+            storage: dbPath,
+            logging: false,
         });
+
+        this.Workflow = this.sequelize.define('Workflow', {
+            name: { type: DataTypes.STRING, allowNull: false },
+            data: { type: DataTypes.TEXT },
+            createdAt: { type: DataTypes.STRING, allowNull: false },
+            updatedAt: { type: DataTypes.STRING, allowNull: false },
+        }, {
+            tableName: 'workflows',
+            timestamps: false,
+        });
+
+        this.WorkflowVersion = this.sequelize.define('WorkflowVersion', {
+            workflow_id: { type: DataTypes.INTEGER, allowNull: false },
+            data: { type: DataTypes.TEXT },
+            createdAt: { type: DataTypes.STRING, allowNull: false },
+        }, {
+            tableName: 'workflow_versions',
+            timestamps: false,
+        });
+
+        this.WorkflowVersion.belongsTo(this.Workflow, { foreignKey: 'workflow_id', onDelete: 'CASCADE' });
     }
 
-    // PHIÊN BẢN HOÀN CHỈNH: Đảm bảo khởi tạo tuần tự, chống lỗi race condition
     async init() {
-        if (!this.db) {
-            await this.connect();
-        }
-
-        const runQuery = (query) => {
-            return new Promise((resolve, reject) => {
-                this.db.run(query, (err) => {
-                    if (err) {
-                        console.error("Database query failed:", query, err);
-                        return reject(err);
-                    }
-                    resolve();
-                });
-            });
-        };
-
-        const createWorkflowsTable = `
-            CREATE TABLE IF NOT EXISTS workflows (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                data TEXT,
-                createdAt TEXT NOT NULL,
-                updatedAt TEXT NOT NULL
-            );
-        `;
-        const createVersionsTable = `
-            CREATE TABLE IF NOT EXISTS workflow_versions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                workflow_id INTEGER NOT NULL,
-                data TEXT,
-                createdAt TEXT NOT NULL,
-                FOREIGN KEY (workflow_id) REFERENCES workflows (id) ON DELETE CASCADE
-            );
-        `;
-
-        try {
-            await runQuery(createWorkflowsTable);
-            await runQuery(createVersionsTable);
-            console.log("Database tables are ready.");
-        } catch (error) {
-            console.error("Failed to initialize database tables.", error);
-            throw error;
-        }
+        await this.sequelize.authenticate();
+        await this.Workflow.sync();
+        await this.WorkflowVersion.sync();
+        console.log("Database tables are ready.");
     }
 
-    getWorkflows(options = {}) {
+    async getWorkflows(options = {}) {
         const { limit = 15, offset = 0, searchTerm = '' } = options;
-        
-        return new Promise((resolve, reject) => {
-            const whereClause = searchTerm ? `WHERE name LIKE ?` : '';
-            const params = searchTerm ? [`%${searchTerm}%`] : [];
-            
-            const countQuery = `SELECT COUNT(*) as count FROM workflows ${whereClause}`;
-            
-            this.db.get(countQuery, params, (err, countRow) => {
-                if (err) {
-                    return reject(err);
-                }
-                
-                const query = `
-                    SELECT * FROM workflows 
-                    ${whereClause} 
-                    ORDER BY updatedAt DESC 
-                    LIMIT ? OFFSET ?
-                `;
-                
-                this.db.all(query, [...params, limit, offset], (err, rows) => {
-                    if (err) {
-                        reject(err);
-                    } else {
-                        resolve({
-                            count: countRow ? countRow.count : 0,
-                            rows: rows.map(row => ({
-                                ...row,
-                                data: JSON.parse(row.data || '{}')
-                            }))
-                        });
-                    }
-                });
-            });
+        const where = searchTerm ? { name: { [Op.like]: `%${searchTerm}%` } } : {};
+        const { count, rows } = await this.Workflow.findAndCountAll({
+            where,
+            order: [['updatedAt', 'DESC']],
+            limit,
+            offset,
         });
+        return {
+            count,
+            rows: rows.map(row => {
+                const obj = row.toJSON();
+                obj.data = parseDataField(obj.data);
+                return obj;
+            })
+        };
     }
 
-    deleteWorkflow(id) {
-        return new Promise((resolve, reject) => {
-            this.db.run('DELETE FROM workflows WHERE id = ?', [id], function(err) {
-                if (err) {
-                    reject({ success: false, message: err.message });
-                } else if (this.changes === 0) {
-                    resolve({ success: false, message: 'No workflow found with that ID.' });
-                } else {
-                    resolve({ success: true });
-                }
-            });
-        });
-    }
-    
-    getWorkflowVersions(workflowId) {
-        return new Promise((resolve, reject) => {
-            const query = `SELECT * FROM workflow_versions WHERE workflow_id = ? ORDER BY createdAt DESC`;
-            this.db.all(query, [workflowId], (err, rows) => {
-                if (err) {
-                    reject(err);
-                } else {
-                    resolve(rows.map(row => ({
-                        ...row,
-                        data: JSON.parse(row.data || '{}')
-                    })));
-                }
-            });
-        });
-    }
-
-    createWorkflowVersion(workflowId, data) {
-        return new Promise((resolve, reject) => {
-            const query = `INSERT INTO workflow_versions (workflow_id, data, createdAt) VALUES (?, ?, ?)`;
-            const dataJson = JSON.stringify(data);
-            const createdAt = new Date().toISOString();
-            this.db.run(query, [workflowId, dataJson, createdAt], function(err) {
-                if (err) {
-                    reject(err);
-                } else {
-                    resolve({ id: this.lastID });
-                }
-            });
-        });
-    }
-    
-    close() {
-        if (this.db) {
-            this.db.close((err) => {
-                if (err) {
-                    console.error(err.message);
-                }
-                console.log('Close the database connection.');
-            });
+    async deleteWorkflow(id) {
+        const result = await this.Workflow.destroy({ where: { id } });
+        if (result === 0) {
+            return { success: false, message: 'No workflow found with that ID.' };
         }
+        return { success: true };
     }
-    
-    // PHIÊN BẢN HOÀN CHỈNH: Đảm bảo parse JSON khi đọc
-    getWorkflowById(id) {
-        return new Promise((resolve, reject) => {
-          this.db.get('SELECT * FROM workflows WHERE id = ?', [id], (err, row) => {
-            if (err) {
-              console.error('Database error:', err.message);
-              reject(err);
-            } else {
-              if (row) {
-                row.data = JSON.parse(row.data || '{}');
-              }
-              resolve(row);
-            }
-          });
+
+    async getWorkflowVersions(workflowId) {
+        const rows = await this.WorkflowVersion.findAll({
+            where: { workflow_id: workflowId },
+            order: [['createdAt', 'DESC']]
+        });
+        return rows.map(row => {
+            const obj = row.toJSON();
+            obj.data = parseDataField(obj.data);
+            return obj;
         });
     }
-    
-    updateWorkflow(id, { name, data }) {
-        const dataJson = JSON.stringify(data);
-        const updatedAt = new Date().toISOString();
-        return new Promise((resolve, reject) => {
-          this.db.run(
-            'UPDATE workflows SET name = ?, data = ?, updatedAt = ? WHERE id = ?',
-            [name, dataJson, updatedAt, id],
-            function (err) {
-              if (err) {
-                console.error('Database error:', err.message);
-                reject(err);
-              } else {
-                resolve({ id: id, changes: this.changes });
-              }
-            }
-          );
-        });
-    }
-    
-    createWorkflow({ name, data }) {
-        const dataJson = JSON.stringify(data);
+
+    async createWorkflowVersion(workflowId, data) {
         const createdAt = new Date().toISOString();
-        const updatedAt = createdAt;
-        return new Promise((resolve, reject) => {
-          this.db.run(
-            'INSERT INTO workflows (name, data, createdAt, updatedAt) VALUES (?, ?, ?, ?)',
-            [name, dataJson, createdAt, updatedAt],
-            function (err) {
-              if (err) {
-                console.error('Database error:', err.message);
-                reject(err);
-              } else {
-                resolve({ id: this.lastID });
-              }
-            }
-          );
+        const row = await this.WorkflowVersion.create({
+            workflow_id: workflowId,
+            data: JSON.stringify(data),
+            createdAt,
         });
+        return { id: row.id };
+    }
+
+    async close() {
+        await this.sequelize.close();
+        console.log('Close the database connection.');
+    }
+
+    async getWorkflowById(id) {
+        const row = await this.Workflow.findByPk(id);
+        if (row) {
+            const obj = row.toJSON();
+            obj.data = parseDataField(obj.data);
+            return obj;
+        }
+        return null;
+    }
+
+    async updateWorkflow(id, { name, data }) {
+        const updatedAt = new Date().toISOString();
+        const [changes] = await this.Workflow.update(
+            { name, data: JSON.stringify(data), updatedAt },
+            { where: { id } }
+        );
+        return { id, changes };
+    }
+
+    async createWorkflow({ name, data }) {
+        const createdAt = new Date().toISOString();
+        const row = await this.Workflow.create({
+            name,
+            data: JSON.stringify(data),
+            createdAt,
+            updatedAt: createdAt,
+        });
+        return { id: row.id };
     }
 }
 

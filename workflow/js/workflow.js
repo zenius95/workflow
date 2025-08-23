@@ -349,7 +349,6 @@ class WorkflowBuilder extends EventTarget {
                     this.panState.isPanning = true;
                     this.panState.startX = e.clientX;
                     this.panState.startY = e.clientY;
-                    this.dom.canvasContainer.style.cursor = 'grabbing';
                 }
             }
         }
@@ -397,7 +396,6 @@ class WorkflowBuilder extends EventTarget {
     _handleMouseUp(e) {
         if (this.panState.isPanning) {
             this.panState.isPanning = false;
-            this.dom.canvasContainer.style.cursor = 'grab';
         }
         if (this.activeDrag.isDraggingNode) {
             this.dispatchEvent(new CustomEvent('node:drag:end', { detail: { nodes: this.activeDrag.draggedNodes.map(d => d.node) } }));
@@ -442,10 +440,27 @@ class WorkflowBuilder extends EventTarget {
         if (this.isFormBuilderOpen) return;
         const activeEl = document.activeElement;
         if (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA') return;
+
+        // Nếu người dùng đang bôi đen text, không chặn Ctrl+C/V để trình duyệt xử lý copy/paste text
+        const selection = window.getSelection();
+        if (selection && selection.type === 'Range' && selection.toString().length > 0) return;
+
         if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'Z' || e.key === 'z')) { e.preventDefault(); this._redo(); return; }
         if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); this._undo(); return; }
-        if ((e.ctrlKey || e.metaKey) && e.key === 'c') { e.preventDefault(); this._copySelectedItems(); return; }
-        if ((e.ctrlKey || e.metaKey) && e.key === 'v') { e.preventDefault(); this._pasteSelectedNodes(); return; }
+        if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+            if (this.selectedNodes.length > 0) {
+                e.preventDefault();
+                this._copySelectedItems();
+            }
+            return;
+        }
+        if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
+            if (this.clipboard && this.clipboard.type === 'nodes') {
+                e.preventDefault();
+                this._pasteSelectedNodes();
+            }
+            return;
+        }
         if (e.key === 'Delete' || e.key === 'Backspace') { this._deleteSelectedItems(); }
     }
 
