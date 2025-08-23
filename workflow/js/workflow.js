@@ -389,7 +389,19 @@ class WorkflowBuilder extends EventTarget {
             const endX = (e.clientX - rect.left) / this.panState.scale;
             const endY = (e.clientY - rect.top) / this.panState.scale;
             const startPos = this._getPortPosition(this.connectionState.startNode, this.connectionState.startPortName);
+            
             this._drawConnectorPath(this.connectionState.line, startPos.x, startPos.y, endX, endY);
+            
+            if (this.connectionState.label) {
+                // ***LOGIC SỬA LỖI TẠI ĐÂY***
+                // Áp dụng logic tương tự cho label tạm thời
+                // Nếu điểm cuối (con trỏ chuột) thấp hơn điểm đầu, đặt label BÊN DƯỚI
+                const yOffset = (endY > startPos.y) ? 15 : -8;
+
+                this.connectionState.label.setAttribute('x', endX - 45);
+                this.connectionState.label.setAttribute('y', endY + yOffset);
+                this.connectionState.label.setAttribute('text-anchor', 'middle');
+            }
         }
     }
 
@@ -399,27 +411,40 @@ class WorkflowBuilder extends EventTarget {
         }
         if (this.activeDrag.isDraggingNode) {
             this.dispatchEvent(new CustomEvent('node:drag:end', { detail: { nodes: this.activeDrag.draggedNodes.map(d => d.node) } }));
-            
-            // Check if any node has actually moved
             const hasMoved = this.activeDrag.draggedNodes.some(dragged => {
                 const { node, startX, startY } = dragged;
                 return node.x !== startX || node.y !== startY;
             });
-    
             if (hasMoved) {
                 this._commitState(i18n.get('workflow.state_commit.node_move'));
             }
-    
             this.activeDrag.isDraggingNode = false;
             this.activeDrag.draggedNodes = [];
         }
-        if (this.connectionState.isDrawing) {
-            if (this.connectionState.line?.parentNode) {
-                this.dom.connectorSvg.removeChild(this.connectionState.line);
+        
+        const { isDrawing, startNode, startPortName, detachingConnection, line, label } = this.connectionState;
+
+        if (isDrawing && !e.target.closest('.port')) {
+            if (detachingConnection) {
+                // Nếu đang gỡ và thả ra ngoài -> Xóa kết nối
+                this._deleteConnection(detachingConnection, true);
+            } else {
+                // Nếu đang tạo mới và thả ra ngoài -> Hủy
+                if (line) line.remove();
+                
+                // ***SỬA LỖI LOGIC TẠI ĐÂY***
+                // Chỉ hiển thị lại label tĩnh nếu không còn kết nối nào khác từ port này
+                const hasExistingConnection = this.connections.some(c => c.from === startNode.id && c.fromPort === startPortName);
+                if (!hasExistingConnection) {
+                    const staticLabel = startNode.element.querySelector(`.port-label[data-port-name="${startPortName}"]`);
+                    if (staticLabel) staticLabel.style.visibility = 'visible';
+                }
             }
-            this.connectionState.isDrawing = false;
-            this.connectionState.line = null;
+
+            if (label) label.remove();
+            this.connectionState = { isDrawing: false, startNode: null, startPortName: null, line: null, label: null, detachingConnection: null };
         }
+
         if (this.selectionBox.active) {
             const boxRect = this.selectionBox.element.getBoundingClientRect();
             this.nodes.forEach(node => {
@@ -435,6 +460,7 @@ class WorkflowBuilder extends EventTarget {
             this._updateSettingsPanel();
         }
     }
+
 
     _handleKeyDown(e) {
         if (this.isFormBuilderOpen) return;
@@ -499,6 +525,10 @@ class WorkflowBuilder extends EventTarget {
             console.error(i18n.get('workflow.logs.invalid_node_config', { type }));
             return null;
         }
+        // Tìm category để lấy màu
+        const category = this.config.nodeCategories.find(c => c.nodes.some(n => n.type === type));
+        const categoryColor = category ? category.color : '#6c757d';
+
         const lang = i18n.currentLanguage;
         const nodeLocale = nodeConfig.locales?.[lang] || {};
 
@@ -513,6 +543,9 @@ class WorkflowBuilder extends EventTarget {
         nodeElement.className = 'node';
         nodeElement.style.left = `${position.x}px`;
         nodeElement.style.top = `${position.y}px`;
+        // Lưu màu vào custom property để CSS có thể sử dụng
+        nodeElement.style.setProperty('--node-category-color', categoryColor);
+
 
         const nodeData = initialData ? JSON.parse(JSON.stringify(initialData)) : JSON.parse(JSON.stringify(nodeConfig.defaultData || {}));
         nodeData.title = nodeData.title || nodeLocale.title || nodeConfig.title;
@@ -535,8 +568,9 @@ class WorkflowBuilder extends EventTarget {
             outPort.dataset.portName = portName;
             outPort.style.top = `${(index + 1) * (100 / (outputNames.length + 1))}%`;
             outPort.style.transform = 'translateY(-50%)';
-            if (outputNames.length > 1) {
-                outPort.innerHTML = `<span class="port-label">${portName}</span>`;
+            // Tạo label dạng <span> bên trong port, CSS sẽ lo phần định vị
+            if (outputNames.length > 0) { // Luôn hiển thị label
+                outPort.innerHTML = `<span class="port-label" data-port-name="${portName}">${portName}</span>`;
             }
             nodeElement.appendChild(outPort);
         });
@@ -656,11 +690,31 @@ class WorkflowBuilder extends EventTarget {
 
     _deleteConnection(connToDelete, commit = true) {
         if (!connToDelete) return;
+
+        // Lọc ra kết nối bị xóa
         this.connections = this.connections.filter(c => c.id !== connToDelete.id);
         connToDelete.line.remove();
+        if (connToDelete.label) {
+            connToDelete.label.remove();
+        }
+
+        // ***SỬA LỖI LOGIC TẠI ĐÂY***
+        // Kiểm tra xem có còn kết nối nào khác từ port nguồn không
+        const hasOtherConnections = this.connections.some(c => c.from === connToDelete.from && c.fromPort === connToDelete.fromPort);
+
+        // Nếu không còn, hiển thị lại label tĩnh
+        if (!hasOtherConnections) {
+            const startNode = this.nodes.find(n => n.id === connToDelete.from);
+            if (startNode) {
+                const staticLabel = startNode.element.querySelector(`.port-label[data-port-name="${connToDelete.fromPort}"]`);
+                if (staticLabel) staticLabel.style.visibility = 'visible';
+            }
+        }
+
         if (this.selectedConnection?.id === connToDelete.id) {
             this.selectedConnection = null;
         }
+
         this.dispatchEvent(new CustomEvent('connection:removed', { detail: { connection: connToDelete } }));
         if (commit) this._commitState(i18n.get('workflow.state_commit.connection_delete'));
     }
@@ -818,62 +872,136 @@ class WorkflowBuilder extends EventTarget {
 
     _handleInputPortMouseDown(e, endNode, endPort) {
         e.stopPropagation();
+        e.preventDefault(); // Ngăn các sự kiện không mong muốn
         const connToDetach = this.connections.find(c => c.to === endNode.id);
         if (!connToDetach) return;
+
         const startNode = this.nodes.find(n => n.id === connToDetach.from);
         if (!startNode) return;
-        this._deleteConnection(connToDetach, false);
-        this._commitState(i18n.get('workflow.state_commit.connection_detach'));
-        connToDetach.line.classList.remove('selected');
+
+        // 1. "Gỡ" đường nối về mặt giao diện
         connToDetach.line.classList.add('connector-line-drawing');
-        this.connectionState = { isDrawing: true, startNode: startNode, startPortName: connToDetach.fromPort, line: connToDetach.line };
+        
+        if (connToDetach.label) {
+            connToDetach.label.style.visibility = 'hidden';
+        }
+
+
+        // 2. Tạo label tạm thời đi theo chuột
+        const tempLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        tempLabel.setAttribute('class', 'port-label');
+        tempLabel.setAttribute('data-port-name', connToDetach.label.textContent);
+        tempLabel.textContent = connToDetach.fromPort;
+        this.dom.connectorSvg.appendChild(tempLabel);
+
+        // 3. Vào trạng thái vẽ, và lưu lại kết nối gốc đang được gỡ
+        this.connectionState = {
+            isDrawing: true,
+            startNode: startNode,
+            startPortName: connToDetach.fromPort,
+            line: connToDetach.line,       
+            label: tempLabel,      
+            detachingConnection: connToDetach 
+        };
     }
 
     _handlePortMouseDown(e, node, port) {
         e.stopPropagation();
         if (port.dataset.portType === 'out') {
-            this.connectionState = { isDrawing: true, startNode: node, startPortName: port.dataset.portName };
             const line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
             line.setAttribute('class', 'connector-line-drawing');
             line.setAttribute('stroke-linejoin', 'round');
             line.setAttribute('stroke-linecap', 'round');
-            this.connectionState.line = line;
+
+            // Lấy màu từ node
+            const portName = port.dataset.portName;
+
+            // Tạo label tạm thời để đi theo chuột
+            const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            label.setAttribute('class', 'port-label');
+            label.setAttribute('data-port-name', portName);
+            label.textContent = portName;
+
             this.dom.connectorSvg.appendChild(line);
+            this.dom.connectorSvg.appendChild(label);
+
+            // Ẩn label tĩnh trên node
+            const staticLabel = port.querySelector('.port-label');
+            if (staticLabel) staticLabel.style.visibility = 'hidden';
+
+            this.connectionState = {
+                isDrawing: true,
+                startNode: node,
+                startPortName: portName,
+                line: line,
+                label: label,
+                startPortElement: port // Lưu lại port để hiển thị lại label nếu hủy kết nối
+            };
         }
     }
 
     _handlePortMouseUp(e, endNode, endPort) {
         e.stopPropagation();
-        if (this.connectionState.isDrawing && endPort.dataset.portType === 'in') {
-            if (this.connectionState.startNode.id !== endNode.id) {
-                this._createConnection(this.connectionState.startNode, this.connectionState.startPortName, endNode);
+        const { isDrawing, startNode, startPortName, line, label } = this.connectionState;
+
+        if (isDrawing && endPort.dataset.portType === 'in') {
+            if (startNode.id !== endNode.id) {
+                // Chỉ tạo kết nối mới. Việc xóa kết nối cũ (nếu có) đã được xử lý ở đầu
+                this._createConnection(startNode, startPortName, endNode);
                 this._commitState(i18n.get('workflow.state_commit.connection_create'));
             }
         }
-        if (this.connectionState.isDrawing) {
-            if (this.connectionState.line?.parentNode) {
-                this.dom.connectorSvg.removeChild(this.connectionState.line);
+        
+        // Luôn dọn dẹp trạng thái "vẽ" sau khi nhả chuột trên một port
+        // Bất kể kết nối thành công hay không. Đây là bước sửa lỗi đường nối thừa.
+        if (isDrawing) {
+            if (line) line.remove();
+            if (label) label.remove();
+            
+            // Tìm và hiển thị lại label tĩnh nếu thao tác bị hủy
+            const existingConnection = this.connections.some(c => c.from === startNode.id && c.fromPort === startPortName);
+            if (!existingConnection) {
+                 const staticLabel = startNode.element.querySelector(`.port-label[data-port-name="${startPortName}"]`);
+                 if(staticLabel) staticLabel.style.visibility = 'visible';
             }
-            this.connectionState.isDrawing = false;
-            this.connectionState.line = null;
+
+            this.connectionState = { isDrawing: false, startNode: null, startPortName: null, line: null, label: null };
         }
     }
 
     _createConnection(startNode, startPortName, endNode) {
+        // Xóa kết nối cũ nếu port 'in' đã có dây
         const existingInConnection = this.connections.find(c => c.to === endNode.id);
         if (existingInConnection) {
             this._deleteConnection(existingInConnection, false);
         }
+
+        // Ẩn label tĩnh của port nguồn
+        const staticLabel = startNode.element.querySelector(`.port-label[data-port-name="${startPortName}"]`);
+        if (staticLabel) {
+            staticLabel.style.visibility = 'hidden';
+        }
+
+        // Tạo đường nối và label động
         const line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         line.setAttribute('class', 'connector-line');
         line.dataset.fromPort = startPortName;
         line.setAttribute('stroke-linejoin', 'round');
         line.setAttribute('stroke-linecap', 'round');
-        const connection = { id: `conn-${startNode.id}:${startPortName}-${endNode.id}`, from: startNode.id, fromPort: startPortName, to: endNode.id, line };
+
+        const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        label.setAttribute('class', 'port-label');
+        label.setAttribute('data-port-name', startPortName);
+        label.textContent = startPortName;
+
+        const connection = { id: `conn-${startNode.id}:${startPortName}-${endNode.id}`, from: startNode.id, fromPort: startPortName, to: endNode.id, line, label };
         line.addEventListener('click', (e) => { e.stopPropagation(); this._selectConnection(connection); });
+
         this.dom.connectorSvg.appendChild(line);
+        this.dom.connectorSvg.appendChild(label);
         this.connections.push(connection);
         this._updateConnectionPath(connection);
+
         this.dispatchEvent(new CustomEvent('connection:added', { detail: { connection } }));
         return connection;
     }
@@ -893,9 +1021,41 @@ class WorkflowBuilder extends EventTarget {
         const startNode = this.nodes.find(n => n.id === connection.from);
         const endNode = this.nodes.find(n => n.id === connection.to);
         if (!startNode || !endNode) return;
+
         const startPos = this._getPortPosition(startNode, connection.fromPort);
         const endPos = this._getPortPosition(endNode, 'in');
+        
         this._drawConnectorPath(connection.line, startPos.x, startPos.y, endPos.x, endPos.y);
+
+        if (connection.label) {
+            const categoryColor = startNode.element.style.getPropertyValue('--node-category-color') || '#6c757d';
+            connection.label.setAttribute('fill', categoryColor);
+            
+            const pathLength = connection.line.getTotalLength();
+            
+            // Xác định hướng của đường nối để đặt label ở trên hoặc dưới
+            // Nếu điểm cuối (endPos.y) thấp hơn điểm đầu (startPos.y), đặt label BÊN DƯỚI
+            const yOffset = (endPos.y > startPos.y) ? 16 : -8;
+
+            if (pathLength > 30) {
+                // Lấy điểm gần cuối của đường nối để đặt label
+                const labelAnchorPoint = connection.line.getPointAtLength(pathLength - 25);
+                
+                connection.label.setAttribute('x', labelAnchorPoint.x);
+                connection.label.setAttribute('y', labelAnchorPoint.y + yOffset);
+                connection.label.setAttribute('text-anchor', 'end');
+                connection.label.setAttribute('class', 'port-label');
+                connection.label.setAttribute('data-port-name', connection.label.textContent);
+            } else {
+                // Nếu đường nối quá ngắn, đặt ở giữa cho an toàn
+                const midPoint = connection.line.getPointAtLength(pathLength / 2);
+                connection.label.setAttribute('x', midPoint.x);
+                connection.label.setAttribute('y', midPoint.y + yOffset);
+                connection.label.setAttribute('text-anchor', 'middle');
+                connection.label.setAttribute('class', 'port-label');
+                connection.label.setAttribute('data-port-name', connection.label.textContent);
+            }
+        }
     }
     
     _drawConnectorPath(path, x1, y1, x2, y2) {
@@ -916,13 +1076,14 @@ class WorkflowBuilder extends EventTarget {
         const midX = x1 + dx / 2;
         const xSign = dx >= 0 ? 1 : -1;
         const ySign = dy >= 0 ? 1 : -1;
-        if (effectiveRadius < 5) { 
+        if (effectiveRadius < 5) {
             path.setAttribute('d', `M ${x1} ${y1} L ${midX} ${y1} L ${midX} ${y2} L ${x2} ${y2}`);
             return;
         }
         const d = [`M ${x1} ${y1}`,`L ${midX - effectiveRadius * xSign} ${y1}`,`Q ${midX} ${y1} ${midX} ${y1 + effectiveRadius * ySign}`,`L ${midX} ${y2 - effectiveRadius * ySign}`,`Q ${midX} ${y2} ${midX + effectiveRadius * xSign} ${y2}`,`L ${x2} ${y2}`].join(' ');
         path.setAttribute('d', d);
     }
+
 
     _updateConnectionsForNode(node) {
         this.connections.forEach(conn => {
