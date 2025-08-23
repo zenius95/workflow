@@ -197,7 +197,7 @@ class FormBuilder {
         wrapper.className = 'canvas-component p-3 mb-2 rounded';
         wrapper.dataset.id = component.id;
         if (component.id === this.selectedComponentId) wrapper.classList.add('selected');
-        const header = `<div class="d-flex justify-content-between align-items-start"><div class="pe-4"><div class="component-label"><i class="bi ${def.icon} me-2"></i>${component.config.label || def.name}</div><div class="component-type">${component.config.dataField || `ID: ${component.id}`}</div></div><div class="component-actions btn-group"><button class="btn btn-sm btn-outline-danger btn-delete"><i class="bi bi-trash"></i></button></div></div>`;
+        const header = `<div class="d-flex justify-content-between align-items-start"><div class="pe-4"><div class="component-label"><i class="bi ${def.icon} me-2"></i>${component.config?.label || def.name}</div><div class="component-type">${component.config?.dataField || `ID: ${component.id}`}</div></div><div class="component-actions btn-group"><button class="btn btn-sm btn-outline-danger btn-delete"><i class="bi bi-trash"></i></button></div></div>`;
         wrapper.innerHTML = header;
         
         if (component.type === 'tabs') {

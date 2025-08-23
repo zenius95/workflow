@@ -5,15 +5,8 @@
 class SettingsRenderer {
     constructor(workflowInstance) {
         this.workflow = workflowInstance;
-        try {
-            this.dialog = require('@electron/remote').dialog;
-        } catch (e) {
-            console.error(i18n.get('settings.errors.electron_remote_fail'), e);
-            if (this.workflow && this.workflow.logger) {
-                this.workflow.logger.error(i18n.get('settings.errors.config_error_remote'));
-            }
-            this.dialog = null;
-        }
+        this.dialog = window.api.dialog; 
+        
     }
 
     renderAndBind(settingsConfig, uniqueId, dataObject, nodeConfig = {}) {
@@ -135,31 +128,61 @@ class SettingsRenderer {
                 const dataField = e.currentTarget.dataset.field;
                 if (!dataField) return;
 
-                const findRepeaterConfig = (fields, targetField) => {
-                    const pathSegments = targetField.split('.');
-                
-                    function find(currentFields, segmentIndex) {
-                        if (segmentIndex >= pathSegments.length) return null;
-                        
-                        let currentSegment = pathSegments[segmentIndex];
-                        
-                        for (const field of currentFields) {
-                            const config = field.config || field;
-                            
-                            if (config.dataField === currentSegment) {
-                                if (segmentIndex === pathSegments.length - 1) return config;
-                                
+                const findRepeaterConfig = (settingsConfig, targetDataField) => {
+                    // Hàm đệ quy để duyệt qua cây cấu hình và tìm repeater khớp với đường dẫn.
+                    function find(currentControls, path) {
+                        for (const control of currentControls) {
+                            const config = control.config || control;
+                            const configField = config.dataField;
+
+                            // TRƯỜNG HỢP 1: Control là một container không có dataField (ví dụ: Tabs, Group).
+                            // Chúng ta cần tìm kiếm sâu hơn vào các control con của nó.
+                            if (!configField) {
+                                let found = null;
+                                // Tìm trong các tab.
+                                if (config.tabs) {
+                                    for (const tab of config.tabs) {
+                                        found = find(tab.controls, path);
+                                        if (found) return found;
+                                    }
+                                }
+                                // Tìm trong các control con (của Group).
                                 const children = config.controls || config.fields;
                                 if (children) {
-                                    const found = find(children, segmentIndex + 2);
+                                    found = find(children, path);
                                     if (found) return found;
+                                }
+                                // Chuyển sang control tiếp theo nếu không tìm thấy.
+                                continue;
+                            }
+
+                            // TRƯỜNG HỢP 2: Tìm thấy repeater khớp chính xác với đường dẫn.
+                            // Ví dụ: configField là "headers" và path cũng là "headers".
+                            if (configField === path) {
+                                return config;
+                            }
+
+                            // TRƯỜNG HỢP 3: Tìm thấy một repeater cha.
+                            // Ví dụ: configField là "parent" và path là "parent.0.child".
+                            // Điều kiện `startsWith` sẽ đúng.
+                            if (path.startsWith(configField + '.')) {
+                                const children = config.controls || config.fields;
+                                if (children) {
+                                    // Tạo đường dẫn mới cho repeater con cần tìm.
+                                    // Ví dụ: "parent.0.child" -> "child".
+                                    const remainingPath = path.substring(configField.length + 1).split('.').slice(1).join('.');
+                                    if (remainingPath) {
+                                        const found = find(children, remainingPath);
+                                        if (found) return found;
+                                    }
                                 }
                             }
                         }
+                        // Không tìm thấy trong lần duyệt này.
                         return null;
                     }
-                    
-                    return find(fields, 0);
+
+                    return find(settingsConfig, targetDataField);
                 };
 
                 const repeaterConfig = findRepeaterConfig(settingsConfig, dataField);

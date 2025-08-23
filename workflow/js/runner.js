@@ -8,22 +8,52 @@ class WorkflowRunner {
         this.isSimulating = false;
         this.executionState = {};
         
+    
+        // 2. Ràng buộc 'this' cho hàm run để đảm bảo ngữ cảnh luôn đúng
+        this.run = this.run.bind(this);
+        // --- KẾT THÚC SỬA LỖI ---
+        
+        // Kiểm tra xem chúng ta đang ở môi trường client (với builder đầy đủ)
+        // hay môi trường server (với object cấu hình).
         // Kiểm tra xem chúng ta đang ở môi trường client (với builder đầy đủ)
         // hay môi trường server (với object cấu hình).
         if (config && config.constructor.name === 'WorkflowBuilder') {
-            // MÔI TRƯỜNG CLIENT: Gán builder trực tiếp
+            // MÔI TRƯỜNG CLIENT: Gán builder và lấy i18n từ window.
             this.builder = config;
             this.logger = config.logger;
             this.isServer = false;
+            this.isSubRunner = false;
+            
+            // --- BẮT ĐẦU GIẢI PHÁP ---
+            // Ở môi trường Client, lấy i18n từ window do app.js cung cấp.
+            if (typeof window !== 'undefined' && window.i18n) {
+                this.i18n = window.i18n;
+            } else {
+                console.error("Runner failed to find i18n on window object.");
+                this.i18n = { get: (key) => key }; // Fallback
+            }
+            // --- KẾT THÚC GIẢI PHÁP ---
+
         } else {
-            // MÔI TRƯỜNG SERVER: Tự thiết lập các thuộc tính cần thiết
-            this.builder = null; // Không có builder giao diện
+            // MÔI TRƯỜNG SERVER: Tự thiết lập và require i18n.
+            this.builder = null;
             this.workflow = config.workflow || { nodes: [], connections: [] };
-            this.nodeConfig = config.config; // Lưu cấu hình node
+            this.nodeConfig = config.config;
             this.logger = config.logger;
             this.isServer = true;
+            this.isSubRunner = config.isSubRunner || false; // Đọc dấu hiệu
 
-            // Sao chép các thuộc tính và phương thức từ MockWorkflowBuilder vào chính runner
+            // --- BẮT ĐẦU GIẢI PHÁP ---
+            // Ở môi trường Server, dùng require như một ứng dụng Node.js bình thường.
+            try {
+                this.i18n = require('./i18n.js');
+                this.i18n.loadLanguage('en');
+            } catch (e) {
+                console.error("Runner failed to load i18n on server", e);
+                this.i18n = { get: (key) => key }; // Fallback
+            }
+            // --- KẾT THÚC GIẢI PHÁP ---
+            
             this.nodes = this.workflow.nodes || [];
             this.connections = this.workflow.connections || [];
             this.globalVariables = { server_start_time: new Date().toISOString(), ...(config.globalVariables || {}) };
@@ -37,6 +67,10 @@ class WorkflowRunner {
         for (const category of configSource.nodeCategories) {
             const foundNode = category.nodes.find(node => node.type === type);
             if (foundNode) return foundNode;
+        }
+        // Thêm cấu hình cho sub_workflow trực tiếp ở đây để đảm bảo nó luôn tồn tại
+        if (type === 'sub_workflow') {
+            return this.builder._findNodeConfig(type);
         }
         return null;
     }
@@ -69,7 +103,6 @@ class WorkflowRunner {
         }
         this.isSimulating = true;
         
-        // Các thao tác giao diện chỉ chạy nếu có builder (môi trường client)
         if (!this.isServer && this.builder) {
             if (this.builder.dom.consolePanel && !this.builder.dom.consolePanel.classList.contains('show')) {
                 this.builder._toggleConsole();
@@ -82,8 +115,11 @@ class WorkflowRunner {
             if(this.builder.treeViewStates) this.builder.treeViewStates.clear();
         }
         
-        this.logger.clear();
-        this.logger.system('--- Workflow execution started ---');
+        if (!this.isSubRunner) {
+            this.logger.clear();
+        }
+        
+        this.logger.system(this.i18n.get('runner.start_log'));
         this.executionState = {};
         if (this.builder) this.builder.executionState = this.executionState;
         
@@ -97,12 +133,12 @@ class WorkflowRunner {
         const startNodes = nodesToRun.filter(n => !connectionsToRun.some(c => c.to === n.id));
 
         if (startNodes.length === 0 && nodesToRun.length > 0) {
-            this.logger.error('No start node found in the workflow.');
+            this.logger.error(this.i18n.get('runner.no_start_node'));
         } else {
             await Promise.allSettled(startNodes.map(node => this._executeNode(node, [])));
         }
 
-        this.logger.system('--- Workflow execution finished ---');
+        this.logger.system(this.i18n.get('runner.end_log'));
         this.isSimulating = false;
 
         if (!this.isServer && this.builder) {
@@ -198,9 +234,6 @@ class WorkflowRunner {
 
 /**
  * Đoạn mã "vạn năng" giúp file chạy được ở cả 2 môi trường.
- * - Nếu nó thấy `module` và `exports`, nó hiểu đây là môi trường Node.js.
- * - Nếu không, nó sẽ không làm gì cả, và class WorkflowRunner sẽ tự động
- * trở thành biến toàn cục khi được nạp bằng thẻ <script> trong trình duyệt.
  */
 if (typeof module !== 'undefined' && typeof module.exports !== 'undefined') {
     module.exports = WorkflowRunner;

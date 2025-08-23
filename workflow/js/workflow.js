@@ -2,13 +2,16 @@
  */
 
 class WorkflowBuilder extends EventTarget {
-    constructor(containerId, config, initialWorkflow = null, initialGlobalVariables = {}) {
+    constructor(containerId, config, initialWorkflow = null, initialGlobalVariables = {}, db = null) {
         super();
         this.container = document.getElementById(containerId);
         if (!this.container) {
             console.error(i18n.get('workflow.logs.container_not_found', { id: containerId }));
             return;
         }
+
+        this.i18n = i18n;
+        this.db = db;
         this.config = config;
         this.initialWorkflow = initialWorkflow;
         this.initialGlobalVariables = JSON.parse(JSON.stringify(initialGlobalVariables));
@@ -818,20 +821,47 @@ class WorkflowBuilder extends EventTarget {
     }
     
     _transformFormDefToSettingsConfig(formDefinition) {
-        if (!formDefinition || formDefinition.length === 0) {
+        // Đảm bảo formDefinition là một mảng hợp lệ
+        if (!formDefinition || !Array.isArray(formDefinition) || formDefinition.length === 0) {
             return [];
         }
 
-        return formDefinition.map(component => {
-            const setting = {
-                type: component.type,
-                name: `inputs.${component.name || component.id}`,
-                label: component.label,
-                placeholder: component.placeholder || '',
-                options: component.options || []
-            };
-            return setting;
-        });
+        /**
+         * Hàm đệ quy để xử lý cấu hình của từng control.
+         * Nó tạo ra một bản sao sâu, tiền tố hóa dataField, và xử lý các control lồng nhau.
+         * @param {object} config - Đối tượng cấu hình của một component (lấy từ component.config).
+         * @returns {object} - Đối tượng cấu hình mới đã được xử lý.
+         */
+        const processControlConfig = (config) => {
+            // Tạo một bản sao sâu để tránh làm thay đổi dữ liệu gốc của node.
+            const newConfig = JSON.parse(JSON.stringify(config));
+
+            // Thêm tiền tố "inputs." vào dataField nếu thuộc tính này tồn tại.
+            if (newConfig.dataField) {
+                newConfig.dataField = `inputs.${newConfig.dataField}`;
+            }
+
+            // Xử lý đệ quy cho các control lồng bên trong các container như 'group' hoặc 'repeater'.
+            if (newConfig.controls) {
+                // Mảng 'controls' trong định nghĩa form chứa các đối tượng component đầy đủ {id, type, config}.
+                // Chúng ta cần duyệt qua mảng này và xử lý 'config' của mỗi component con.
+                newConfig.controls = newConfig.controls.map(childComponent => processControlConfig(childComponent.config));
+            }
+
+            // Xử lý đệ quy cho các control lồng bên trong 'tabs'.
+            if (newConfig.tabs) {
+                newConfig.tabs.forEach(tab => {
+                    // Tương tự như 'controls', tab.controls cũng chứa các đối tượng component đầy đủ.
+                    tab.controls = tab.controls.map(childComponent => processControlConfig(childComponent.config));
+                });
+            }
+
+            return newConfig;
+        };
+
+        // Duyệt qua các component cấp cao nhất từ định nghĩa form
+        // và xử lý đối tượng 'config' của mỗi component.
+        return formDefinition.map(component => processControlConfig(component.config));
     }
 
     _updateSettingsPanel() {
@@ -1166,7 +1196,26 @@ class WorkflowBuilder extends EventTarget {
                     formDefinition: [],
                     inputs: {}
                 },
-                outputs: ['success', 'error']
+                outputs: ['success', 'error'],
+                execute: async (data, logger, workflowInstance) => {
+                    const { workflowId, inputs } = data;
+                    if (!workflowId) {
+                        throw new Error("Sub Workflow node is not configured.");
+                    }
+
+                    // Gọi vào back-end (main.js) để chạy sub-workflow
+                    const response = await window.api.invoke('workflow:run-sub-workflow', {
+                        workflowId: workflowId,
+                        inputs: inputs,
+                        globalVariables: workflowInstance.globalVariables
+                    });
+
+                    if (!response.success) {
+                        throw new Error(response.error);
+                    }
+
+                    return response.result;
+                }
             };
         }
         // --- KẾT THÚC SỬA LỖI ---
