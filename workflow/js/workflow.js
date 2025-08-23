@@ -908,13 +908,14 @@ class WorkflowBuilder extends EventTarget {
     _handlePortMouseDown(e, node, port) {
         e.stopPropagation();
         if (port.dataset.portType === 'out') {
+            const portName = port.dataset.portName;
             const line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-            line.setAttribute('class', 'connector-line-drawing');
+
+            // Gán cả 2 class và data attribute để CSS có thể áp dụng màu sắc ngay lập tức
+            line.setAttribute('class', 'connector-line connector-line-drawing');
+            line.dataset.fromPort = portName;
             line.setAttribute('stroke-linejoin', 'round');
             line.setAttribute('stroke-linecap', 'round');
-
-            // Lấy màu từ node
-            const portName = port.dataset.portName;
 
             // Tạo label tạm thời để đi theo chuột
             const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
