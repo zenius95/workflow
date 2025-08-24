@@ -47,7 +47,14 @@ class WorkflowRunner {
             // Ở môi trường Server, dùng require như một ứng dụng Node.js bình thường.
             try {
                 this.i18n = require('./i18n.js');
-                this.i18n.loadLanguage('en');
+                const fs = require('fs'); // Need fs to read translation file
+                const path = require('path'); // Need path to resolve translation file path
+
+                const lang = 'en'; // Default language for server-side runner
+                const localePath = path.join(__dirname, '..', 'locales', `${lang}.json`);
+                const translations = JSON.parse(fs.readFileSync(localePath, 'utf8'));
+                
+                this.i18n.init(lang, translations); // Use init method
             } catch (e) {
                 console.error("Runner failed to load i18n on server", e);
                 this.i18n = { get: (key) => key }; // Fallback
@@ -103,31 +110,21 @@ class WorkflowRunner {
         }
         this.isSimulating = true;
         
-        if (!this.isServer && this.builder) {
-            if (this.builder.dom.consolePanel && !this.builder.dom.consolePanel.classList.contains('show')) {
-                this.builder._toggleConsole();
-            }
-            const runButton = this.builder.container.querySelector('[data-action="run-simulation"]');
-            if (runButton) {
-                runButton.disabled = true;
-                runButton.classList.add('opacity-50');
-            }
-            if(this.builder.treeViewStates) this.builder.treeViewStates.clear();
-        }
-        
-        if (!this.isSubRunner) {
+        if (!this.isSubRunner) { // Only clear logger if it's the top-level runner
             this.logger.clear();
         }
         this.logger.system(this.i18n.get('runner.start_log'));
         this.executionState = {};
-        if (this.builder) this.builder.executionState = this.executionState;
+        // No longer directly update builder's executionState here.
+        // The frontend will update its state based on IPC events.
         
-        if (!this.isServer && typeof this.builder._updateVariablesPanel === 'function') this.builder._updateVariablesPanel();
-        if (!this.isServer && typeof this.builder._setNodeState === 'function') {
-            this.builder.nodes.forEach(node => this.builder._setNodeState(node, 'idle'));
-        }
+        // Initial update of variables panel
+        this.logger.updateVariables(this.globalVariables, this.formData, this.executionState);
 
+        // Set all nodes to idle state initially
         const nodesToRun = this.isServer ? this.nodes : this.builder.nodes;
+        nodesToRun.forEach(node => this.logger.nodeState(node.id, 'idle'));
+
         const connectionsToRun = this.isServer ? this.connections : this.builder.connections;
         const startNodes = nodesToRun.filter(n => !connectionsToRun.some(c => c.to === n.id));
 
@@ -166,12 +163,8 @@ class WorkflowRunner {
         }
 
         this.executionState[node.id] = { _status: 'running' };
-
-        if (!this.isServer) {
-            this.builder._updateVariablesPanel();
-            this.builder._setNodeState(node, 'running');
-            this.builder.dispatchEvent(new CustomEvent('simulation:node:start', { detail: { node } }));
-        }
+        this.logger.nodeState(node.id, 'running');
+        this.logger.updateVariables(globalVariables, formData, this.executionState); // Update variables panel
 
         const resolvedNodeData = JSON.parse(JSON.stringify(node.data));
         const resolutionContext = { global: globalVariables, form: formData, ...this.executionState };
@@ -180,7 +173,7 @@ class WorkflowRunner {
         const executeNextNodes = async (portName, newTryCatchStack, callingNodeId = node.id) => {
             const nextConnections = connections.filter(c => c.from === callingNodeId && c.fromPort === portName);
             for (const conn of nextConnections) {
-                if (!this.isServer) await this.builder._animateConnection(conn);
+                this.logger.animateConnection(conn.id); // Animate connection
                 const nextNode = nodes.find(n => n.id === conn.to);
                 if (nextNode) await this._executeNode(nextNode, newTryCatchStack);
             }
@@ -196,12 +189,12 @@ class WorkflowRunner {
                 this.executionState[node.id] = result;
                 await executeNextNodes((nodeConfig.outputs || ['success'])[0], tryCatchStack);
             }
-            if (!this.isServer) this.builder._setNodeState(node, 'success');
+            this.logger.nodeState(node.id, 'success');
         } catch (error) {
             const errorResult = { error: error.message, ...error.context };
             this.logger.error(`Error in node ${node.data.title}: ${error.message}`);
             this.executionState[node.id] = errorResult;
-            if (!this.isServer) this.builder._setNodeState(node, 'error');
+            this.logger.nodeState(node.id, 'error');
 
             const lastTryCatchNode = tryCatchStack.pop();
             if (lastTryCatchNode) {
@@ -213,10 +206,8 @@ class WorkflowRunner {
                 await executeNextNodes('error', tryCatchStack);
             }
         } finally {
-            if (!this.isServer) {
-                this.builder._updateVariablesPanel();
-                this.builder.dispatchEvent(new CustomEvent('simulation:node:end', { detail: { node, result: this.executionState[node.id] } }));
-            }
+            this.logger.updateVariables(globalVariables, formData, this.executionState); // Final update of variables panel
+            this.logger.nodeState(node.id, 'idle'); // Reset node state after execution
         }
     }
     

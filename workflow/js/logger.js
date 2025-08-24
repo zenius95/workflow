@@ -11,11 +11,8 @@ class Logger {
     }
 
     _log(message, type = 'info') {
-        if (type === 'system') {
-            console.log(`[SYSTEM] ${message}`);
-            // Do not log system messages to the UI console, only to devtools.
-            return;
-        }
+        // Allow system messages to be logged to the UI console as well.
+        // console.log(`[SYSTEM] ${message}`); // Keep this for devtools console if desired
 
         const timestamp = new Date().toLocaleTimeString('en-GB');
         const logEntry = document.createElement('div');

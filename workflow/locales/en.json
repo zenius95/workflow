@@ -29,7 +29,7 @@
     "recent_files": "Recent files",
     "create_new": "Create New"
   },
-   "app": {
+  "app": {
     "unsaved_workflow": "Untitled",
     "new_workflow_default": "Untitled",
     "workflow_not_found": "Workflow Not Found",
@@ -52,7 +52,11 @@
     "history_load_error": "Error loading version history: {message}",
     "history_load_fail": "Could not load history.",
     "version_at": "Version at: {datetime}",
-    "restore_button": "Restore"
+    "restore_button": "Restore",
+    "restore_confirm_title": "Restore Version",
+    "restore_confirm_text": "Are you sure you want to restore this version? Any unsaved changes will be lost.",
+    "restore_confirm_button": "Yes, restore it!",
+    "cancel_button": "Cancel"
   },
   "workflow": {
     "initialized": "Workflow Builder initialized.",
@@ -90,17 +94,32 @@
       "copied_nodes": "Copied {count} nodes.",
       "curl_import_success": "cURL command imported successfully.",
       "curl_parse_fail": "Could not parse cURL command: {message}",
-      "invalid_node_config": "Could not find configuration for node type \"{type}\".",
-      "invalid_json_import": "JSON file must contain required \"nodes\" and \"connections\" fields.",
-      "try_catch_start": "Starting Try/Catch block: {title}",
-      "loop_iteration": "Loop {index}/{total}: item = {item}",
-      "loop_complete": "Loop finished.",
-      "node_error": "Error executing node {title}: {message}",
-      "error_caught": "Error caught by Try/Catch block: {title}. Redirecting to 'catch' port."
+      "invalid_node_config": "Could not find configuration for node type \"{type}\""
     },
     "variables_panel": {
-        "global": "Global",
-        "node_outputs": "Node Outputs"
+      "global": "Global",
+      "form_data": "Form Data",
+      "node_outputs": "Node Outputs"
+    },
+    "settings_panel": {
+      "title": "Settings for {id}",
+      "node_title_label": "Node Title"
+    },
+    "node": {
+      "untitled": "Untitled"
+    },
+    "sub_workflow": {
+      "display_name": "Sub Workflow",
+      "default_title": "Workflow",
+      "no_settings": "This workflow has no configurable settings."
+    },
+    "error": {
+      "curl_parse_no_url": "Could not find a valid URL in the cURL command."
+    },
+    "variable_picker": {
+      "global_section": "Global Variables",
+      "form_section": "Form Data",
+      "outputs_section": "Node Outputs"
     }
   },
   "form_builder": {
@@ -213,95 +232,94 @@
     "delete_not_found": "Could not find workflow with ID: {id} to delete."
   },
   "runner": {
-      "start_log": "--- STARTING WORKFLOW EXECUTION ---",
-      "no_start_node": "Error: Start node not found. The workflow must have at least one node with no inputs.",
-      "critical_error": "Caught unhandled critical error: {message}",
-      "end_log": "--- FINISHED WORKFLOW EXECUTION ---",
-      "executing_node": "Executing node: \"{title}\" (ID: {id})",
-      "node_config_not_found": "Could not find configuration for node type \"{type}\" (ID: {id})",
-      "try_catch_start": "Starting Try/Catch block: {title}",
-      "loop_iteration": "Loop {index}/{total}: item = {item}",
-      "loop_complete": "Loop finished.",
-      "node_error": "Error executing node {title}: {message}",
-      "error_caught": "Error caught by Try/Catch block: {title}. Redirecting to 'catch' port."
+    "start_log": "--- STARTING WORKFLOW EXECUTION ---",
+    "no_start_node": "Error: Start node not found. The workflow must have at least one node with no inputs.",
+    "critical_error": "Caught unhandled critical error: {message}",
+    "end_log": "--- FINISHED WORKFLOW EXECUTION ---",
+    "executing_node": "Executing node: \"{title}\" (ID: {id})",
+    "node_config_not_found": "Could not find configuration for node type \"{type}\" (ID: {id})",
+    "try_catch_start": "Starting Try/Catch block: {title}",
+    "loop_iteration": "Loop {index}/{total}: item = {item}",
+    "loop_complete": "Loop finished.",
+    "node_error": "Error executing node {title}: {message}",
+    "error_caught": "Error caught by Try/Catch block: {title}. Redirecting to 'catch' port."
   },
   "workflow_page": {
     "title": "Workflow Builder (Bootstrap Version)",
     "tabs": {
-        "nodes": "Nodes",
-        "variables": "Variables",
-        "history": "History",
-        "form": "Form",
-        "nodes": "Nodes",
-        "workflows": "Workflows"
+      "nodes": "Nodes",
+      "variables": "Variables",
+      "history": "History",
+      "form": "Form",
+      "workflows": "Workflows"
     },
     "nodes_tab": {
-        "search_placeholder": "Search nodes..."
+      "search_placeholder": "Search nodes..."
     },
     "variables_tab": {
-        "global_title": "Global",
-        "key_placeholder": "Variable Name",
-        "value_placeholder": "Value (JSON)",
-        "add_button": "Add",
-        "form_data_title": "Form Data",
-        "node_outputs_title": "Node Outputs"
+      "global_title": "Global",
+      "key_placeholder": "Variable Name",
+      "value_placeholder": "Value (JSON)",
+      "add_button": "Add",
+      "form_data_title": "Form Data",
+      "node_outputs_title": "Node Outputs"
     },
     "history_tab": {
-        "title": "Version History",
-        "description": "Auto-saves every 10 seconds. Select a version to restore."
+      "title": "Version History",
+      "description": "Auto-saves every 10 seconds. Select a version to restore."
     },
     "header": {
-        "unsaved_workflow": "Unsaved Workflow",
-        "import_button": "Import JSON",
-        "export_button": "Export JSON",
-        "run_button": "Run Workflow"
+      "unsaved_workflow": "Unsaved Workflow",
+      "import_button": "Import JSON",
+      "export_button": "Export JSON",
+      "run_button": "Run Workflow"
     },
     "console": {
-        "title": "Workflow Log",
-        "clear_button": "Clear"
+      "title": "Workflow Log",
+      "clear_button": "Clear"
     },
     "context_menu": {
-        "copy": "Copy",
-        "paste": "Paste",
-        "delete": "Delete",
-        "undo": "Undo",
-        "redo": "Redo"
+      "copy": "Copy",
+      "paste": "Paste",
+      "delete": "Delete",
+      "undo": "Undo",
+      "redo": "Redo"
     },
     "variable_context_menu": {
-        "copy_value": "Copy value",
-        "copy_key": "Copy key",
-        "copy_path": "Copy path"
+      "copy_value": "Copy value",
+      "copy_key": "Copy key",
+      "copy_path": "Copy path"
     },
     "curl_modal": {
-        "title": "Import from cURL Command",
-        "description": "Paste a cURL command into the text area below.",
-        "import_button": "Import"
+      "title": "Import from cURL Command",
+      "description": "Paste a cURL command into the text area below.",
+      "import_button": "Import"
     },
     "form_builder_modal": {
-        "title": "Settings Node Generator",
-        "toolbox_title": "Toolbox",
-        "canvas_tab": "Canvas",
-        "preview_tab": "Preview",
-        "canvas_title": "Canvas",
-        "clear_canvas_button": "Clear",
-        "canvas_placeholder": "Drag components from the Toolbox here",
-        "preview_title": "Form Preview",
-        "properties_title": "Properties"
+      "title": "Settings Node Generator",
+      "toolbox_title": "Toolbox",
+      "canvas_tab": "Canvas",
+      "preview_tab": "Preview",
+      "canvas_title": "Canvas",
+      "clear_canvas_button": "Clear",
+      "canvas_placeholder": "Drag components from the Toolbox here",
+      "preview_title": "Form Preview",
+      "properties_title": "Properties"
     },
     "load_workflow_modal": {
-        "title": "Open Saved Workflow",
-        "description": "Select a workflow from the list to open it."
+      "title": "Open Saved Workflow",
+      "description": "Select a workflow from the list to open it."
     },
     "save_workflow_modal": {
-        "title": "Save Workflow",
-        "name_label": "Workflow Name",
-        "save_button": "Save"
+      "title": "Save Workflow",
+      "name_label": "Workflow Name",
+      "save_button": "Save"
     },
     "workflows_tab": {
-        "no_workflows": "No workflows found.",
-        "loading": "Loading...",
-        "load_error": "Failed to load workflows.",
-        "search_placeholderr": "Search workflows..."
+      "no_workflows": "No workflows found.",
+      "loading": "Loading...",
+      "load_error": "Failed to load workflows.",
+      "search_placeholderr": "Search workflows..."
     }
   }
 }

@@ -1,14 +1,8 @@
 // workflow/js/app.js
-const { ipcRenderer } = require('electron');
-const { workflowConfig } = require('./js/config.js');
-const i18n = require('./js/i18n.js');
-
 document.addEventListener('DOMContentLoaded', () => {
 
-    window.i18n = i18n
-    // Load language first
-    i18n.loadLanguage('en'); // or 'vi', or load from user settings
-    i18n.translateUI();
+    // The i18n and workflowConfig objects are now global, loaded from workflow.html
+    let workflowConfig;
 
     // --- LẤY THÔNG TIN TỪ URL CỦA WEBVIEW ---
     const urlParams = new URLSearchParams(window.location.search);
@@ -22,25 +16,19 @@ document.addEventListener('DOMContentLoaded', () => {
         loadingOverlay.style.display = 'none';
     }, 2000);
 
+    // --- API BRIDGE ---
+    // Use the preloaded window.api for all backend communication
     const db = {
-        async getWorkflows(options) { return await ipcRenderer.invoke('db-get-workflows', options); },
-        async saveWorkflow(name, data, id) { return await ipcRenderer.invoke('db-save-workflow', { name, data, id }); },
-        async getWorkflowVersions(workflowId) { return await ipcRenderer.invoke('db-get-versions', workflowId); },
-        async saveWorkflowVersion(workflowId, data) { return await ipcRenderer.invoke('db-save-version', { workflowId, data }); },
-        // --- BẮT ĐẦU THÊM MÃ MỚI ---
-        // Hàm này còn thiếu và rất quan trọng cho Sub Workflow
-        async getWorkflowById(id) { return await ipcRenderer.invoke('db-get-workflow-by-id', id); },
-        async deleteWorkflow(id) { return await ipcRenderer.invoke('db-delete-workflow', id); }
-        // --- KẾT THÚC THÊM MÃ MỚI ---
+        async getWorkflows(options) { return await window.api.getWorkflows(options); },
+        async saveWorkflow(name, data, id) { return await window.api.saveWorkflow({ name, data, id }); },
+        async getWorkflowVersions(workflowId) { return await window.api.getWorkflowVersions(workflowId); },
+        async saveWorkflowVersion(workflowId, data) { return await window.api.createWorkflowVersion({ workflowId, data }); },
+        async getWorkflowById(id) { return await window.api.getWorkflowById(id); },
+        async deleteWorkflow(id) { return await window.api.deleteWorkflow(id); }
     };
 
     // --- KHỞI TẠO CÁC THÀNH PHẦN CHÍNH ---
-    const workflowBuilder = new WorkflowBuilder('app-container', workflowConfig, null, {
-        apiKey: "ABC-123-XYZ",
-        environment: "production",
-        adminEmail: "admin@example.com",
-        todoId: 1
-    }, db);
+    let workflowBuilder; // Will be initialized in initializeView
 
     window.workflowBuilder = workflowBuilder;
 
@@ -65,9 +53,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const workflowSearchInput = document.getElementById('workflow-list-search');
     let allWorkflowsCache = []; // Cache để tìm kiếm nhanh hơn
 
-    /**
-     * [CẬP NHẬT] Render danh sách workflow với giao diện giống node
-     */
     const renderWorkflowList = (workflows) => {
         workflowListContainer.innerHTML = '';
         if (workflows.length === 0) {
@@ -102,29 +87,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
             item.addEventListener('click', (e) => {
                 e.preventDefault();
-                ipcRenderer.send('open-workflow-in-new-tab', wf.id);
+                // This needs a new IPC call since we can't use ipcRenderer directly
+                window.api.notifyHost('open-workflow-in-new-tab', wf.id);
             });
             workflowListContainer.appendChild(item);
         });
     };
 
-    // --- BẮT ĐẦU THAY ĐỔI ---
     const updateRenderedWorkflowList = () => {
         const query = workflowSearchInput.value.toLowerCase();
-        // Lọc theo từ khóa tìm kiếm VÀ lọc bỏ workflow hiện tại
         const filtered = allWorkflowsCache.filter(wf => 
             wf.id !== currentWorkflowId && wf.name.toLowerCase().includes(query)
         );
         renderWorkflowList(filtered);
     };
-    // --- KẾT THÚC THAY ĐỔI ---
 
     const loadWorkflowsToTab = async () => {
         workflowListContainer.innerHTML = `<p class="text-muted text-center p-3">${i18n.get('workflow_page.workflows_tab.loading')}</p>`;
         try {
             const result = await db.getWorkflows();
             allWorkflowsCache = result.rows;
-            updateRenderedWorkflowList(); // Sử dụng hàm cập nhật mới
+            updateRenderedWorkflowList();
         } catch (error) {
             console.error('Failed to load workflows for tab:', error);
             workflowListContainer.innerHTML = `<p class="text-danger text-center p-3">${i18n.get('workflow_page.workflows_tab.load_error')}</p>`;
@@ -135,7 +118,7 @@ document.addEventListener('DOMContentLoaded', () => {
         workflowsTabBtn.addEventListener('show.bs.tab', loadWorkflowsToTab);
     }
     if (workflowSearchInput) {
-        workflowSearchInput.addEventListener('input', updateRenderedWorkflowList); // Sử dụng hàm cập nhật mới
+        workflowSearchInput.addEventListener('input', updateRenderedWorkflowList);
     }
     // --- *** KẾT THÚC: LOGIC CHO TAB WORKFLOWS *** ---
 
@@ -171,7 +154,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 setSaveStatus('saved');
                 workflowBuilder.logger.success(i18n.get('app.save_first_success', { name: defaultName }));
 
-                ipcRenderer.sendToHost('updateTabTitle', {
+                window.api.notifyHost('updateTabTitle', {
                     tabId: tabId, title: defaultName, workflowId: currentWorkflowId
                 });
 
@@ -235,7 +218,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         updateWorkflowTitle(newName);
-        ipcRenderer.sendToHost('updateTabTitle', {
+        window.api.notifyHost('updateTabTitle', {
             tabId: tabId, title: newName, workflowId: currentWorkflowId || 'creating'
         });
         if (currentWorkflowId) {
@@ -254,15 +237,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!workflowId) return;
         showLoading();
         try {
-            const workflows = await db.getWorkflows();
-            const wfToLoad = workflows.rows.find(w => w.id === workflowId);
+            const wfToLoad = await db.getWorkflowById(workflowId);
             
             if (wfToLoad) {
                 currentWorkflowId = wfToLoad.id;
                 updateWorkflowTitle(wfToLoad.name);
                 lastSavedVersionState = JSON.stringify(wfToLoad.data);
                 
-                ipcRenderer.sendToHost('updateTabTitle', {
+                window.api.notifyHost('updateTabTitle', {
                     tabId: tabId, title: wfToLoad.name, workflowId: currentWorkflowId
                 });
 
@@ -287,7 +269,7 @@ document.addEventListener('DOMContentLoaded', () => {
         updateWorkflowTitle(i18n.get('app.unsaved_workflow'));
         setSaveStatus('unsaved', i18n.get('app.unnamed_status'));
         stopVersionHistoryTimer();
-        ipcRenderer.sendToHost('updateTabTitle', {
+        window.api.notifyHost('updateTabTitle', {
             tabId: tabId, title: i18n.get('app.unsaved_workflow'), workflowId: 'creating'
         });
     };
@@ -345,22 +327,67 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const handleRestoreVersion = (versionData) => {
-        if (confirm(i18n.get('app.restore_confirm'))) {
-            showLoading();
-            setTimeout(() => {
-                try {
-                    workflowBuilder.loadWorkflow(versionData);
-                    new bootstrap.Tab(document.getElementById('nodes-tab-btn')).show();
-                    workflowBuilder.logger.system(i18n.get('app.restored_log'));
-                } finally {
-                    hideLoading();
-                }
-            }, 100);
-        }
+        Swal.fire({
+            title: i18n.get('app.restore_confirm_title'),
+            text: i18n.get('app.restore_confirm_text'),
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#3085d6',
+            cancelButtonColor: '#d33',
+            confirmButtonText: i18n.get('app.restore_confirm_button'),
+            cancelButtonText: i18n.get('app.cancel_button')
+        }).then((result) => {
+            if (result.isConfirmed) {
+                showLoading();
+                setTimeout(() => {
+                    try {
+                        workflowBuilder.loadWorkflow(versionData);
+                        new bootstrap.Tab(document.getElementById('nodes-tab-btn')).show();
+                        workflowBuilder.logger.system(i18n.get('app.restored_log'));
+                    } finally {
+                        hideLoading();
+                    }
+                }, 100);
+            }
+        });
     };
 
     // --- KHỞI TẠO ---
     const initializeView = async () => {
+        // 1. Load translations for this renderer process
+        const lang = 'en'; // Or get from settings, similar to shell.js
+        const translations = await window.api.getTranslations(lang);
+        if (translations) {
+            i18n.init(lang, translations);
+        } else {
+            console.error("Could not load translations for workflow builder, UI might be broken.");
+        }
+
+        // Fetch workflowConfig before initializing WorkflowBuilder
+        try {
+            workflowConfig = await window.api.getWorkflowConfig();
+        } catch (error) {
+            console.error("Failed to load workflow configuration:", error);
+            // Handle error, maybe show a message to the user
+            return; // Stop initialization if config fails to load
+        }
+
+        // Initialize WorkflowBuilder after workflowConfig is loaded
+        workflowBuilder = new WorkflowBuilder('app-container', workflowConfig, null, {
+            apiKey: "ABC-123-XYZ",
+            environment: "production",
+            adminEmail: "admin@example.com",
+            todoId: 1
+        }, db);
+
+        // Attach event listeners after workflowBuilder is initialized
+        workflowBuilder.addEventListener('workflow:changed', triggerAutoSave);
+        workflowBuilder.addEventListener('workflow:cleared', resetOnClearOrImport);
+        historyTab.addEventListener('show.bs.tab', updateHistoryTabContent); // This was already there, but moved for clarity.
+
+        // Translations are now loaded, so we can use i18n
+        i18n.translateUI();
+
         if (initialWorkflowId) {
             await loadWorkflowById(initialWorkflowId);
         } else {
@@ -371,12 +398,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
     
-    workflowBuilder.addEventListener('workflow:changed', triggerAutoSave);
-    historyTab.addEventListener('show.bs.tab', updateHistoryTabContent);
-    workflowBuilder.addEventListener('workflow:cleared', resetOnClearOrImport);
-    
-    // **FIX:** Lắng nghe tin nhắn từ shell để cập nhật tiêu đề
-    ipcRenderer.on('workflow-renamed', (event, { newName }) => {
+    // Listen for messages from the shell (e.g., when a workflow is renamed)
+    window.api.onWorkflowRenamed((newName) => {
         if (newName) {
             updateWorkflowTitle(newName);
         }

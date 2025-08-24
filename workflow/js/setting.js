@@ -5,15 +5,7 @@
 class SettingsRenderer {
     constructor(workflowInstance) {
         this.workflow = workflowInstance;
-        try {
-            this.dialog = require('@electron/remote').dialog;
-        } catch (e) {
-            console.error(i18n.get('settings.errors.electron_remote_fail'), e);
-            if (this.workflow && this.workflow.logger) {
-                this.workflow.logger.error(i18n.get('settings.errors.config_error_remote'));
-            }
-            this.dialog = null;
-        }
+        // The dialog functionality will be accessed via window.api.
     }
 
     renderAndBind(settingsConfig, uniqueId, dataObject, nodeConfig = {}) {
@@ -423,8 +415,7 @@ class SettingsRenderer {
     }
 
     async handleFileSelect(targetInput) {
-        if (!this.dialog) return;
-        const result = await this.dialog.showOpenDialog({ properties: ['openFile'] });
+        const result = await window.api.showOpenDialog({ properties: ['openFile'] });
         if (!result.canceled && result.filePaths.length > 0) {
             targetInput.value = result.filePaths[0];
             targetInput.dispatchEvent(new Event('input', { bubbles: true }));
@@ -432,8 +423,7 @@ class SettingsRenderer {
     }
 
     async handleFolderSelect(targetInput) {
-        if (!this.dialog) return;
-        const result = await this.dialog.showOpenDialog({ properties: ['openDirectory'] });
+        const result = await window.api.showOpenDialog({ properties: ['openDirectory'] });
         if (!result.canceled && result.filePaths.length > 0) {
             targetInput.value = result.filePaths[0];
             targetInput.dispatchEvent(new Event('input', { bubbles: true }));

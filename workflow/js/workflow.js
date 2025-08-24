@@ -29,7 +29,7 @@ class WorkflowBuilder extends EventTarget {
         this.selectedConnection = null;
         this.lastMousePosition = { x: 0, y: 0 };
         
-        this.runner = null;
+        
 
         this.dom = {};
         this.activeVariablePicker = { targetInput: null };
@@ -65,11 +65,11 @@ class WorkflowBuilder extends EventTarget {
             settingsPanel: `
                 <div class="p-4">
                     <div class="d-flex justify-content-between align-items-center mb-4">
-                        <h3 class="h5 fw-bold text-dark mb-0">${i18n.get('workflow.settings_for', {id: '{{id}}'})}</h3>
+                        <h3 class="h5 fw-bold text-dark mb-0">${i18n.get('workflow.settings_panel.title', {id: '{{id}}'})}</h3>
                         <button data-action="close-settings" class="btn-close"></button>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label fw-semibold" for="settings-title-input">${i18n.get('workflow.title_label')}</label>
+                        <label class="form-label fw-semibold" for="settings-title-input">${i18n.get('workflow.settings_panel.node_title_label')}</label>
                         <input id="settings-title-input" type="text" data-field="title" class="form-control" value="{{title}}">
                     </div>
                     <div data-ref="fields-container"></div>
@@ -79,10 +79,33 @@ class WorkflowBuilder extends EventTarget {
 
     _init() {
         this._queryDOMElements();
-        this.logger = new Logger(this.dom.consoleOutput);
+        this.logger = new Logger(this.dom.consoleOutput); // Keep the existing logger for console output
         this.settingsRenderer = new SettingsRenderer(this);
         
-        this.runner = new WorkflowRunner(this);
+        // Listen for runner events from the main process
+        window.api.onRunnerEvent((event) => {
+            switch (event.type) {
+                case 'log':
+                    this.logger[event.level](event.message); // Use existing logger for text logs
+                    break;
+                case 'nodeState':
+                    const node = this.getNode(event.nodeId);
+                    if (node) {
+                        this._setNodeState(node, event.state);
+                    }
+                    break;
+                case 'animateConnection':
+                    const connection = this.getConnection(event.connectionId);
+                    if (connection) this._animateConnection(connection);
+                    break;
+                case 'updateVariables':
+                    this.globalVariables = event.globalVars;
+                    this.formData = event.formVars;
+                    this.executionState = event.execState;
+                    this._updateVariablesPanel();
+                    break;
+            }
+        });
 
         const formBuilderModalEl = document.getElementById('form-builder-modal');
         if (formBuilderModalEl) {
@@ -99,8 +122,8 @@ class WorkflowBuilder extends EventTarget {
 
         this._populatePalette();
         this._setupEventListeners();
-        this._updateVariablesPanel();
-        
+        this._updateVariablesPanel(); // Initial update
+
         const modalElement = document.getElementById('curl-import-modal');
         if (modalElement) {
             this.curlImportModal = new bootstrap.Modal(modalElement);
@@ -108,7 +131,8 @@ class WorkflowBuilder extends EventTarget {
 
         if (this.initialWorkflow) {
             setTimeout(() => this.loadWorkflow(this.initialWorkflow, false), 0);
-        } else {
+        }
+        else {
             this._commitState(i18n.get('workflow.state_commit.initial'));
         }
         
@@ -169,9 +193,44 @@ class WorkflowBuilder extends EventTarget {
         this._commitState(i18n.get('workflow.state_commit.form_edit')); 
     }
 
-    runSimulation() {
-        if (this.runner) {
-            this.runner.run();
+    async runSimulation() {
+        this.logger.system(i18n.get('workflow.logs.simulation_start'));
+        // No longer clear executionState here, it's handled by runner-event 'updateVariables'
+        // No longer call _updateVariablesPanel here, it's handled by runner-event 'updateVariables'
+
+        // Disable run button
+        const runButton = this.container.querySelector('[data-action="run-simulation"]');
+        if (runButton) {
+            runButton.disabled = true;
+            runButton.classList.add('opacity-50');
+        }
+        if(this.treeViewStates) this.treeViewStates.clear(); // Clear tree view states
+
+        try {
+            const workflowData = this._getCurrentState();
+            const result = await window.api.runSimulation({
+                workflow: workflowData,
+                globalVariables: this.globalVariables,
+                formData: this.formData
+            });
+
+            if (result.success) {
+                this.logger.success(i18n.get('workflow.logs.simulation_success'));
+                // executionState is now updated via runner-event 'updateVariables'
+            } else {
+                this.logger.error(i18n.get('workflow.logs.simulation_fail', { message: result.error }));
+            }
+        } catch (error) {
+            this.logger.error(i18n.get('workflow.logs.simulation_error', { message: error.message }));
+        } finally {
+            // Re-enable run button
+            const runButton = this.container.querySelector('[data-action="run-simulation"]');
+            if (runButton) {
+                runButton.disabled = false;
+                runButton.classList.remove('opacity-50');
+            }
+            // Reset all nodes to idle state after simulation ends
+            this.nodes.forEach(node => this._setNodeState(node, 'idle'));
         }
     }
 
@@ -556,7 +615,7 @@ class WorkflowBuilder extends EventTarget {
 
         const defaultNodeData = JSON.parse(JSON.stringify(nodeConfig.defaultData || {}));
         const nodeData = Object.assign(defaultNodeData, initialData || {});
-        nodeData.title = (initialData && initialData.title) || nodeConfig.title || 'Untitled';
+        nodeData.title = (initialData && initialData.title) || nodeConfig.title || i18n.get('workflow.node.untitled');
         
         nodeElement.innerHTML = this.templates.nodeContent
             .replace(/{{icon}}/g, nodeConfig.icon || '')
@@ -894,7 +953,7 @@ class WorkflowBuilder extends EventTarget {
         if (node.type === 'sub_workflow') {
             settingsToRender = this._transformFormDefToSettingsConfig(node.data.formDefinition);
             if (settingsToRender.length === 0) {
-                fieldsContainer.innerHTML = `<p class="text-muted p-3">Workflow này không có form cài đặt.</p>`;
+                fieldsContainer.innerHTML = `<p class="text-muted p-3">${i18n.get('workflow.sub_workflow.no_settings')}</p>`;
             }
         } else if (nodeConfig && nodeConfig.settings) {
             settingsToRender = nodeConfig.settings;
@@ -1188,10 +1247,10 @@ class WorkflowBuilder extends EventTarget {
         if (type === 'sub_workflow') {
             return {
                 type: 'sub_workflow',
-                displayName: 'Workflow Node',
+                displayName: i18n.get('workflow.sub_workflow.display_name'),
                 icon: '<i class="ri-git-merge-line"></i>',
                 defaultData: {
-                    title: 'Workflow',
+                    title: i18n.get('workflow.sub_workflow.default_title'),
                     workflowId: null,
                     formDefinition: [],
                     inputs: {}
@@ -1494,9 +1553,9 @@ class WorkflowBuilder extends EventTarget {
                 popup.appendChild(this._createPickerTreeView(data, prefix));
             }
         };
-        createSection(i18n.get('workflow.variables_panel.global'), this.globalVariables, 'global');
-        createSection(i18n.get('workflow.variables_panel.form_data'), this.formData, 'form');
-        createSection(i18n.get('workflow.variables_panel.node_outputs'), this.executionState, '');
+        createSection(i18n.get('workflow.variable_picker.global_section'), this.globalVariables, 'global');
+        createSection(i18n.get('workflow.variable_picker.form_section'), this.formData, 'form');
+        createSection(i18n.get('workflow.variable_picker.outputs_section'), this.executionState, '');
         const btnRect = button.getBoundingClientRect();
         popup.style.display = 'block';
         const popupRect = popup.getBoundingClientRect();
@@ -1551,7 +1610,9 @@ class WorkflowBuilder extends EventTarget {
 
     _setNodeState(node, state) {
         node.element.classList.remove('running', 'success', 'error');
-        if (state !== 'idle') node.element.classList.add(state);
+        if (state !== 'idle') {
+            node.element.classList.add(state);
+        }
     }
 
     _clearCanvas(commit = true, dispatchClearedEvent = true) {
@@ -1697,7 +1758,7 @@ class WorkflowBuilder extends EventTarget {
             }
         }
         if (result.method === 'GET' && result.body.type !== 'none') result.method = 'POST';
-        if (!result.url) throw new Error("Could not find a valid URL.");
+        if (!result.url) throw new Error(i18n.get('workflow.error.curl_parse_no_url'));
         return result;
     }
 }

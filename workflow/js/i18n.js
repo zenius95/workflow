@@ -1,27 +1,19 @@
-// workflow/js/i18n.js
-const fs = require('fs');
-const path = require('path');
-
+// workflow/js/i18n.js (Frontend Version)
 class I18nManager {
     constructor() {
         this.translations = {};
-        this.currentLanguage = 'en'; // Default language
+        this.currentLanguage = 'en';
     }
 
     /**
-     * Loads a language file into memory.
+     * Initializes the manager with translation data.
      * @param {string} lang - The language code (e.g., 'vi', 'en').
+     * @param {object} translations - The translation data object.
      */
-    loadLanguage(lang) {
-        try {
-            const filePath = path.join(__dirname, '..', 'locales', `${lang}.json`);
-            const fileContent = fs.readFileSync(filePath, 'utf8');
-            this.translations = JSON.parse(fileContent);
-            this.currentLanguage = lang;
-            console.log(`Language '${lang}' loaded successfully.`);
-        } catch (error) {
-            console.error(this.get('logs.error_loading_language', { lang: lang }), error);
-        }
+    init(lang, translations) {
+        this.translations = translations;
+        this.currentLanguage = lang;
+        console.log(`I18nManager initialized for '${lang}'.`);
     }
 
     /**
@@ -39,6 +31,7 @@ class I18nManager {
         }
 
         if (result === undefined) {
+            console.warn(`Translation key not found: ${key}`);
             return key; // Return the key itself as a fallback
         }
 
@@ -55,12 +48,10 @@ class I18nManager {
      * Applies translations to all DOM elements with a data-i18n attribute.
      */
     translateUI() {
-        // Xử lý các trường hợp data-i18n="key" đơn giản (như phiên bản gốc)
         document.querySelectorAll('[data-i18n]').forEach(element => {
             const key = element.getAttribute('data-i18n');
             const translation = this.get(key);
             if (translation !== key) {
-                // Mặc định là 'innerHTML', trừ khi có data-i18n-target chỉ định khác
                 const targetAttr = element.getAttribute('data-i18n-target') || 'innerHTML';
                 if (targetAttr === 'innerHTML') {
                     element.innerHTML = translation;
@@ -70,40 +61,35 @@ class I18nManager {
             }
         });
 
-        // Xử lý các trường hợp mở rộng data-i18n-attr="key"
         document.querySelectorAll('*').forEach(element => {
             for (const attr of element.attributes) {
-                if (attr.name.startsWith('data-i18n-') && attr.name !== 'data-i18n-target' && attr.name !== 'data-i18n-title') {
-                    const key = attr.value;
-                    if (!key) continue;
-
-                    const targetAttr = attr.name.substring('data-i18n-'.length);
+                const attrName = attr.name;
+                const key = attr.value;
+                if (attrName.startsWith('data-i18n-') && key) {
+                    const targetAttr = attrName.substring('data-i18n-'.length);
+                    // Skip attributes we already handled or are special
+                    if (targetAttr === 'target' || targetAttr === 'title' || attrName === 'data-i18n') continue;
+                    
                     const translation = this.get(key);
-
                     if (translation !== key) {
-                        if (targetAttr === 'text' || targetAttr === 'html') {
-                            element.innerHTML = translation;
-                        } else {
-                            element.setAttribute(targetAttr, translation);
-                        }
+                         element.setAttribute(targetAttr, translation);
                     }
                 }
             }
         });
-
-        // Giữ lại phần dịch cho title của trang
-        const titleKey = document.body.getAttribute('data-i18n-title');
-        if (titleKey) {
-            document.title = this.get(titleKey);
-        } else {
-            // Trường hợp title của trang dùng data-i18n
-            const titleElement = document.querySelector('title[data-i18n]');
-            if(titleElement){
-                const key = titleElement.getAttribute('data-i18n');
-                document.title = this.get(key);
-            }
+        
+        const titleElement = document.querySelector('title[data-i18n]');
+        if(titleElement){
+            const key = titleElement.getAttribute('data-i18n');
+            document.title = this.get(key);
         }
     }
 }
 
-module.exports = new I18nManager();
+// Create a single, global instance for the frontend to use.
+const i18n = new I18nManager();
+
+// Export the instance for Node.js environments (like the runner)
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = i18n;
+}

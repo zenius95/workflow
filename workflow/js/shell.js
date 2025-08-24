@@ -1,14 +1,5 @@
 // workflow/js/shell.js
 document.addEventListener('DOMContentLoaded', () => {
-    const { ipcRenderer } = require('electron');
-    const path = require('path');
-    const i18n = require('./js/i18n.js');
-
-    // --- Load language and translate static UI elements ---
-    i18n.loadLanguage('en'); // or 'vi', or load from user settings
-    i18n.translateUI();
-    // --- End of new code ---
-
     // DOM Elements
     const minimizeBtn = document.getElementById('minimize-btn');
     const maximizeBtn = document.getElementById('maximize-btn');
@@ -34,20 +25,17 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentSearchTerm = '';
     let isFetching = false;
 
-    const db = {
-        async getWorkflows(options) { return await ipcRenderer.invoke('db-get-workflows', options); },
-        async deleteWorkflow(id) { return await ipcRenderer.invoke('db-delete-workflow', id); },
-        async getWorkflowById(id) { return await ipcRenderer.invoke('db-get-workflow-by-id', id); },
-        async saveWorkflow(name, data, id) { return await ipcRenderer.invoke('db-save-workflow', { name, data, id }); },
-    };
+    // The `db` object is now replaced by window.api
+    const db = window.api;
 
     const getWebviewUrl = (tabId, workflowId = null) => {
+        // Note: The path is now relative to shell.html
+        const baseUrl = 'workflow.html';
         const query = new URLSearchParams({ tabId });
         if (workflowId !== null) {
             query.set('workflowId', workflowId);
         }
-        const filePath = path.join(__dirname, 'workflow.html');
-        return `file://${filePath}?${query.toString()}`;
+        return `${baseUrl}?${query.toString()}`;
     };
     
     const findTabByWorkflowId = (workflowId) => {
@@ -55,7 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return document.querySelector(`.tab-item[data-workflow-id="${workflowId}"]`);
     };
 
-    const createNewTab = (options = {}) => {
+    const createNewTab = async (options = {}) => {
         const { title, workflowId = null, focus = true } = options;
         tabCounter++;
         const tabId = `tab-${tabCounter}`;
@@ -75,13 +63,32 @@ document.addEventListener('DOMContentLoaded', () => {
         webview.className = 'workflow-webview';
         const url = getWebviewUrl(tabId, workflowId);
         webview.setAttribute('src', url);
-        webview.setAttribute('webpreferences', 'contextIsolation=false, nodeIntegration=true');
+        
+        // Attach the same preload script to the webview
+        const preloadPath = await window.api.getPreloadPath();
+        webview.setAttribute('preload', `file://${preloadPath}`);
 
-        webview.addEventListener('ipc-message', (event) => {
+        webview.addEventListener('ipc-message', async (event) => {
             const { channel, args } = event;
             const [data] = args;
             if (channel === 'updateTabTitle') {
                 updateTab(data.tabId, { title: data.title, workflowId: data.workflowId });
+            }
+            if (channel === 'open-workflow-in-new-tab') {
+                const workflowId = data;
+                const existingTab = findTabByWorkflowId(workflowId);
+                if (existingTab) {
+                    switchToTab(existingTab.dataset.tabId);
+                    return;
+                }
+                try {
+                    const wf = await db.getWorkflowById(workflowId);
+                    if (wf) {
+                        await createNewTab({ title: wf.name, workflowId: wf.id });
+                    }
+                } catch (error) {
+                    console.error('Failed to open workflow in new tab:', error);
+                }
             }
         });
         webviewContainer.appendChild(webview);
@@ -117,17 +124,17 @@ document.addEventListener('DOMContentLoaded', () => {
         tabEl.querySelector('.tab-title').textContent = title;
         tabEl.dataset.workflowId = newId;
     
-        if (currentIdOnTab !== newId) {
-            const isOpeningFromStartPage = (currentIdOnTab === 'null' && ( newId !== 'creating' && !isNaN(parseInt(newId, 10)) ));
-    
-            if (isOpeningFromStartPage) {
-                const newUrl = getWebviewUrl(tabId, newId);
-                webview.loadURL(newUrl);
-            } else {
-                const newUrl = getWebviewUrl(tabId, newId);
-                webview.executeJavaScript(`history.replaceState({}, '', '${newUrl}');`).catch(console.error);
-            }
+        // If we are on the start page, we need to do a full load to show the workflow editor.
+        if (currentIdOnTab === 'null') {
+            const newUrl = getWebviewUrl(tabId, newId);
+            webview.setAttribute('src', newUrl); // FIX: Use setAttribute instead of loadURL
+        } 
+        // If the ID changes from 'creating' to a real ID, just update the URL without reloading.
+        else if (currentIdOnTab === 'creating' && newId !== 'creating') {
+            const newUrl = getWebviewUrl(tabId, newId);
+            webview.executeJavaScript(`history.replaceState({}, '', '${newUrl}');`).catch(console.error);
         }
+        // Other cases (like renaming) don't require a URL change, just a title update which is already done.
     
         if (focus) {
             switchToTab(tabId);
@@ -358,16 +365,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 try {
                     const workflow = await db.getWorkflowById(workflowId);
                     if (workflow) {
-                        await db.saveWorkflow(newName, workflow.data, workflowId);
+                        await db.saveWorkflow({ name: newName, data: workflow.data, id: workflowId });
                         nameDisplay.textContent = newName;
                         itemElement.querySelector('.workflow-list-item-main').dataset.name = newName;
                         
                         const tabToUpdate = findTabByWorkflowId(workflowId);
                         if (tabToUpdate) {
-                            // Cập nhật tiêu đề tab cha
                             updateTab(tabToUpdate.dataset.tabId, { title: newName, workflowId });
                             
-                            // **FIX:** Gửi tin nhắn vào webview con để nó tự cập nhật
                             const webview = document.getElementById(`webview-${tabToUpdate.dataset.tabId}`);
                             if (webview) {
                                 webview.send('workflow-renamed', { newName: newName });
@@ -376,7 +381,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 } catch (error) {
                     console.error("Failed to rename workflow:", error);
-                    nameDisplay.textContent = originalName; // Hoàn tác lại nếu lỗi
+                    nameDisplay.textContent = originalName;
                 }
             }
         };
@@ -401,7 +406,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const workflowToDuplicate = await db.getWorkflowById(workflowId);
             if (workflowToDuplicate) {
                 const newName = `${name} (Copy)`;
-                const newWorkflow = await db.saveWorkflow(newName, workflowToDuplicate.data, null);
+                const newWorkflow = await db.saveWorkflow({ name: newName, data: workflowToDuplicate.data });
                 if (newWorkflow) {
                     resetAndPopulateStartPage();
                 }
@@ -413,25 +418,39 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const handleDeleteAction = async (workflowId, name) => {
         hideWorkflowMenu();
-        const { response } = await ipcRenderer.invoke('show-confirm-dialog', {
-            type: 'warning',
-            buttons: [i18n.get('common.cancel'), i18n.get('common.delete')],
-            defaultId: 0,
+        
+        Swal.fire({
             title: i18n.get('shell.confirm_delete_title'),
-            message: i18n.get('shell.confirm_delete_message', { name: name }),
-            detail: i18n.get('shell.confirm_delete_detail')
-        });
-
-        if (response === 1) { // Nút "Delete"
-            const result = await db.deleteWorkflow(workflowId);
-            if (result.success) {
-                const tabToDelete = findTabByWorkflowId(workflowId);
-                if (tabToDelete) closeTab(tabToDelete.dataset.tabId);
-                resetAndPopulateStartPage();
-            } else {
-                console.error(i18n.get('shell.delete_error'), result.message);
+            html: i18n.get('shell.confirm_delete_message', { name: `<b>${name}</b>` }) + `<br><small>${i18n.get('shell.confirm_delete_detail')}</small>`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: i18n.get('common.delete'),
+            cancelButtonText: i18n.get('common.cancel'),
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#6c757d',
+            reverseButtons: true
+        }).then(async (result) => {
+            if (result.isConfirmed) {
+                const deleteResult = await db.deleteWorkflow(workflowId);
+                if (deleteResult.success) {
+                    const tabToDelete = findTabByWorkflowId(workflowId);
+                    if (tabToDelete) closeTab(tabToDelete.dataset.tabId);
+                    resetAndPopulateStartPage();
+                    Swal.fire(
+                      i18n.get('shell.deleted_title'),
+                      i18n.get('shell.deleted_text', { name: name }),
+                      'success'
+                    )
+                } else {
+                    console.error(i18n.get('shell.delete_error'), deleteResult.message);
+                    Swal.fire(
+                      i18n.get('shell.delete_error_title'),
+                      deleteResult.message,
+                      'error'
+                    )
+                }
             }
-        }
+        })
     };
 
     const handleStartPageAction = async (e) => {
@@ -496,15 +515,15 @@ document.addEventListener('DOMContentLoaded', () => {
         populateStartPage(true); // append = true
     });
     
-    minimizeBtn.addEventListener('click', () => ipcRenderer.send('minimize-window'));
-    maximizeBtn.addEventListener('click', () => ipcRenderer.send('maximize-window'));
-    closeBtn.addEventListener('click', () => ipcRenderer.send('close-window'));
-    ipcRenderer.on('window-state-changed', (event, { isMaximized }) => {
+    minimizeBtn.addEventListener('click', () => window.api.minimizeWindow());
+    maximizeBtn.addEventListener('click', () => window.api.maximizeWindow());
+    closeBtn.addEventListener('click', () => window.api.closeWindow());
+    window.api.onWindowStateChanged(({ isMaximized }) => {
         maximizeBtnIcon.className = isMaximized ? 'ri-file-copy-line' : 'ri-checkbox-blank-line';
     });
     
-    addTabBtn.addEventListener('click', () => {
-        createNewTab({ workflowId: null });
+    addTabBtn.addEventListener('click', async () => {
+        await createNewTab({ workflowId: null });
     });
 
     tabBar.addEventListener('click', (e) => {
@@ -531,21 +550,33 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     // --- Initialization ---
-    sortableInstance = new Sortable(tabBar, {
-        animation: 200,
-        ghostClass: 'tab-ghost',
-        dragClass: 'tab-dragging',
-        filter: '.no-drag',
-        forceFallback: true, // This is it!
-        onMove: function (e) {
-    
-            if (e.related.classList.contains('add-tab-btn')) { 
-                return false;
-            }
-            
-        },
+    const initializeApp = async () => {
+        // 1. Load translations
+        const lang = 'en'; // or get from settings
+        const translations = await window.api.getTranslations(lang);
+        if (translations) {
+            i18n.init(lang, translations);
+        } else {
+            console.error("Could not load translations, UI might be broken.");
+        }
 
-    });
+        // 2. Translate the initial UI
+        i18n.translateUI();
 
-    createNewTab({ workflowId: null });
+        // 3. Setup Sortable tabs
+        sortableInstance = new Sortable(tabBar, {
+            animation: 200,
+            ghostClass: 'tab-ghost',
+            dragClass: 'tab-dragging',
+            filter: '#add-tab-btn', // Correct way to filter
+            onMove: function (e) {
+                return e.related.id !== 'add-tab-btn';
+            },
+        });
+
+        // 4. Create the initial start page tab
+        await createNewTab({ workflowId: null });
+    };
+
+    initializeApp();
 });
