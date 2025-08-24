@@ -1,5 +1,5 @@
 const path = require('path');
-const { getProperty, setProperty } = require(path.join(__dirname, 'nodes/logic/data_processing.js'));
+const { getProperty, setProperty } = require(path.join(__dirname, 'nodes/data/data_processing.js'));
 
 // --- CONFIGURATION ---
 const nodeCategories = require(path.join(__dirname, 'nodes'));

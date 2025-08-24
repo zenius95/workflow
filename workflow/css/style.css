@@ -184,7 +184,7 @@ body { font-family: 'SFProDisplay', sans-serif; font-size: 13px; overflow: hidde
 /* Connector Styles */
 .connector-svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
 .connector-line { stroke-width: 1px; fill: none; stroke-linecap: round; transition: stroke 0.2s; pointer-events: stroke; cursor: pointer; stroke-dasharray: 4 4;animation: running-dash 4s linear infinite;}
-.connector-line-drawing { stroke-width: 1px; stroke: #ffc107; fill: none; stroke-dasharray: 4 4; }
+.connector-line-drawing { stroke-width: 1px; stroke: #ffc107; fill: none; stroke-dasharray: 4 4; animation: none; }
 .connector-line[data-from-port="success"], .connector-line[data-from-port="true"], .connector-line[data-from-port="try"] { stroke: #198754; }
 .connector-line[data-from-port="error"], .connector-line[data-from-port="false"], .connector-line[data-from-port="catch"] { stroke: #dc3545; stroke-dasharray: 4 4; }
 .connector-line[data-from-port="out"] { stroke: #fd7e14; }
