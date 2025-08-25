@@ -868,10 +868,27 @@ class WorkflowBuilder extends EventTarget {
         const keys = path.split('.');
         let current = obj;
         for (let i = 0; i < keys.length - 1; i++) {
-            if (!current[keys[i]] || typeof current[keys[i]] !== 'object') {
-                current[keys[i]] = {};
+            const key = keys[i];
+            const nextKey = keys[i + 1];
+            const isNextKeyNumeric = /^\d+$/.test(nextKey); // Kiểm tra xem khóa tiếp theo có phải là chuỗi số không
+
+            if (Array.isArray(current) && /^\d+$/.test(key)) {
+                // Nếu current là một mảng và key là số, đảm bảo phần tử tồn tại
+                const index = parseInt(key, 10);
+                if (current[index] === undefined || current[index] === null) {
+                    current[index] = isNextKeyNumeric ? [] : {}; // Khởi tạo là mảng hoặc đối tượng dựa trên khóa tiếp theo
+                } else if (typeof current[index] !== 'object') {
+                    // Nếu nó không phải là một đối tượng, và chúng ta mong đợi đi sâu hơn, hãy chuyển đổi nó
+                    current[index] = isNextKeyNumeric ? [] : {};
+                }
+                current = current[index];
+            } else {
+                // Xử lý thuộc tính đối tượng tiêu chuẩn
+                if (!current[key] || typeof current[key] !== 'object') {
+                    current[key] = isNextKeyNumeric ? [] : {}; // Khởi tạo là mảng hoặc đối tượng dựa trên khóa tiếp theo
+                }
+                current = current[key];
             }
-            current = current[keys[i]];
         }
         current[keys[keys.length - 1]] = value;
     }

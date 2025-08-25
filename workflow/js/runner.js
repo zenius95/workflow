@@ -87,12 +87,12 @@ class WorkflowRunner {
                         logger.info(`Starting execution of sub-workflow: ${subWorkflowData.name}`);
 
                         // Tạo một runner mới cho sub-workflow
-                        const subRunner = new WorkflowRunner({
+                                                const subRunner = new WorkflowRunner({
                             workflow: subWorkflowData.data,
                             config: runnerInstance.nodeConfig,
                             logger: runnerInstance.logger,
                             globalVariables: runnerInstance.globalVariables,
-                            formData: data, // Truyền dữ liệu của node cha làm đầu vào cho sub-workflow
+                            formData: data.inputs, // Truyền dữ liệu của node cha làm đầu vào cho sub-workflow
                             isSubRunner: true, // Đánh dấu đây là một sub-runner
                         });
 
