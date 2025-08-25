@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld('api', {
     getWorkflowById: (id) => ipcRenderer.invoke('db-get-workflow-by-id', id),
     getWorkflowVersions: (workflowId) => ipcRenderer.invoke('db-get-versions', workflowId),
     createWorkflowVersion: (data) => ipcRenderer.invoke('db-save-version', data),
+    getWorkflowLogs: (workflowId) => ipcRenderer.invoke('db-get-workflow-logs', workflowId),
 
     // Dialogs
     showConfirmDialog: (options) => ipcRenderer.invoke('show-confirm-dialog', options),

@@ -64,11 +64,15 @@ class WorkflowBuilder extends EventTarget {
             settingsPanel: `
                 <div class="p-4">
                     <div class="d-flex justify-content-between align-items-center mb-4">
-                        <h3 class="h5 fw-bold text-dark mb-0">${i18n.get('workflow.settings_panel.title', {id: '{{id}}'})}</h3>
+                        <h3 class="h5 fw-bold text-dark mb-0">
+                            ${i18n.get('workflow.settings_panel.title', {id: '{{id}}'})}
+                        </h3>
                         <button data-action="close-settings" class="btn-close"></button>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label fw-semibold" for="settings-title-input">${i18n.get('workflow.settings_panel.node_title_label')}</label>
+                        <label class="form-label fw-semibold" for="settings-title-input">
+                            ${i18n.get('workflow.settings_panel.node_title_label')}
+                        </label>
                         <input id="settings-title-input" type="text" data-field="title" class="form-control" value="{{title}}">
                     </div>
                     <div data-ref="fields-container"></div>
@@ -143,6 +147,12 @@ class WorkflowBuilder extends EventTarget {
     // --- PUBLIC API ---
     loadWorkflow(workflowObject, commit = true) { this._importWorkflow(JSON.stringify(workflowObject), commit); }
     getWorkflow() { return this._getCurrentState(); }
+    setWorkflowId(id) {
+        if (!this.initialWorkflow) {
+            this.initialWorkflow = {};
+        }
+        this.initialWorkflow.id = id;
+    }
     clear() { this._clearCanvas(true); }
     getNode(nodeId) { return this.nodes.find(n => n.id === nodeId); }
     getNodes() { return this.nodes; }
@@ -959,7 +969,7 @@ class WorkflowBuilder extends EventTarget {
             });
         }
 
-        content.querySelector('[data-action="close-settings"]')?.addEventListener('click', () => this._hideSettingsPanel());
+        content.querySelector('[data-action="close-settings"]').addEventListener('click', () => this._hideSettingsPanel());
         const fieldsContainer = content.querySelector('[data-ref="fields-container"]');
         
         let settingsToRender = [];
@@ -1346,6 +1356,7 @@ class WorkflowBuilder extends EventTarget {
 
     _getCurrentState() {
         return {
+            id: this.initialWorkflow ? this.initialWorkflow.id : null,
             nodes: this.nodes.map(n => ({
                 id: n.id, type: n.type, x: n.x, y: n.y, data: JSON.parse(JSON.stringify(n.data))
             })),

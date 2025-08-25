@@ -97,7 +97,7 @@
       "copied_nodes": "Copied {count} nodes.",
       "curl_import_success": "cURL command imported successfully.",
       "curl_parse_fail": "Could not parse cURL command: {message}",
-      "invalid_node_config": "Could not find configuration for node type \"{type}\"",
+      "invalid_node_config": "Could not find configuration for node type \"{type}\" (ID: {id})",
       "simulation_success": "Simulation finished successfully.",
       "simulation_fail": "Simulation failed: {message}",
       "simulation_error": "Simulation error: {message}",
@@ -256,9 +256,18 @@
     "tabs": {
       "nodes": "Nodes",
       "variables": "Variables",
+      "logs": "Logs",
       "history": "History",
       "form": "Form",
       "workflows": "Workflows"
+    },
+    "logs_tab": {
+        "title": "Execution Logs",
+        "description": "Review the logs from past workflow runs.",
+        "no_workflow_saved": "Save the workflow to view logs.",
+        "no_logs": "No logs found for this workflow.",
+        "load_error": "Failed to load logs.",
+        "log_details_title": "Log from {{datetime}}"
     },
     "nodes_tab": {
       "search_placeholder": "Search nodes..."

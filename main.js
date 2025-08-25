@@ -120,24 +120,31 @@ ipcMain.handle('i18n-get-translations', (event, lang) => {
 
 // --- Simulation IPC Handler ---
 ipcMain.handle('run-simulation', async (event, { workflow, globalVariables, formData }) => {
-    // Custom logger for runner to send events to renderer
+    const logMessages = [];
+    // Custom logger for runner to send events to renderer and accumulate logs
     const logger = {
         info: (msg) => {
+            logMessages.push(`[INFO] ${msg}`);
             event.sender.send('runner-event', { type: 'log', level: 'info', message: msg });
         },
         success: (msg) => {
+            logMessages.push(`[SUCCESS] ${msg}`);
             event.sender.send('runner-event', { type: 'log', level: 'success', message: msg });
         },
         error: (msg) => {
+            logMessages.push(`[ERROR] ${msg}`);
             event.sender.send('runner-event', { type: 'log', level: 'error', message: msg });
         },
         system: (msg) => {
+            logMessages.push(`[SYSTEM] ${msg}`);
             event.sender.send('runner-event', { type: 'log', level: 'system', message: msg });
         },
         warn: (msg) => {
+            logMessages.push(`[WARN] ${msg}`);
             event.sender.send('runner-event', { type: 'log', level: 'warn', message: msg });
         },
         clear: () => {
+            logMessages.length = 0;
             event.sender.send('runner-event', { type: 'log', level: 'clear' });
         },
         // Add methods for node state and connection animation
@@ -162,9 +169,15 @@ ipcMain.handle('run-simulation', async (event, { workflow, globalVariables, form
 
     try {
         const result = await runner.run();
+        if (workflow.id) {
+            await db.createWorkflowLog(workflow.id, logMessages.join('\n'));
+        }
         return { success: true, result };
     } catch (error) {
         logger.error(error.message);
+        if (workflow.id) {
+            await db.createWorkflowLog(workflow.id, logMessages.join('\n'));
+        }
         return { success: false, error: error.message };
     }
 });
@@ -196,6 +209,14 @@ ipcMain.handle('db-save-version', async (event, { workflowId, data }) => {
 
 ipcMain.handle('db-get-workflow-by-id', async (event, id) => {
     return db.getWorkflowById(id);
+});
+
+ipcMain.handle('db-create-workflow-log', async (event, { workflowId, logContent }) => {
+    return db.createWorkflowLog(workflowId, logContent);
+});
+
+ipcMain.handle('db-get-workflow-logs', async (event, workflowId) => {
+    return db.getWorkflowLogs(workflowId);
 });
 
 // --- Dialog IPC Handler ---

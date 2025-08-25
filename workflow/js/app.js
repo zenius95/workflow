@@ -122,6 +122,54 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     // --- *** KẾT THÚC: LOGIC CHO TAB WORKFLOWS *** ---
 
+    // --- LOGS TAB LOGIC ---
+    const logsTab = document.getElementById('logs-tab');
+    const logsListContainer = document.getElementById('workflow-logs-list');
+
+    const loadWorkflowLogs = async () => {
+        if (!logsListContainer) return;
+
+        logsListContainer.innerHTML = ''; // Clear existing logs
+
+        if (!currentWorkflowId) {
+            logsListContainer.innerHTML = `<p class="text-muted p-3">${i18n.get('workflow_page.logs_tab.no_workflow_saved')}</p>`;
+            return;
+        }
+
+        try {
+            const logs = await window.api.getWorkflowLogs(currentWorkflowId);
+
+            if (logs.length === 0) {
+                logsListContainer.innerHTML = `<p class="text-muted p-3">${i18n.get('workflow_page.logs_tab.no_logs')}</p>`;
+                return;
+            }
+
+            logs.forEach(log => {
+                const item = document.createElement('a');
+                item.href = '#';
+                item.className = 'list-group-item list-group-item-action';
+                item.textContent = new Date(log.createdAt).toLocaleString();
+                item.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const logContentHtml = `<pre style="text-align: left; white-space: pre-wrap; word-wrap: break-word;">${log.log_content}</pre>`;
+                    Swal.fire({
+                        title: i18n.get('workflow_page.logs_tab.log_details_title', { datetime: new Date(log.createdAt).toLocaleString() }),
+                        html: logContentHtml,
+                        width: '80vw',
+                        confirmButtonText: i18n.get('common.close')
+                    });
+                });
+                logsListContainer.appendChild(item);
+            });
+        } catch (error) {
+            logsListContainer.innerHTML = `<p class="text-danger p-3">${i18n.get('workflow_page.logs_tab.load_error')}</p>`;
+            console.error('Error loading workflow logs:', error);
+        }
+    };
+
+    if (logsTab) {
+        logsTab.addEventListener('show.bs.tab', loadWorkflowLogs);
+    }
 
     // --- LOGIC TRẠNG THÁI LƯU ---
     const setSaveStatus = (status, message = '') => {
@@ -151,6 +199,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const saved = await db.saveWorkflow(defaultName, currentData, null);
 
                 currentWorkflowId = saved.id;
+                workflowBuilder.setWorkflowId(saved.id);
                 setSaveStatus('saved');
                 workflowBuilder.logger.success(i18n.get('app.save_first_success', { name: defaultName }));
 
@@ -241,6 +290,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (wfToLoad) {
                 currentWorkflowId = wfToLoad.id;
+                workflowBuilder.setWorkflowId(wfToLoad.id);
                 updateWorkflowTitle(wfToLoad.name);
                 lastSavedVersionState = JSON.stringify(wfToLoad.data);
                 

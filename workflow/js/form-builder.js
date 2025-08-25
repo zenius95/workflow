@@ -39,6 +39,29 @@ class FormBuilder {
 
     loadComponents(components) {
         this.components = JSON.parse(JSON.stringify(components || []));
+        this.formData = {}; // Clear existing form data
+
+        const populateFormData = (componentArray) => {
+            for (const comp of componentArray) {
+                if (comp.config && comp.config.dataField) {
+                    this.formData[comp.config.dataField] = null;
+                }
+                if (comp.config && comp.config.controls) {
+                    populateFormData(comp.config.controls);
+                }
+                if (comp.config && comp.config.tabs) {
+                    for (const tab of comp.config.tabs) {
+                        if (tab.controls) {
+                            populateFormData(tab.controls);
+                        }
+                    }
+                }
+            }
+        };
+
+        populateFormData(this.components);
+        this.workflow.setFormData(this.formData); // Notify workflow
+
         this.nextId = (this.components.reduce((maxId, comp) => {
             const findMaxId = (c, currentMax) => {
                 const idNum = parseInt(c.id.split('-')[1], 10);
@@ -87,6 +110,24 @@ class FormBuilder {
             }
         }
         return null;
+    }
+
+    getAllComponents(componentArray = this.components) {
+        let allComponents = [];
+        for (const comp of componentArray) {
+            allComponents.push(comp);
+            if (comp.config.controls) {
+                allComponents = allComponents.concat(this.getAllComponents(comp.config.controls));
+            }
+            if (comp.config.tabs) {
+                for (const tab of comp.config.tabs) {
+                    if (tab.controls) {
+                        allComponents = allComponents.concat(this.getAllComponents(tab.controls));
+                    }
+                }
+            }
+        }
+        return allComponents;
     }
     
     initialize() {
@@ -151,6 +192,12 @@ class FormBuilder {
                 const newComponent = this.createComponent(type);
                 evt.item.remove();
                 group.splice(evt.newIndex, 0, newComponent);
+
+                if (newComponent.config.dataField) {
+                    this.formData[newComponent.config.dataField] = null;
+                    this.workflow.setFormData(this.formData);
+                }
+
                 this.renderCanvas(activeTabId);
                 this.selectComponent(newComponent.id);
             } else if (action === 'update') {
@@ -246,6 +293,17 @@ class FormBuilder {
             this.previewPane.innerHTML = `<p class="text-muted text-center">${i18n.get('form_builder.preview_placeholder')}</p>`;
             return;
         }
+
+        const allComponents = this.getAllComponents();
+        const orderedFormData = {};
+        for (const comp of allComponents) {
+            if (comp.config.dataField) {
+                orderedFormData[comp.config.dataField] = this.formData[comp.config.dataField];
+            }
+        }
+        this.formData = orderedFormData;
+        this.workflow.setFormData(this.formData);
+
         const finalConfig = this.components.map(c => c.config);
         const formConfigForRenderer = { settings: finalConfig };
         const formContent = this.workflow.settingsRenderer.renderAndBind(finalConfig, 'preview', this.formData, formConfigForRenderer);

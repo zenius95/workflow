@@ -44,13 +44,24 @@ class Database {
             timestamps: false,
         });
 
+        this.WorkflowLog = this.sequelize.define('WorkflowLog', {
+            workflow_id: { type: DataTypes.INTEGER, allowNull: false },
+            log_content: { type: DataTypes.TEXT },
+            createdAt: { type: DataTypes.STRING, allowNull: false },
+        }, {
+            tableName: 'workflow_logs',
+            timestamps: false,
+        });
+
         this.WorkflowVersion.belongsTo(this.Workflow, { foreignKey: 'workflow_id', onDelete: 'CASCADE' });
+        this.WorkflowLog.belongsTo(this.Workflow, { foreignKey: 'workflow_id', onDelete: 'CASCADE' });
     }
 
     async init() {
         await this.sequelize.authenticate();
         await this.Workflow.sync();
         await this.WorkflowVersion.sync();
+        await this.WorkflowLog.sync();
         console.log("Database tables are ready.");
     }
 
@@ -101,6 +112,24 @@ class Database {
             createdAt,
         });
         return { id: row.id };
+    }
+
+    async createWorkflowLog(workflowId, logContent) {
+        const createdAt = new Date().toISOString();
+        const row = await this.WorkflowLog.create({
+            workflow_id: workflowId,
+            log_content: logContent,
+            createdAt,
+        });
+        return { id: row.id };
+    }
+
+    async getWorkflowLogs(workflowId) {
+        const rows = await this.WorkflowLog.findAll({
+            where: { workflow_id: workflowId },
+            order: [['createdAt', 'DESC']]
+        });
+        return rows.map(row => row.toJSON());
     }
 
     async close() {

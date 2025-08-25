@@ -38,6 +38,14 @@
                         </a>
                     </li>
                     <li class="nav-item w-100 mb-3" role="presentation">
+                        <a href="javascript:;" class="text-black fw-medium text-decoration-none p-0 d-flex align-items-center justify-content-center w-100" style="width: 60px; height: 60px;" id="logs-tab" data-bs-toggle="tab" data-bs-target="#tab-pane-logs" role="tab" aria-controls="tab-pane-logs" aria-selected="false">
+                            <span class="d-flex flex-column align-items-center">
+                                <i class="ri-file-text-line fs-4"></i>
+                                <span class="fw-bold" data-i18n="workflow_page.tabs.logs"></span>
+                            </span>
+                        </a>
+                    </li>
+                    <li class="nav-item w-100 mb-3" role="presentation">
                         <a href="javascript:;" class="text-black fw-medium text-decoration-none p-0 d-flex align-items-center justify-content-center w-100" style="width: 60px; height: 60px;" id="history-tab" data-bs-toggle="tab" data-bs-target="#tab-pane-history" role="tab" aria-controls="tab-pane-history" aria-selected="false">
                             <span class="d-flex flex-column align-items-center">
                                 <i class="ri-history-line fs-4"></i>
@@ -88,24 +96,42 @@
                             </div>
                         </div>
                     </div>
-                    <div class="tab-pane p-3" id="tab-pane-variables" role="tabpanel" aria-labelledby="variables-tab" data-ref="variables-panel">
-                         <div class="mb-4">
-                            <h4 class="h6 fw-semibold text-secondary mb-2 border-bottom pb-1" data-i18n="workflow_page.variables_tab.global_title"></h4>
-                            <div data-ref="global-variables-container" class="tree-view p-2 bg-light rounded mb-3 border"></div>
-                            <form data-ref="add-global-var-form" class="row g-2">
-                                <div class="col-6"><input type="text" name="key" data-i18n-placeholder="workflow_page.variables_tab.key_placeholder" required class="form-control form-control-sm"></div>
-                                <div class="col-6"><input type="text" name="value" data-i18n-placeholder="workflow_page.variables_tab.value_placeholder" required class="form-control form-control-sm"></div>
-                                <div class="col-12"><button type="submit" class="btn btn-primary btn-sm w-100" data-i18n="workflow_page.variables_tab.add_button"></button></div>
-                            </form>
+                    <div class="tab-pane" id="tab-pane-variables" role="tabpanel" aria-labelledby="variables-tab" data-ref="variables-panel">
+                        <ul class="nav nav-tabs" id="variables-tabs-list" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="form-data-tab" data-bs-toggle="tab" data-bs-target="#form-data-panel" type="button" role="tab" aria-controls="form-data-panel" aria-selected="true" data-i18n="workflow_page.variables_tab.form_data_title"></button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="global-variables-tab" data-bs-toggle="tab" data-bs-target="#global-variables-panel" type="button" role="tab" aria-controls="global-variables-panel" aria-selected="false" data-i18n="workflow_page.variables_tab.global_title"></button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="node-outputs-tab" data-bs-toggle="tab" data-bs-target="#node-outputs-panel" type="button" role="tab" aria-controls="node-outputs-panel" aria-selected="false" data-i18n="workflow_page.variables_tab.node_outputs_title"></button>
+                            </li>
+                        </ul>
+                        <div class="tab-content p-3" id="variables-tabs-content">
+                            <div class="tab-pane fade show active" id="form-data-panel" role="tabpanel" aria-labelledby="form-data-tab">
+                                <div data-ref="form-data-container" class="tree-view p-2 bg-light rounded border"></div>
+                            </div>
+                            <div class="tab-pane fade" id="global-variables-panel" role="tabpanel" aria-labelledby="global-variables-tab">
+                                <div data-ref="global-variables-container" class="tree-view p-2 bg-light rounded mb-3 border"></div>
+                                <form data-ref="add-global-var-form" class="row g-2">
+                                    <div class="col-6"><input type="text" name="key" data-i18n-placeholder="workflow_page.variables_tab.key_placeholder" required class="form-control form-control-sm"></div>
+                                    <div class="col-6"><input type="text" name="value" data-i18n-placeholder="workflow_page.variables_tab.value_placeholder" required class="form-control form-control-sm"></div>
+                                    <div class="col-12"><button type="submit" class="btn btn-primary btn-sm w-100" data-i18n="workflow_page.variables_tab.add_button"></button></div>
+                                </form>
+                            </div>
+                            <div class="tab-pane fade" id="node-outputs-panel" role="tabpanel" aria-labelledby="node-outputs-tab">
+                                <div data-ref="node-outputs-container" class="tree-view p-2 bg-light rounded border"></div>
+                            </div>
                         </div>
-                        <div class="mb-3">
-                            <h4 class="h6 fw-semibold text-secondary mb-2 border-bottom pb-1" data-i18n="workflow_page.variables_tab.form_data_title"></h4>
-                            <div data-ref="form-data-container" class="tree-view p-2 bg-light rounded border"></div>
-                        </div>
-                        <div>
-                            <h4 class="h6 fw-semibold text-secondary mb-2 border-bottom pb-1" data-i18n="workflow_page.variables_tab.node_outputs_title"></h4>
-                            <div data-ref="node-outputs-container" class="tree-view p-2 bg-light rounded border"></div>
-                        </div>
+                    </div>
+                    <div class="tab-pane p-0" id="tab-pane-logs" role="tabpanel" aria-labelledby="logs-tab">
+                         <div class="p-3">
+                             <h3 class="h5 fw-bold text-dark" data-i18n="workflow_page.logs_tab.title"></h3>
+                             <p class="text-muted small mb-0" data-i18n="workflow_page.logs_tab.description"></p>
+                         </div>
+                         <div id="workflow-logs-list" class="list-group list-group-flush">
+                         </div>
                     </div>
                     <div class="tab-pane p-0" id="tab-pane-history" role="tabpanel" aria-labelledby="history-tab">
                          <div class="p-3">
