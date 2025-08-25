@@ -381,7 +381,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }, db);
 
         // Attach event listeners after workflowBuilder is initialized
-        workflowBuilder.addEventListener('workflow:changed', triggerAutoSave);
+        workflowBuilder.addEventListener('workflow:changed', (event) => {
+            // Filter out state commit actions from triggering auto-save logs
+            if (event.detail.action && event.detail.action.startsWith('workflow.state_commit')) {
+                // Optionally, you could log these to console.debug if needed for development
+                // console.debug("Ignoring state commit for auto-save trigger:", event.detail.action);
+                return;
+            }
+            triggerAutoSave();
+        });
         workflowBuilder.addEventListener('workflow:cleared', resetOnClearOrImport);
         historyTab.addEventListener('show.bs.tab', updateHistoryTabContent); // This was already there, but moved for clarity.
 

@@ -6,7 +6,6 @@ class WorkflowBuilder extends EventTarget {
         super();
         this.container = document.getElementById(containerId);
         if (!this.container) {
-            console.error(i18n.get('workflow.logs.container_not_found', { id: containerId }));
             return;
         }
 
@@ -194,7 +193,7 @@ class WorkflowBuilder extends EventTarget {
     }
 
     async runSimulation() {
-        this.logger.system(i18n.get('workflow.logs.simulation_start'));
+        this._toggleConsole(true); // Ensure console is visible
         // No longer clear executionState here, it's handled by runner-event 'updateVariables'
         // No longer call _updateVariablesPanel here, it's handled by runner-event 'updateVariables'
 
@@ -206,7 +205,9 @@ class WorkflowBuilder extends EventTarget {
         }
         if(this.treeViewStates) this.treeViewStates.clear(); // Clear tree view states
 
+
         try {
+            
             const workflowData = this._getCurrentState();
             const result = await window.api.runSimulation({
                 workflow: workflowData,
@@ -214,14 +215,6 @@ class WorkflowBuilder extends EventTarget {
                 formData: this.formData
             });
 
-            if (result.success) {
-                this.logger.success(i18n.get('workflow.logs.simulation_success'));
-                // executionState is now updated via runner-event 'updateVariables'
-            } else {
-                this.logger.error(i18n.get('workflow.logs.simulation_fail', { message: result.error }));
-            }
-        } catch (error) {
-            this.logger.error(i18n.get('workflow.logs.simulation_error', { message: error.message }));
         } finally {
             // Re-enable run button
             const runButton = this.container.querySelector('[data-action="run-simulation"]');
@@ -229,8 +222,6 @@ class WorkflowBuilder extends EventTarget {
                 runButton.disabled = false;
                 runButton.classList.remove('opacity-50');
             }
-            // Reset all nodes to idle state after simulation ends
-            this.nodes.forEach(node => this._setNodeState(node, 'idle'));
         }
     }
 
@@ -328,8 +319,14 @@ class WorkflowBuilder extends EventTarget {
         this.dom.addGlobalVarForm.addEventListener('submit', (e) => this._handleAddGlobalVariable(e));
     }
     
-    _toggleConsole() {
-        this.dom.consolePanel.classList.toggle('show');
+    _toggleConsole(forceShow = null) {
+        if (forceShow === true) {
+            this.dom.consolePanel.classList.add('show');
+        } else if (forceShow === false) {
+            this.dom.consolePanel.classList.remove('show');
+        } else {
+            this.dom.consolePanel.classList.toggle('show');
+        }
     }
 
     _setupConsoleResizer() {
@@ -798,7 +795,7 @@ class WorkflowBuilder extends EventTarget {
         const minX = Math.min(...this.clipboard.nodes.map(n => n.x));
         const minY = Math.min(...this.clipboard.nodes.map(n => n.y));
         this.clipboard.nodes.forEach(n => { n.relX = n.x - minX; n.relY = n.y - minY; });
-        this.logger.system(i18n.get('workflow.logs.copied_nodes', { count: this.clipboard.nodes.length }));
+        
     }
 
     _pasteSelectedNodes() {
@@ -1301,7 +1298,7 @@ class WorkflowBuilder extends EventTarget {
 
                     } catch (error) {
 
-                        console.log(err)
+                        console.log(error)
 
                         logger.error(`Error executing sub workflow (ID: ${workflowId}): ${error.message}`);
                         throw error;
@@ -1692,8 +1689,7 @@ class WorkflowBuilder extends EventTarget {
     async _copyToClipboard(text) {
         try {
             await navigator.clipboard.writeText(text);
-            this.logger.system(i18n.get('workflow.logs.copied_clipboard', { text: text.substring(0, 50) }));
-        } catch (err) { this.logger.error(i18n.get('workflow.logs.copy_clipboard_fail'), err); }
+            } catch (err) { this.logger.error(i18n.get('workflow.logs.copy_clipboard_fail'), err); }
     }
     
     _handleProcessCurlImport() {

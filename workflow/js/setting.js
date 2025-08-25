@@ -5,7 +5,7 @@
 class SettingsRenderer {
     constructor(workflowInstance) {
         this.workflow = workflowInstance;
-        // The dialog functionality will be accessed via window.api.
+        this.dialog = (typeof window !== 'undefined' && window.api && window.api.showOpenDialog);
     }
 
     renderAndBind(settingsConfig, uniqueId, dataObject, nodeConfig = {}) {

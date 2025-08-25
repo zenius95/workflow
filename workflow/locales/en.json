@@ -7,10 +7,10 @@
     "confirm": "Confirm",
     "delete": "Delete",
     "cancel": "Cancel",
-    "close": "Close",
     "save": "Save",
     "rename": "Rename",
-    "duplicate": "Duplicate"
+    "duplicate": "Duplicate",
+    "close": "Close"
   },
   "shell": {
     "start_page": "Start Page",
@@ -27,7 +27,10 @@
     "switch_tab": "Switch Tab",
     "delete_error": "Error deleting workflow:",
     "recent_files": "Recent files",
-    "create_new": "Create New"
+    "create_new": "Create New",
+    "deleted_title": "Workflow Deleted",
+    "deleted_text": "Workflow \"{name}\" has been deleted.",
+    "delete_error_title": "Deletion Error"
   },
   "app": {
     "unsaved_workflow": "Untitled",
@@ -94,7 +97,11 @@
       "copied_nodes": "Copied {count} nodes.",
       "curl_import_success": "cURL command imported successfully.",
       "curl_parse_fail": "Could not parse cURL command: {message}",
-      "invalid_node_config": "Could not find configuration for node type \"{type}\""
+      "invalid_node_config": "Could not find configuration for node type \"{type}\"",
+      "simulation_success": "Simulation finished successfully.",
+      "simulation_fail": "Simulation failed: {message}",
+      "simulation_error": "Simulation error: {message}",
+      "invalid_json_import": "Invalid JSON file. The file may be corrupt or incorrectly formatted."
     },
     "variables_panel": {
       "global": "Global",
@@ -319,7 +326,7 @@
       "no_workflows": "No workflows found.",
       "loading": "Loading...",
       "load_error": "Failed to load workflows.",
-      "search_placeholderr": "Search workflows..."
+      "search_placeholder": "Search workflows..."
     }
   }
 }

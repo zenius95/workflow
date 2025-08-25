@@ -207,7 +207,6 @@ class WorkflowRunner {
             }
         } finally {
             this.logger.updateVariables(globalVariables, formData, this.executionState); // Final update of variables panel
-            this.logger.nodeState(node.id, 'idle'); // Reset node state after execution
         }
     }
     
