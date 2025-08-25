@@ -2,83 +2,117 @@ class WorkflowRunner {
     /**
      * Hàm khởi tạo "thông minh".
      * @param {object} config - Có thể là một đối tượng WorkflowBuilder (client)
-     * hoặc một object chứa { workflow, config, logger } (server).
      */
     constructor(config) {
         this.isSimulating = false;
         this.executionState = {};
-        
-    
-        // 2. Ràng buộc 'this' cho hàm run để đảm bảo ngữ cảnh luôn đúng
+
+        // Ràng buộc 'this' cho hàm run để đảm bảo ngữ cảnh luôn đúng
         this.run = this.run.bind(this);
-        // --- KẾT THÚC SỬA LỖI ---
-        
-        // Kiểm tra xem chúng ta đang ở môi trường client (với builder đầy đủ)
-        // hay môi trường server (với object cấu hình).
-        // Kiểm tra xem chúng ta đang ở môi trường client (với builder đầy đủ)
-        // hay môi trường server (với object cấu hình).
+
+        // Kiểm tra xem chúng ta đang ở môi trường client hay server.
         if (config && config.constructor.name === 'WorkflowBuilder') {
-            // MÔI TRƯỜNG CLIENT: Gán builder và lấy i18n từ window.
+            // MÔI TRƯỜNG CLIENT
             this.builder = config;
             this.logger = config.logger;
             this.isServer = false;
             this.isSubRunner = false;
-            
-            // --- BẮT ĐẦU GIẢI PHÁP ---
-            // Ở môi trường Client, lấy i18n từ window do app.js cung cấp.
+
             if (typeof window !== 'undefined' && window.i18n) {
                 this.i18n = window.i18n;
             } else {
                 console.error("Runner failed to find i18n on window object.");
                 this.i18n = { get: (key) => key }; // Fallback
             }
-            // --- KẾT THÚC GIẢI PHÁP ---
 
         } else {
-            // MÔI TRƯỜNG SERVER: Tự thiết lập và require i18n.
+            // MÔI TRƯỜNG SERVER
             this.builder = null;
             this.workflow = config.workflow || { nodes: [], connections: [] };
             this.nodeConfig = config.config;
             this.logger = config.logger;
             this.isServer = true;
-            this.isSubRunner = config.isSubRunner || false; // Đọc dấu hiệu
+            this.isSubRunner = config.isSubRunner || false;
 
-            // --- BẮT ĐẦU GIẢI PHÁP ---
-            // Ở môi trường Server, dùng require như một ứng dụng Node.js bình thường.
             try {
                 this.i18n = require('./i18n.js');
-                const fs = require('fs'); // Need fs to read translation file
-                const path = require('path'); // Need path to resolve translation file path
+                const fs = require('fs');
+                const path = require('path');
 
-                const lang = 'en'; // Default language for server-side runner
+                const lang = 'en'; // Ngôn ngữ mặc định cho server
                 const localePath = path.join(__dirname, '..', 'locales', `${lang}.json`);
                 const translations = JSON.parse(fs.readFileSync(localePath, 'utf8'));
-                
-                this.i18n.init(lang, translations); // Use init method
+
+                this.i18n.init(lang, translations);
             } catch (e) {
                 console.error("Runner failed to load i18n on server", e);
                 this.i18n = { get: (key) => key }; // Fallback
             }
-            // --- KẾT THÚC GIẢI PHÁP ---
-            
+
             this.nodes = this.workflow.nodes || [];
             this.connections = this.workflow.connections || [];
             this.globalVariables = { server_start_time: new Date().toISOString(), ...(config.globalVariables || {}) };
             this.formData = config.formData || {};
         }
     }
-    
-    // Các phương thức tiện ích, giờ là một phần của Runner
+
     _findNodeConfig(type) {
         const configSource = this.isServer ? this.nodeConfig : this.builder.config;
+        
+        // --- BẮT ĐẦU SỬA LỖI VÀ HOÀN THIỆN LOGIC SUB-WORKFLOW ---
+        if (type === 'sub_workflow') {
+            // Môi trường Client: Dùng trực tiếp phương thức của builder
+            if (!this.isServer && this.builder) {
+                return this.builder._findNodeConfig(type);
+            }
+            // Môi trường Server: Cung cấp logic execute hoàn chỉnh
+            else if (this.isServer) {
+                const db = require('./database.js'); // Tải module DB
+
+                return {
+                    type: 'sub_workflow',
+                    execute: async (data, logger, runnerInstance) => {
+                        const { workflowId } = data;
+                        if (!workflowId) {
+                            throw new Error("Sub Workflow node is missing 'workflowId'.");
+                        }
+
+                        logger.info(`Fetching sub-workflow with ID: ${workflowId}`);
+                        const subWorkflowData = await db.getWorkflowById(workflowId);
+
+                        if (!subWorkflowData) {
+                            throw new Error(`Sub-workflow with ID '${workflowId}' not found.`);
+                        }
+
+                        logger.info(`Starting execution of sub-workflow: ${subWorkflowData.name}`);
+
+                        // Tạo một runner mới cho sub-workflow
+                        const subRunner = new WorkflowRunner({
+                            workflow: subWorkflowData.data,
+                            config: runnerInstance.nodeConfig,
+                            logger: runnerInstance.logger,
+                            globalVariables: runnerInstance.globalVariables,
+                            formData: data, // Truyền dữ liệu của node cha làm đầu vào cho sub-workflow
+                            isSubRunner: true, // Đánh dấu đây là một sub-runner
+                        });
+
+                        // Chạy sub-workflow và đợi kết quả
+                        const subExecutionState = await subRunner.run();
+
+                        logger.info(`Sub-workflow ${subWorkflowData.name} finished.`);
+                        // Trả về toàn bộ state của sub-workflow làm kết quả của node này
+                        return subExecutionState;
+                    }
+                };
+            }
+        }
+        // --- KẾT THÚC SỬA LỖI ---
+
         for (const category of configSource.nodeCategories) {
             const foundNode = category.nodes.find(node => node.type === type);
             if (foundNode) return foundNode;
         }
-        // Thêm cấu hình cho sub_workflow trực tiếp ở đây để đảm bảo nó luôn tồn tại
-        if (type === 'sub_workflow') {
-            return this.builder._findNodeConfig(type);
-        }
+
         return null;
     }
 
@@ -101,7 +135,7 @@ class WorkflowRunner {
             return value;
         });
     }
-
+    
     // Phương thức RUN chính
     async run() {
         if (this.isSimulating) {
@@ -109,19 +143,15 @@ class WorkflowRunner {
             return;
         }
         this.isSimulating = true;
-        
-        if (!this.isSubRunner) { // Only clear logger if it's the top-level runner
+
+        if (!this.isSubRunner) {
             this.logger.clear();
         }
         this.logger.system(this.i18n.get('runner.start_log'));
         this.executionState = {};
-        // No longer directly update builder's executionState here.
-        // The frontend will update its state based on IPC events.
-        
-        // Initial update of variables panel
+
         this.logger.updateVariables(this.globalVariables, this.formData, this.executionState);
 
-        // Set all nodes to idle state initially
         const nodesToRun = this.isServer ? this.nodes : this.builder.nodes;
         nodesToRun.forEach(node => this.logger.nodeState(node.id, 'idle'));
 
@@ -148,7 +178,7 @@ class WorkflowRunner {
 
         return this.executionState;
     }
-    
+
     // Phương thức thực thi một node
     async _executeNode(node, tryCatchStack) {
         const nodes = this.isServer ? this.nodes : this.builder.nodes;
@@ -159,12 +189,14 @@ class WorkflowRunner {
         const nodeConfig = this._findNodeConfig(node.type);
         if (!nodeConfig || typeof nodeConfig.execute !== 'function') {
             this.logger.error(`Execution logic not found for node type: ${node.type}`);
+            this.logger.nodeState(node.id, 'error');
+            this.executionState[node.id] = { _status: 'error', error: `Execution logic not found for node type: ${node.type}` };
             return;
         }
-
+        
         this.executionState[node.id] = { _status: 'running' };
         this.logger.nodeState(node.id, 'running');
-        this.logger.updateVariables(globalVariables, formData, this.executionState); // Update variables panel
+        this.logger.updateVariables(globalVariables, formData, this.executionState);
 
         const resolvedNodeData = JSON.parse(JSON.stringify(node.data));
         const resolutionContext = { global: globalVariables, form: formData, ...this.executionState };
@@ -173,25 +205,26 @@ class WorkflowRunner {
         const executeNextNodes = async (portName, newTryCatchStack, callingNodeId = node.id) => {
             const nextConnections = connections.filter(c => c.from === callingNodeId && c.fromPort === portName);
             for (const conn of nextConnections) {
-                this.logger.animateConnection(conn.id); // Animate connection
+                this.logger.animateConnection(conn.id);
                 const nextNode = nodes.find(n => n.id === conn.to);
                 if (nextNode) await this._executeNode(nextNode, newTryCatchStack);
             }
         };
 
         try {
-            const result = await nodeConfig.execute(resolvedNodeData, this.logger, this.isServer ? this : this.builder);
-            
+            // Truyền `this` (runner instance) vào hàm execute
+            const result = await nodeConfig.execute(resolvedNodeData, this.logger, this);
+
             if (result?.hasOwnProperty('selectedPort')) {
-                this.executionState[node.id] = result.data;
+                this.executionState[node.id] = { ...result.data, _status: 'success' };
                 await executeNextNodes(result.selectedPort, tryCatchStack);
             } else {
-                this.executionState[node.id] = result;
+                this.executionState[node.id] = { ...result, _status: 'success' };
                 await executeNextNodes((nodeConfig.outputs || ['success'])[0], tryCatchStack);
             }
             this.logger.nodeState(node.id, 'success');
         } catch (error) {
-            const errorResult = { error: error.message, ...error.context };
+            const errorResult = { _status: 'error', error: error.message, ...error.context };
             this.logger.error(`Error in node ${node.data.title}: ${error.message}`);
             this.executionState[node.id] = errorResult;
             this.logger.nodeState(node.id, 'error');
@@ -206,12 +239,12 @@ class WorkflowRunner {
                 await executeNextNodes('error', tryCatchStack);
             }
         } finally {
-            this.logger.updateVariables(globalVariables, formData, this.executionState); // Final update of variables panel
+            this.logger.updateVariables(globalVariables, formData, this.executionState);
         }
     }
-    
+
     _resolveVariablesInObject(obj, context) {
-         for (const key in obj) {
+        for (const key in obj) {
             if (typeof obj[key] === 'string') {
                 obj[key] = this._resolveVariables(obj[key], context);
             } else if (typeof obj[key] === 'object' && obj[key] !== null) {

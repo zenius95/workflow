@@ -1,4 +1,6 @@
 const { Sequelize, DataTypes, Op } = require('sequelize');
+const { app } = require('electron')
+const path = require('path')
 
 function parseDataField(data) {
     if (typeof data === 'string') {
@@ -137,4 +139,12 @@ class Database {
     }
 }
 
-module.exports = Database;
+// Create and export a single, initialized instance of the Database
+const dbInstance = new Database(process.env.DB_PATH || path.join(app.getPath('userData'), 'workflows.db')); // Use environment variable or default
+dbInstance.init().then(() => {
+    console.log("Database initialized and ready for use.");
+}).catch(err => {
+    console.error("Failed to initialize database:", err);
+});
+
+module.exports = dbInstance;

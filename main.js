@@ -1,18 +1,16 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
-const path = require('path');
-const fs = require('fs');
-const Database = require('./workflow/js/database.js');
+const path = require('path')
+const fs = require('fs')
 const WorkflowRunner = require('./workflow/js/runner.js');
+const db = require('./workflow/js/database.js'); // Now imports the pre-initialized instance
 
 // Load workflow config in main process
-const nodeCategories = require(path.join(__dirname, 'workflow/js/nodes'));
+const nodeCategories = require('./workflow/js/nodes');
 const workflowConfig = {
     nodeCategories: nodeCategories
 };
 
 require('@electron/remote/main').initialize();
-
-const db = new Database(path.join(app.getPath('userData'), 'workflows.db'));
 
 function createWindow() {
     const mainWindow = new BrowserWindow({
@@ -65,10 +63,10 @@ function createWindow() {
 
 app.whenReady().then(async () => {
     try {
-        await db.init();
+        // db.init() is now called within database.js itself
         createWindow();
     } catch (error) {
-        console.error("Failed to initialize database and create window:", error);
+        console.error("Failed to create window:", error); // Removed db.init() from here
         app.quit();
     }
     
@@ -125,23 +123,18 @@ ipcMain.handle('run-simulation', async (event, { workflow, globalVariables, form
     // Custom logger for runner to send events to renderer
     const logger = {
         info: (msg) => {
-            console.log(`[Runner INFO] ${typeof msg === 'object' ? JSON.stringify(msg) : msg}`);
             event.sender.send('runner-event', { type: 'log', level: 'info', message: msg });
         },
         success: (msg) => {
-            console.log(`[Runner SUCCESS] ${typeof msg === 'object' ? JSON.stringify(msg) : msg}`);
             event.sender.send('runner-event', { type: 'log', level: 'success', message: msg });
         },
         error: (msg) => {
-            console.error(`[Runner ERROR] ${typeof msg === 'object' ? JSON.stringify(msg) : msg}`);
             event.sender.send('runner-event', { type: 'log', level: 'error', message: msg });
         },
         system: (msg) => {
-            console.log(`[Runner SYSTEM] ${typeof msg === 'object' ? JSON.stringify(msg) : msg}`);
             event.sender.send('runner-event', { type: 'log', level: 'system', message: msg });
         },
         warn: (msg) => {
-            console.warn(`[Runner WARN] ${typeof msg === 'object' ? JSON.stringify(msg) : msg}`);
             event.sender.send('runner-event', { type: 'log', level: 'warn', message: msg });
         },
         clear: () => {
