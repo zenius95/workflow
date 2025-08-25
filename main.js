@@ -164,7 +164,7 @@ ipcMain.handle('run-simulation', async (event, { workflow, globalVariables, form
         const result = await runner.run();
         return { success: true, result };
     } catch (error) {
-        logger.error(`Backend Simulation Error: ${error.message}`);
+        logger.error(error.message);
         return { success: false, error: error.message };
     }
 });

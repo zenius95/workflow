@@ -147,7 +147,9 @@ class WorkflowRunner {
         if (!this.isSubRunner) {
             this.logger.clear();
         }
-        this.logger.system(this.i18n.get('runner.start_log'));
+        if (!this.isSubRunner) {
+            this.logger.system(this.i18n.get('runner.start_log'));
+        }
         this.executionState = {};
 
         this.logger.updateVariables(this.globalVariables, this.formData, this.executionState);
@@ -164,7 +166,9 @@ class WorkflowRunner {
             await Promise.allSettled(startNodes.map(node => this._executeNode(node, [])));
         }
 
-        this.logger.system(this.i18n.get('runner.end_log'));
+        if (!this.isSubRunner) {
+            this.logger.system(this.i18n.get('runner.end_log'));
+        }
         this.isSimulating = false;
 
         if (!this.isServer && this.builder) {
@@ -174,6 +178,14 @@ class WorkflowRunner {
                 runButton.classList.remove('opacity-50');
             }
             this.builder.dispatchEvent(new CustomEvent('simulation:ended', { detail: { finalState: this.executionState } }));
+        }
+
+        // Check if any node in the execution state has an error
+        const hasError = Object.values(this.executionState).some(state => state._status === 'error');
+        if (hasError) {
+            const firstErrorNodeId = Object.keys(this.executionState).find(nodeId => this.executionState[nodeId]._status === 'error');
+            const errorMessage = this.executionState[firstErrorNodeId]?.error || 'An unknown error occurred in a sub-workflow node.';
+            throw new Error(`Sub-workflow failed: ${errorMessage}`);
         }
 
         return this.executionState;
