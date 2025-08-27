@@ -436,7 +436,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- KHỞI TẠO ---
     const initializeView = async () => {
         // 1. Load translations for this renderer process
-        const lang = 'en'; // Or get from settings, similar to shell.js
+        const lang = 'en'; // Or get from settings, similar to browser.js
         const translations = await window.api.getTranslations(lang);
         if (translations) {
             i18n.init(lang, translations);
@@ -487,7 +487,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
     
-    // Listen for messages from the shell (e.g., when a workflow is renamed)
+    // Listen for messages from the browser (e.g., when a workflow is renamed)
     window.api.onWorkflowRenamed((newName) => {
         if (newName) {
             updateWorkflowTitle(newName);

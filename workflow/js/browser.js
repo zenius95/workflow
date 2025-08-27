@@ -1,4 +1,4 @@
-// workflow/js/shell.js
+// workflow/js/browser.js
 document.addEventListener('DOMContentLoaded', () => {
     // DOM Elements
     const minimizeBtn = document.getElementById('minimize-btn');
@@ -29,7 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const db = window.api;
 
     const getWebviewUrl = (tabId, workflowId = null) => {
-        // Note: The path is now relative to shell.html
+        // Note: The path is now relative to browser.html
         const baseUrl = 'workflow.html';
         const query = new URLSearchParams({ tabId });
         if (workflowId !== null) {
@@ -53,7 +53,7 @@ document.addEventListener('DOMContentLoaded', () => {
         tabEl.dataset.tabId = tabId;
         tabEl.dataset.workflowId = String(workflowId);
         
-        const tabTitle = workflowId === null ? i18n.get('shell.start_page') : title;
+        const tabTitle = workflowId === null ? i18n.get('browser.start_page') : title;
         tabEl.innerHTML = `<div class="tab-title">${tabTitle}</div><button class="close-tab-btn"><i class="ri-close-line"></i></button>`;
         
         tabBar.insertBefore(tabEl, addTabBtn);
@@ -209,7 +209,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             
             if (workflows.length === 0 && !append) {
-                startPageWorkflowList.innerHTML = `<p class="text-center text-muted p-3">${i18n.get('shell.no_workflows_found')}</p>`;
+                startPageWorkflowList.innerHTML = `<p class="text-center text-muted p-3">${i18n.get('browser.no_workflows_found')}</p>`;
             } else {
                 workflows.forEach(wf => {
                     const isOpen = openIds.has(wf.id);
@@ -227,10 +227,10 @@ document.addEventListener('DOMContentLoaded', () => {
                                     <strong class="workflow-name-display d-block ${isOpen ? 'text-primary' : ''}">${wf.name}</strong>
                                     <input type="text" class="fw-bold workflow-name-input position-absolute top-0" value="${wf.name}" style="display: none;" />
                                 </div>
-                                <span class="small">${i18n.get('shell.updated_at')}: ${new Date(wf.updatedAt).toLocaleString()}</span>
+                                <span class="small">${i18n.get('browser.updated_at')}: ${new Date(wf.updatedAt).toLocaleString()}</span>
                             </div>
                             ${isOpen 
-                                ? `<button class="btn btn-sm btn-primary me-2" data-action="switch-tab" data-workflow-id="${wf.id}">${i18n.get('shell.switch_tab')} <i class="ri-arrow-right-line ms-1"></i></button>`
+                                ? `<button class="btn btn-sm btn-primary me-2" data-action="switch-tab" data-workflow-id="${wf.id}">${i18n.get('browser.switch_tab')} <i class="ri-arrow-right-line ms-1"></i></button>`
                                 : '<button class="btn rounded-3 btn-sm btn-light me-2"><i class="ri-folder-open-line"></i></button>'
                             }
                             <button class="btn rounded-3 btn-sm btn-light" data-action="workflow-setting"><i class="ri-more-fill"></i></button>
@@ -249,7 +249,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         } catch (error) {
             console.error(error);
-            startPageWorkflowList.innerHTML = `<p class="text-center text-danger p-3">${i18n.get('shell.load_error')}</p>`;
+            startPageWorkflowList.innerHTML = `<p class="text-center text-danger p-3">${i18n.get('browser.load_error')}</p>`;
         } finally {
             isFetching = false;
             loadMoreBtn.disabled = false;
@@ -420,8 +420,8 @@ document.addEventListener('DOMContentLoaded', () => {
         hideWorkflowMenu();
         
         Swal.fire({
-            title: i18n.get('shell.confirm_delete_title'),
-            html: i18n.get('shell.confirm_delete_message', { name: `<b>${name}</b>` }) + `<br><small>${i18n.get('shell.confirm_delete_detail')}</small>`,
+            title: i18n.get('browser.confirm_delete_title'),
+            html: i18n.get('browser.confirm_delete_message', { name: `<b>${name}</b>` }) + `<br><small>${i18n.get('browser.confirm_delete_detail')}</small>`,
             icon: 'warning',
             showCancelButton: true,
             confirmButtonText: i18n.get('common.delete'),
@@ -437,14 +437,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (tabToDelete) closeTab(tabToDelete.dataset.tabId);
                     resetAndPopulateStartPage();
                     Swal.fire(
-                      i18n.get('shell.deleted_title'),
-                      i18n.get('shell.deleted_text', { name: name }),
+                      i18n.get('browser.deleted_title'),
+                      i18n.get('browser.deleted_text', { name: name }),
                       'success'
                     )
                 } else {
-                    console.error(i18n.get('shell.delete_error'), deleteResult.message);
+                    console.error(i18n.get('browser.delete_error'), deleteResult.message);
                     Swal.fire(
-                      i18n.get('shell.delete_error_title'),
+                      i18n.get('browser.delete_error_title'),
                       deleteResult.message,
                       'error'
                     )

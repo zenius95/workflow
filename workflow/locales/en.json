@@ -12,7 +12,7 @@
     "duplicate": "Duplicate",
     "close": "Close"
   },
-  "shell": {
+  "browser": {
     "start_page": "Start Page",
     "create_new_workflow": "Create New Workflow",
     "open_recent": "Open recent workflow",

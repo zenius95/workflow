@@ -18,7 +18,7 @@ class I18nManager {
 
     /**
      * Gets a translation string for the given key.
-     * @param {string} key - The key for the translation string (e.g., 'shell.create_new_workflow').
+     * @param {string} key - The key for the translation string (e.g., 'browser.create_new_workflow').
      * @param {object} [placeholders={}] - Values to replace in the string.
      * @returns {string|object} - The translated string or the key if not found.
      */
