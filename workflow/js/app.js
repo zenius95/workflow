@@ -126,6 +126,39 @@ document.addEventListener('DOMContentLoaded', () => {
     const logsTab = document.getElementById('logs-tab');
     const logsListContainer = document.getElementById('workflow-logs-list');
 
+    // Bootstrap Modals
+    const logDetailsModalEl = document.getElementById('log-details-modal');
+    const logDetailsModal = new bootstrap.Modal(logDetailsModalEl);
+    const logDetailsModalTitle = document.getElementById('log-details-modal-title');
+    const logDetailsModalBody = document.getElementById('log-details-modal-body');
+
+    const formatLogContent = (logContent) => {
+        const lines = logContent.split('\n');
+        let formattedHtml = '';
+        lines.forEach(line => {
+            let className = '';
+            if (line.includes('[ERROR]')) {
+                className = 'text-danger';
+            } else if (line.includes('[WARN]')) {
+                className = 'text-warning';
+            } else if (line.includes('[INFO]')) {
+                className = 'text-info';
+            } else if (line.includes('[DEBUG]')) {
+                className = 'text-muted';
+            } else if (line.includes('[SYSTEM]')) {
+                className = 'text-primary';
+            }
+            formattedHtml += `<span class="${className}">${line}</span><br>`;
+        });
+        return `<pre style="text-align: left; white-space: pre-wrap; word-wrap: break-word;">${formattedHtml}</pre>`;
+    };
+
+    const showLogDetailsModal = (title, bodyHtml) => {
+        logDetailsModalTitle.textContent = title;
+        logDetailsModalBody.innerHTML = bodyHtml;
+        logDetailsModal.show();
+    };
+
     const loadWorkflowLogs = async () => {
         if (!logsListContainer) return;
 
@@ -151,13 +184,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 item.textContent = new Date(log.createdAt).toLocaleString();
                 item.addEventListener('click', (e) => {
                     e.preventDefault();
-                    const logContentHtml = `<pre style="text-align: left; white-space: pre-wrap; word-wrap: break-word;">${log.log_content}</pre>`;
-                    Swal.fire({
-                        title: i18n.get('workflow_page.logs_tab.log_details_title', { datetime: new Date(log.createdAt).toLocaleString() }),
-                        html: logContentHtml,
-                        width: '80vw',
-                        confirmButtonText: i18n.get('common.close')
-                    });
+                    const logContentHtml = formatLogContent(log.log_content);
+                    showLogDetailsModal(
+                        i18n.get('workflow_page.logs_tab.log_details_title', { datetime: new Date(log.createdAt).toLocaleString() }),
+                        logContentHtml
+                    );
                 });
                 logsListContainer.appendChild(item);
             });
