@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const webviewContainer = document.getElementById('webview-container');
     const startPageOverlay = document.getElementById('start-page-overlay');
     const createNewWorkflowBtn = document.querySelector('[data-action="create-new-workflow"]');
+    const createNewAppBtn = document.querySelector('[data-action="create-new-app"]');
     const startPageWorkflowList = document.getElementById('start-page-workflow-list');
     const workflowSearchInput = document.getElementById('workflow-search-input');
     const loadMoreContainer = document.getElementById('load-more-container');
@@ -28,32 +29,39 @@ document.addEventListener('DOMContentLoaded', () => {
     // The `db` object is now replaced by window.api
     const db = window.api;
 
-    const getWebviewUrl = (tabId, workflowId = null) => {
-        // Note: The path is now relative to browser.html
-        const baseUrl = 'workflow.html';
+    const getWebviewUrl = (tabId, type = 'workflow', id = null) => {
+        const baseUrl = type === 'app' ? 'app.html' : 'workflow.html';
         const query = new URLSearchParams({ tabId });
-        if (workflowId !== null) {
-            query.set('workflowId', workflowId);
+        if (id !== null) {
+            const idKey = type === 'workflow' ? 'workflowId' : 'id';
+            query.set(idKey, id);
         }
         return `${baseUrl}?${query.toString()}`;
     };
     
-    const findTabByWorkflowId = (workflowId) => {
-        if (!workflowId || String(workflowId) === 'null') return null;
-        return document.querySelector(`.tab-item[data-workflow-id="${workflowId}"]`);
+    const findTabById = (id, type = 'workflow') => {
+        if (!id || String(id) === 'null') return null;
+        return document.querySelector(`.tab-item[data-tab-type="${type}"][data-id="${id}"]`);
     };
 
     const createNewTab = async (options = {}) => {
-        const { title, workflowId = null, focus = true } = options;
+        const { title, type = 'workflow', id = null, focus = true } = options;
         tabCounter++;
         const tabId = `tab-${tabCounter}`;
 
         const tabEl = document.createElement('div');
         tabEl.className = 'tab-item';
         tabEl.dataset.tabId = tabId;
-        tabEl.dataset.workflowId = String(workflowId);
+        tabEl.dataset.tabType = type;
+        tabEl.dataset.id = String(id);
         
-        const tabTitle = workflowId === null ? i18n.get('browser.start_page') : title;
+        let tabTitle;
+        if (type === 'app') {
+            tabTitle = title || i18n.get('browser.app_tab_title');
+        } else { // workflow
+            tabTitle = id === null ? i18n.get('browser.start_page') : title;
+        }
+        
         tabEl.innerHTML = `<div class="tab-title">${tabTitle}</div><button class="close-tab-btn"><i class="ri-close-line"></i></button>`;
         
         tabBar.insertBefore(tabEl, addTabBtn);
@@ -61,10 +69,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const webview = document.createElement('webview');
         webview.id = `webview-${tabId}`;
         webview.className = 'workflow-webview';
-        const url = getWebviewUrl(tabId, workflowId);
+        const url = getWebviewUrl(tabId, type, id);
         webview.setAttribute('src', url);
         
-        // Attach the same preload script to the webview
         const preloadPath = await window.api.getPreloadPath();
         webview.setAttribute('preload', `file://${preloadPath}`);
 
@@ -72,11 +79,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const { channel, args } = event;
             const [data] = args;
             if (channel === 'updateTabTitle') {
-                updateTab(data.tabId, { title: data.title, workflowId: data.workflowId });
+                updateTab(data.tabId, { title: data.title, id: data.workflowId, type: 'workflow' });
             }
             if (channel === 'open-workflow-in-new-tab') {
                 const workflowId = data;
-                const existingTab = findTabByWorkflowId(workflowId);
+                const existingTab = findTabById(workflowId, 'workflow');
                 if (existingTab) {
                     switchToTab(existingTab.dataset.tabId);
                     return;
@@ -84,7 +91,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 try {
                     const wf = await db.getWorkflowById(workflowId);
                     if (wf) {
-                        await createNewTab({ title: wf.name, workflowId: wf.id });
+                        await createNewTab({ title: wf.name, id: wf.id, type: 'workflow' });
                     }
                 } catch (error) {
                     console.error('Failed to open workflow in new tab:', error);
@@ -113,28 +120,30 @@ document.addEventListener('DOMContentLoaded', () => {
         updateUiState();
     };
 
-    const updateTab = (tabId, { title, workflowId, focus = false }) => {
+    const updateTab = (tabId, { title, id, type, focus = false }) => {
         const tabEl = document.querySelector(`.tab-item[data-tab-id="${tabId}"]`);
         const webview = document.getElementById(`webview-${tabId}`);
         if (!tabEl || !webview) return;
     
-        const currentIdOnTab = tabEl.dataset.workflowId;
-        const newId = String(workflowId);
+        const currentIdOnTab = tabEl.dataset.id;
+        const currentTypeOnTab = tabEl.dataset.tabType;
+        const newId = String(id);
+        const newType = type || currentTypeOnTab;
     
         tabEl.querySelector('.tab-title').textContent = title;
-        tabEl.dataset.workflowId = newId;
+        tabEl.dataset.id = newId;
+        tabEl.dataset.tabType = newType;
     
-        // If we are on the start page, we need to do a full load to show the workflow editor.
+        // If the current tab is the Start Page, we must reload the webview with the new URL.
         if (currentIdOnTab === 'null') {
-            const newUrl = getWebviewUrl(tabId, newId);
-            webview.setAttribute('src', newUrl); // FIX: Use setAttribute instead of loadURL
+            const newUrl = getWebviewUrl(tabId, newType, newId);
+            webview.setAttribute('src', newUrl);
         } 
-        // If the ID changes from 'creating' to a real ID, just update the URL without reloading.
-        else if (currentIdOnTab === 'creating' && newId !== 'creating') {
-            const newUrl = getWebviewUrl(tabId, newId);
+        // If we are promoting a 'creating' workflow to a saved one, just update the URL in history.
+        else if (currentTypeOnTab === 'workflow' && currentIdOnTab === 'creating' && newId !== 'creating') {
+            const newUrl = getWebviewUrl(tabId, newType, newId);
             webview.executeJavaScript(`history.replaceState({}, '', '${newUrl}');`).catch(console.error);
         }
-        // Other cases (like renaming) don't require a URL change, just a title update which is already done.
     
         if (focus) {
             switchToTab(tabId);
@@ -165,11 +174,11 @@ document.addEventListener('DOMContentLoaded', () => {
             switchToTab(nextTabToActivate.dataset.tabId);
         } else if (document.querySelectorAll('.tab-item').length === 0) {
             activeTabId = null;
-            createNewTab({ workflowId: null });
+            createNewTab({ id: null, type: 'workflow' });
         }
         
         const activeTabNow = document.querySelector('.tab-item.active');
-        if (activeTabNow && activeTabNow.dataset.workflowId === 'null') {
+        if (activeTabNow && activeTabNow.dataset.id === 'null') {
             resetAndPopulateStartPage();
         }
 
@@ -192,8 +201,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             const openIds = new Set(
-                Array.from(document.querySelectorAll('.tab-item[data-workflow-id]'))
-                    .map(tab => parseInt(tab.dataset.workflowId, 10))
+                Array.from(document.querySelectorAll('.tab-item[data-tab-type="workflow"][data-id]'))
+                    .map(tab => parseInt(tab.dataset.id, 10))
                     .filter(id => !isNaN(id) && id > 0)
             );
 
@@ -230,7 +239,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <span class="small">${i18n.get('browser.updated_at')}: ${new Date(wf.updatedAt).toLocaleString()}</span>
                             </div>
                             ${isOpen 
-                                ? `<button class="btn btn-sm btn-primary me-2" data-action="switch-tab" data-workflow-id="${wf.id}">${i18n.get('browser.switch_tab')} <i class="ri-arrow-right-line ms-1"></i></button>`
+                                ? `<button class="btn btn-sm btn-primary me-2" data-action="switch-tab" data-id="${wf.id}">${i18n.get('browser.switch_tab')} <i class="ri-arrow-right-line ms-1"></i></button>`
                                 : '<button class="btn rounded-3 btn-sm btn-light me-2"><i class="ri-folder-open-line"></i></button>'
                             }
                             <button class="btn rounded-3 btn-sm btn-light" data-action="workflow-setting"><i class="ri-more-fill"></i></button>
@@ -258,7 +267,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // --- UI State Management (Updated) ---
     const updateUiState = () => {
-        const isStartTabActive = !!(document.querySelector('.tab-item.active')?.dataset.workflowId === 'null');
+        const isStartTabActive = !!(document.querySelector('.tab-item.active')?.dataset.id === 'null');
         
         startPageOverlay.style.display = isStartTabActive ? 'block' : 'none';
         
@@ -266,7 +275,7 @@ document.addEventListener('DOMContentLoaded', () => {
             resetAndPopulateStartPage();
         }
 
-        const anyStartTabExists = !!document.querySelector('.tab-item[data-workflow-id="null"]');
+        const anyStartTabExists = !!document.querySelector('.tab-item[data-id="null"]');
         
         const tabs = document.querySelectorAll('.tab-item');
         tabs.forEach(tab => {
@@ -369,9 +378,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         nameDisplay.textContent = newName;
                         itemElement.querySelector('.workflow-list-item-main').dataset.name = newName;
                         
-                        const tabToUpdate = findTabByWorkflowId(workflowId);
+                        const tabToUpdate = findTabById(workflowId, 'workflow');
                         if (tabToUpdate) {
-                            updateTab(tabToUpdate.dataset.tabId, { title: newName, workflowId });
+                            updateTab(tabToUpdate.dataset.tabId, { title: newName, id: workflowId, type: 'workflow' });
                             
                             const webview = document.getElementById(`webview-${tabToUpdate.dataset.tabId}`);
                             if (webview) {
@@ -433,7 +442,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (result.isConfirmed) {
                 const deleteResult = await db.deleteWorkflow(workflowId);
                 if (deleteResult.success) {
-                    const tabToDelete = findTabByWorkflowId(workflowId);
+                    const tabToDelete = findTabById(workflowId, 'workflow');
                     if (tabToDelete) closeTab(tabToDelete.dataset.tabId);
                     resetAndPopulateStartPage();
                     Swal.fire(
@@ -466,19 +475,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
         switch (action) {
             case 'switch-tab': {
-                const workflowId = target.dataset.workflowId;
-                const tabToSwitch = findTabByWorkflowId(workflowId);
+                const workflowId = target.dataset.id;
+                const tabToSwitch = findTabById(workflowId, 'workflow');
                 if (tabToSwitch) switchToTab(tabToSwitch.dataset.tabId);
                 break;
             }
             case 'open-workflow': {
                 const workflowId = listItemMain.dataset.id;
-                const existingTab = findTabByWorkflowId(workflowId);
+                const existingTab = findTabById(workflowId, 'workflow');
                 if (existingTab) {
                     switchToTab(existingTab.dataset.tabId);
                 } else {
                     const name = listItemMain.dataset.name;
-                    updateTab(activeTabId, { title: name, workflowId: workflowId });
+                    updateTab(activeTabId, { title: name, id: workflowId, type: 'workflow' });
                 }
                 break;
             }
@@ -493,9 +502,21 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // --- Event Listeners ---
+    createNewAppBtn.addEventListener('click', () => {
+        const activeTabEl = document.querySelector('.tab-item.active');
+        if (activeTabEl && activeTabEl.dataset.id === 'null') {
+            updateTab(activeTabId, { title: i18n.get('browser.app_tab_title'), id: 'new_app', type: 'app' });
+        } else {
+            createNewTab({ type: 'app', focus: true, id: 'new_app' });
+        }
+    });
+
     createNewWorkflowBtn.addEventListener('click', () => {
-        if (activeTabId) {
-            updateTab(activeTabId, { title: i18n.get('app.unsaved_workflow'), workflowId: 'creating' });
+        const activeTabEl = document.querySelector('.tab-item.active');
+        if (activeTabEl && activeTabEl.dataset.id === 'null') {
+             updateTab(activeTabId, { title: i18n.get('app.unsaved_workflow'), id: 'creating', type: 'workflow' });
+        } else {
+            createNewTab({ type: 'workflow', id: 'creating', title: i18n.get('app.unsaved_workflow'), focus: true });
         }
     });
 
@@ -523,7 +544,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     addTabBtn.addEventListener('click', async () => {
-        await createNewTab({ workflowId: null });
+        await createNewTab({ id: null, type: 'workflow' });
     });
 
     tabBar.addEventListener('click', (e) => {
@@ -575,7 +596,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         // 4. Create the initial start page tab
-        await createNewTab({ workflowId: null });
+        await createNewTab({ id: null, type: 'workflow' });
     };
 
     initializeApp();
