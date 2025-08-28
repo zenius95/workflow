@@ -1,0 +1,50 @@
+/* General Styles */
+
+@font-face {
+  font-family: 'SFProDisplay';
+  src: url('../fonts/SFProDisplay-Bold.woff2') format('woff2'),
+      url('../fonts/SFProDisplay-Bold.woff') format('woff');
+  font-weight: bold;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'SFProDisplay';
+  src: url('../fonts/SFProDisplay-Regular.woff2') format('woff2'),
+      url('../fonts/SFProDisplay-Regular.woff') format('woff');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'SFProDisplay';
+  src: url('../fonts/SFProDisplay-Medium.woff2') format('woff2'),
+      url('../fonts/SFProDisplay-Medium.woff') format('woff');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+body { font-family: 'SFProDisplay', sans-serif; font-size: 13px; overflow: hidden;
+    background-size: cover; }
+
+.ag-column-last .ag-header-cell-resize {
+    display: none;
+}
+
+.ag-viewport {
+    background-color: #f5f5f5;
+}
+
+.ag-column-last {
+    border-right: 1px solid #babfc7;
+}
+
+#dynamicAddRowBtn {
+    position: absolute;
+    bottom: -35px;
+    left: 20px;
+    z-index: 999;
+}

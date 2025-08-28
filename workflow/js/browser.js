@@ -30,7 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const db = window.api;
 
     const getWebviewUrl = (tabId, type = 'workflow', id = null) => {
-        const baseUrl = type === 'app' ? 'app.html' : 'workflow.html';
+        const baseUrl = type === 'sheet' ? 'sheet.html' : 'workflow.html';
         const query = new URLSearchParams({ tabId });
         if (id !== null) {
             const idKey = type === 'workflow' ? 'workflowId' : 'id';
@@ -56,8 +56,8 @@ document.addEventListener('DOMContentLoaded', () => {
         tabEl.dataset.id = String(id);
         
         let tabTitle;
-        if (type === 'app') {
-            tabTitle = title || i18n.get('browser.app_tab_title');
+        if (type === 'sheet') {
+            tabTitle = title || i18n.get('browser.sheet_tab_title');
         } else { // workflow
             tabTitle = id === null ? i18n.get('browser.start_page') : title;
         }
@@ -505,9 +505,9 @@ document.addEventListener('DOMContentLoaded', () => {
     createNewAppBtn.addEventListener('click', () => {
         const activeTabEl = document.querySelector('.tab-item.active');
         if (activeTabEl && activeTabEl.dataset.id === 'null') {
-            updateTab(activeTabId, { title: i18n.get('browser.app_tab_title'), id: 'new_app', type: 'app' });
+            updateTab(activeTabId, { title: i18n.get('browser.sheet_tab_title'), id: 'new_app', type: 'sheet' });
         } else {
-            createNewTab({ type: 'app', focus: true, id: 'new_app' });
+            createNewTab({ type: 'sheet', focus: true, id: 'new_app' });
         }
     });
 
