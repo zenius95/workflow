@@ -17,9 +17,8 @@ const columnDefs = [
     },
 ];
 
-// Biến để lưu trữ Grid API và Modal instance
+// Biến để lưu trữ Grid API
 let gridApi;
-let addColumnModal;
 
 /**
  * Thêm một nút nổi vào viewport của grid để tạo hàng mới.
@@ -30,8 +29,6 @@ function addPlusButtonToViewport() {
     if (document.getElementById('dynamicAddRowBtn')) return;
 
     const viewport = document.querySelector('.ag-body-viewport');
-
-    console.log(viewport)
 
     if (!viewport) {
         setTimeout(addPlusButtonToViewport, 50); // Thử lại nếu viewport chưa sẵn sàng
@@ -88,11 +85,22 @@ function addPlusButtonToLastHeader() {
         const plusButton = document.createElement('button');
         plusButton.id = 'dynamicAddColBtn';
         plusButton.className = 'btn btn-sm btn-outline-secondary p-0'; // Class cho nút nhỏ gọn
-        plusButton.innerHTML = '+';
+        plusButton.innerHTML = '<i class="ri-add-line"></i>';
         plusButton.style.width = '22px';
         plusButton.style.height = '22px';
-        plusButton.setAttribute('data-bs-toggle', 'modal');
-        plusButton.setAttribute('data-bs-target', '#addColumnModal');
+        
+        plusButton.addEventListener('click', (event) => {
+            const dropdown = document.getElementById('addColumnDropdown');
+            if (dropdown.style.display === 'block') {
+                dropdown.style.display = 'none';
+            } else {
+                dropdown.style.display = 'block';
+                const rect = event.target.getBoundingClientRect();
+                dropdown.style.left = `${rect.right - dropdown.offsetWidth + 50}px`;
+                dropdown.style.top = `${rect.bottom + 5}px`;
+            }
+            event.stopPropagation();
+        });
 
         // Gắn nút vào header và căn chỉnh bằng flex
         lastHeaderLabel.appendChild(plusButton);
@@ -110,6 +118,8 @@ const gridOptions = {
   onGridReady: (params) => {
     gridApi = params.api;
 
+    addPlusButtonToLastHeader();
+
     setInterval(function() {
         addPlusButtonToLastHeader(); // Thêm nút khi grid được tải lần đầu
     }, 500)
@@ -120,7 +130,7 @@ const gridOptions = {
   }
 };
 
-// Hàm để thêm cột mới (giữ nguyên)
+// Hàm để thêm cột mới
 function addColumn() {
     const columnNameInput = document.getElementById('columnName');
     const newColumnName = columnNameInput.value;
@@ -140,8 +150,6 @@ function addColumn() {
 
     currentColumnDefs.splice((currentColumnDefs.length - 1), 0, newColDef);
 
-    console.log(currentColumnDefs)
-
     gridApi.setGridOption('columnDefs', currentColumnDefs);
 
     // Thêm chức năng tự động cuộn đến cột mới
@@ -150,18 +158,21 @@ function addColumn() {
     }, 100); // Thêm một độ trễ nhỏ để grid có thời gian render
 
     columnNameInput.value = '';
-    if (addColumnModal) {
-        addColumnModal.hide();
-    }
+    document.getElementById('addColumnDropdown').style.display = 'none';
 }
 
-// Khởi tạo AG Grid và Modal
+// Khởi tạo AG Grid
 document.addEventListener('DOMContentLoaded', () => {
     const gridDiv = document.querySelector('#myGrid');
     agGrid.createGrid(gridDiv, gridOptions);
 
-    const modalElement = document.getElementById('addColumnModal');
-    addColumnModal = new bootstrap.Modal(modalElement);
-
     document.getElementById('addColumnBtn').addEventListener('click', addColumn);
+
+    // Hide dropdown when clicking outside
+    document.addEventListener('click', (event) => {
+        const dropdown = document.getElementById('addColumnDropdown');
+        if (!dropdown.contains(event.target) && event.target.id !== 'dynamicAddColBtn') {
+            dropdown.style.display = 'none';
+        }
+    });
 });

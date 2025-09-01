@@ -40,7 +40,6 @@ body { font-family: 'SFProDisplay', sans-serif; font-size: 13px; overflow: hidde
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0.75rem 1.5rem;
     border-bottom: 1px solid #dee2e6;
     flex-shrink: 0;
 }
@@ -246,13 +245,23 @@ body { font-family: 'SFProDisplay', sans-serif; font-size: 13px; overflow: hidde
 .context-menu-shortcut { font-size: 0.75rem; color: #6c757d; }
 
 .side-panel {
-    position: absolute; top: 80px; bottom: 1rem; right: 20px; width: 400px;
+    position: absolute; top: 80px; bottom: 1rem; right: 1rem; width: 400px;
     background-color: #ffffff;
-    transition: transform 0.3s ease-in-out;
     z-index: 30; overflow-y: auto;
+    opacity: 1;
+    visibility: visible;
 }
 .settings-panel.hidden {
-    transform: translateX(calc(100% + 30px));
+    opacity: 0;
+    visibility: hidden;
+}
+
+main:has(.side-panel) .canvas-bg footer {
+    width: calc(100% - 400px - 3rem);
+}
+
+main:has(.side-panel.hidden) .canvas-bg footer {
+    width: calc(100% - 2rem);
 }
 
 .tree-view { font-family: monospace; font-size: 14px; }

@@ -144,7 +144,7 @@
                     </div>
             </aside>
             <div class="canvas-bg d-flex flex-column w-100">
-                <header data-ref="workflow-header" class="workflow-header bg-white">
+                <header data-ref="workflow-header" class="workflow-header bg-white px-3 py-2">
                     <div class="workflow-header-title d-flex align-items-center">
                         <div class="text-white d-flex align-items-center justify-content-center rounded-3 bg-primary me-2" style="width: 35px; height: 35px;">
                             <i class="ri-git-pull-request-line"></i>
@@ -173,29 +173,29 @@
                 <div data-ref="canvas-container" class="canvas-container position-relative">
                     <div class="position-absolute start-0 d-flex bottom-0 m-3" style="z-index: 998;">
                         <div class="shadow-sm border rounded-3 bg-white overflow-hidden me-2 d-flex">
-                            <button data-action="undo" class="border-0 border-end bg-transparent" style="width: 40px; height: 40px;">
+                            <button data-action="undo" class="border-0 border-end bg-transparent" style="width: 30px; height: 30px;">
                                 <i style="font-size: 16px" class="ri-arrow-go-back-line"></i>
                             </button>
-                            <button data-action="redo" class="border-0 bg-transparent" style="width: 40px; height: 40px;">
+                            <button data-action="redo" class="border-0 bg-transparent" style="width: 30px; height: 30px;">
                                 <i style="font-size: 16px" class="ri-arrow-go-forward-line"></i>
                             </button>
                         </div>
                         <div class="shadow-sm border rounded-3 bg-white me-2 overflow-hidden">
-                            <button data-action="zoom-out" class="border-0 border-end bg-transparent" style="width: 40px; height: 40px;">
+                            <button data-action="zoom-out" class="border-0 border-end bg-transparent" style="width: 30px; height: 30px;">
                                 <i style="font-size: 16px" class="ri-zoom-out-line"></i>
                             </button>
                             <span data-ref="zoom-level" class="d-inline-block" style="width: 50px; text-align: center;">100%</span>
-                            <button data-action="zoom-in" class="border-0 border-start bg-transparent" style="width: 40px; height: 40px;">
+                            <button data-action="zoom-in" class="border-0 border-start bg-transparent" style="width: 30px; height: 30px;">
                                 <i style="font-size: 16px" class="ri-zoom-in-line"></i>
                             </button>
                         </div>
                         <div class="shadow-sm border rounded-3 bg-white me-2 overflow-hidden d-flex">
-                            <button data-action="reset-view" class="border-0 border-end bg-transparent" style="width: 40px; height: 40px;">
+                            <button data-action="reset-view" class="border-0 border-end bg-transparent" style="width: 30px; height: 30px;">
                                 <i style="font-size: 16px" class="ri-reset-left-line"></i>
                             </button>
                         </div>
                         <div class="shadow-sm border rounded-3 bg-white overflow-hidden d-flex">
-                            <button data-action="toggle-console" class="border-0 border-end bg-transparent" style="width: 40px; height: 40px;">
+                            <button data-action="toggle-console" class="border-0 border-end bg-transparent" style="width: 30px; height: 30px;">
                                 <i style="font-size: 16px" class="ri-terminal-box-line"></i>
                             </button>
                         </div>
@@ -203,7 +203,6 @@
                     <div data-ref="workflow-canvas" class="workflow-canvas">
                         <svg data-ref="connector-svg" class="connector-svg"></svg>
                     </div>
-                    <aside data-ref="settings-panel" class="rounded border side-panel settings-panel"></aside>
                 </div>
                 <footer data-ref="console-panel" class="bg-white border-top d-flex flex-column flex-shrink-0 m-3 mt-0 rounded-3 overflow-hidden" style="height: 200px;">
                     <div data-ref="console-resizer" class="w-100" style="height: 3px; cursor: ns-resize; background-color: #000;"></div>
@@ -216,6 +215,7 @@
                     <div data-ref="console-output" class="console-output flex-grow-1 p-2 font-monospace small bg-dark text-white overflow-auto"></div>
                 </footer>
             </div>
+            <aside data-ref="settings-panel" class="rounded border side-panel settings-panel"></aside>
         </main>
     </div>
 

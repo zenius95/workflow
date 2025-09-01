@@ -36,7 +36,7 @@ function createWindow() {
         });
     });
 
-    mainWindow.loadFile('workflow/browser.html');
+    mainWindow.loadFile('workflow/workflow.html');
     // mainWindow.webContents.openDevTools();
 
     // --- Window Control Listeners ---

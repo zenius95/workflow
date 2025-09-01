@@ -434,7 +434,7 @@ class SettingsRenderer {
         const tabId = `settings-tabs-${uniqueId}`;
         const wrapper = document.createElement('div');
         const nav = document.createElement('ul');
-        nav.className = 'nav nav-tabs mb-3';
+        nav.className = 'nav nav-pills mb-3';
         nav.setAttribute('role', 'tablist');
         const content = document.createElement('div');
         content.className = 'tab-content';
@@ -444,7 +444,7 @@ class SettingsRenderer {
             const tabTitle = nodeLocale[tab.titleKey] || tab.title;
             nav.innerHTML += `<li class="nav-item" role="presentation"><button class="nav-link ${activeClass}" data-bs-toggle="tab" data-bs-target="#${paneId}" type="button" role="tab">${tabTitle}</button></li>`;
             const pane = document.createElement('div');
-            pane.className = `tab-pane fade ${index === 0 ? 'show active' : ''}`;
+            pane.className = `tab-pane ${index === 0 ? 'show active' : ''}`;
             pane.id = paneId;
             pane.setAttribute('role', 'tabpanel');
             const row = document.createElement('div');
