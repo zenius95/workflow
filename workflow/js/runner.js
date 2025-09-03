@@ -1,11 +1,12 @@
 class WorkflowRunner {
     /**
      * Hàm khởi tạo "thông minh".
-     * @param {object} config - Có thể là một đối tượng WorkflowBuilder (client)
+     * @param {object} config - Có thể là một đối tượng WorkflowBuilder (client) hoặc cấu hình cho server.
      */
     constructor(config) {
         this.isSimulating = false;
         this.executionState = {};
+        this.executionStack = config.executionStack || []; // Theo dõi chuỗi workflow để chống lặp vô hạn
 
         // Ràng buộc 'this' cho hàm run để đảm bảo ngữ cảnh luôn đúng
         this.run = this.run.bind(this);
@@ -26,7 +27,7 @@ class WorkflowRunner {
             }
 
         } else {
-            // MÔI TRƯỜNG SERVER
+            // MÔI TRƯỜDNG SERVER
             this.builder = null;
             this.workflow = config.workflow || { nodes: [], connections: [] };
             this.nodeConfig = config.config;
@@ -59,15 +60,12 @@ class WorkflowRunner {
     _findNodeConfig(type) {
         const configSource = this.isServer ? this.nodeConfig : this.builder.config;
         
-        // --- BẮT ĐẦU SỬA LỖI VÀ HOÀN THIỆN LOGIC SUB-WORKFLOW ---
         if (type === 'sub_workflow') {
-            // Môi trường Client: Dùng trực tiếp phương thức của builder
             if (!this.isServer && this.builder) {
                 return this.builder._findNodeConfig(type);
             }
-            // Môi trường Server: Cung cấp logic execute hoàn chỉnh
             else if (this.isServer) {
-                const db = require('./database.js'); // Tải module DB
+                const db = require('./database.js'); 
 
                 return {
                     type: 'sub_workflow',
@@ -75,6 +73,11 @@ class WorkflowRunner {
                         const { workflowId } = data;
                         if (!workflowId) {
                             throw new Error("Sub Workflow node is missing 'workflowId'.");
+                        }
+
+                        // --- BẢO VỆ CHỐNG ĐỆ QUY VÔ HẠN ---
+                        if (runnerInstance.executionStack.includes(workflowId)) {
+                            throw new Error(`Recursive sub-workflow call detected. Workflow ID "${workflowId}" is already in the execution stack.`);
                         }
 
                         logger.info(`Fetching sub-workflow with ID: ${workflowId}`);
@@ -85,28 +88,28 @@ class WorkflowRunner {
                         }
 
                         logger.info(`Starting execution of sub-workflow: ${subWorkflowData.name}`);
+                        
+                        // Tạo execution stack mới cho sub-runner
+                        const newExecutionStack = [...runnerInstance.executionStack, workflowId];
 
-                        // Tạo một runner mới cho sub-workflow
-                                                const subRunner = new WorkflowRunner({
+                        const subRunner = new WorkflowRunner({
                             workflow: subWorkflowData.data,
                             config: runnerInstance.nodeConfig,
                             logger: runnerInstance.logger,
                             globalVariables: runnerInstance.globalVariables,
-                            formData: data.inputs, // Truyền dữ liệu của node cha làm đầu vào cho sub-workflow
-                            isSubRunner: true, // Đánh dấu đây là một sub-runner
+                            formData: data.inputs,
+                            isSubRunner: true,
+                            executionStack: newExecutionStack, // Truyền stack mới vào
                         });
 
-                        // Chạy sub-workflow và đợi kết quả
                         const subExecutionState = await subRunner.run();
 
                         logger.info(`Sub-workflow ${subWorkflowData.name} finished.`);
-                        // Trả về toàn bộ state của sub-workflow làm kết quả của node này
                         return subExecutionState;
                     }
                 };
             }
         }
-        // --- KẾT THÚC SỬA LỖI ---
 
         for (const category of configSource.nodeCategories) {
             const foundNode = category.nodes.find(node => node.type === type);
@@ -136,7 +139,6 @@ class WorkflowRunner {
         });
     }
     
-    // Phương thức RUN chính
     async run() {
         if (this.isSimulating) {
             this.logger.warn('Workflow is already running.');
@@ -146,8 +148,6 @@ class WorkflowRunner {
 
         if (!this.isSubRunner) {
             this.logger.clear();
-        }
-        if (!this.isSubRunner) {
             this.logger.system(this.i18n.get('runner.start_log'));
         }
         this.executionState = {};
@@ -180,18 +180,18 @@ class WorkflowRunner {
             this.builder.dispatchEvent(new CustomEvent('simulation:ended', { detail: { finalState: this.executionState } }));
         }
 
-        // Check if any node in the execution state has an error
-        const hasError = Object.values(this.executionState).some(state => state._status === 'error');
-        if (hasError) {
-            const firstErrorNodeId = Object.keys(this.executionState).find(nodeId => this.executionState[nodeId]._status === 'error');
-            const errorMessage = this.executionState[firstErrorNodeId]?.error || 'An unknown error occurred in a sub-workflow node.';
-            throw new Error(`Sub-workflow failed: ${errorMessage}`);
+        if (this.isSubRunner) {
+            const hasError = Object.values(this.executionState).some(state => state._status === 'error');
+            if (hasError) {
+                const firstErrorNodeId = Object.keys(this.executionState).find(nodeId => this.executionState[nodeId]._status === 'error');
+                const errorMessage = this.executionState[firstErrorNodeId]?.error || 'An unknown error occurred in a sub-workflow node.';
+                throw new Error(`Sub-workflow failed: ${errorMessage}`);
+            }
         }
 
         return this.executionState;
     }
 
-    // Phương thức thực thi một node
     async _executeNode(node, tryCatchStack) {
         const nodes = this.isServer ? this.nodes : this.builder.nodes;
         const connections = this.isServer ? this.connections : this.builder.connections;
@@ -200,9 +200,10 @@ class WorkflowRunner {
 
         const nodeConfig = this._findNodeConfig(node.type);
         if (!nodeConfig || typeof nodeConfig.execute !== 'function') {
-            this.logger.error(`Execution logic not found for node type: ${node.type}`);
+            const errorMessage = `Execution logic not found for node type: ${node.type}`;
+            this.logger.error(errorMessage);
             this.logger.nodeState(node.id, 'error');
-            this.executionState[node.id] = { _status: 'error', error: `Execution logic not found for node type: ${node.type}` };
+            this.executionState[node.id] = { _status: 'error', error: errorMessage };
             return;
         }
         
@@ -224,20 +225,27 @@ class WorkflowRunner {
         };
 
         try {
-            // Truyền `this` (runner instance) vào hàm execute
             const result = await nodeConfig.execute(resolvedNodeData, this.logger, this);
+            let nextPort = (nodeConfig.outputs || ['success'])[0];
 
-            if (result?.hasOwnProperty('selectedPort')) {
+            if (node.type === 'sub_workflow') {
+                // Đóng gói kết quả của sub-workflow để tránh xung đột trạng thái
+                this.executionState[node.id] = { output: result, _status: 'success' };
+            } else if (result?.hasOwnProperty('selectedPort')) {
+                // Xử lý các node có port đầu ra động (ví dụ: condition)
                 this.executionState[node.id] = { ...result.data, _status: 'success' };
-                await executeNextNodes(result.selectedPort, tryCatchStack);
+                nextPort = result.selectedPort;
             } else {
+                // Xử lý node thông thường
                 this.executionState[node.id] = { ...result, _status: 'success' };
-                await executeNextNodes((nodeConfig.outputs || ['success'])[0], tryCatchStack);
             }
+
             this.logger.nodeState(node.id, 'success');
+            await executeNextNodes(nextPort, tryCatchStack);
+
         } catch (error) {
             const errorResult = { _status: 'error', error: error.message, ...error.context };
-            this.logger.error(`Error in node ${node.data.title}: ${error.message}`);
+            this.logger.error(`Error in node ${node.data.title || node.id}: ${error.message}`);
             this.executionState[node.id] = errorResult;
             this.logger.nodeState(node.id, 'error');
 

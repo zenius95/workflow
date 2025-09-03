@@ -531,7 +531,6 @@ class WorkflowBuilder extends EventTarget {
             this.selectionBox.element.remove();
             this.selectionBox.active = false;
             this.selectionBox.element = null;
-            this._updateSettingsPanel();
         }
     }
 
@@ -575,8 +574,6 @@ class WorkflowBuilder extends EventTarget {
         const newNode = this._createNode(data.type, { x, y }, data.initialData);
 
         if (newNode) {
-            this._addNodeToSelection(newNode);
-            this._showSettingsPanel();
             this._commitState(i18n.get('workflow.state_commit.node_create'));
         }
     }
@@ -664,7 +661,7 @@ class WorkflowBuilder extends EventTarget {
             e.stopPropagation();
             this._clearSelection();
             this._addNodeToSelection(node);
-            this._showSettingsPanel();
+            this._updateSettingsPanel();
         });
         const titleEl = element.querySelector('.node-title');
         if (titleEl) {
@@ -679,7 +676,7 @@ class WorkflowBuilder extends EventTarget {
                 e.stopPropagation();
                 this._clearSelection();
                 this._addNodeToSelection(node);
-                this._showSettingsPanel();
+                this._updateSettingsPanel();
             });
         }
         element.querySelectorAll('.port').forEach(port => {
@@ -722,15 +719,19 @@ class WorkflowBuilder extends EventTarget {
     _handleNodeMouseDown(e, node) {
         e.stopPropagation();
         if (e.button === 2) return;
-        const isAlreadySelected = this.selectedNodes.includes(node) && this.selectedNodes.length === 1;
-        if (!isAlreadySelected) {
-             const isCtrlPressed = e.ctrlKey || e.metaKey;
-             const isSelected = this.selectedNodes.includes(node);
-             if (!isCtrlPressed && !isSelected) { this._clearSelection(); this._addNodeToSelection(node); }
-             else if (isCtrlPressed && !isSelected) { this._addNodeToSelection(node); }
-             else if (isCtrlPressed && isSelected) { this._removeNodeFromSelection(node); }
-             this._updateSettingsPanel();
+
+        const isCtrlPressed = e.ctrlKey || e.metaKey;
+        const isSelected = this.selectedNodes.includes(node);
+
+        if (!isCtrlPressed && !isSelected) {
+            this._clearSelection();
+            this._addNodeToSelection(node);
+        } else if (isCtrlPressed && !isSelected) {
+            this._addNodeToSelection(node);
+        } else if (isCtrlPressed && isSelected) {
+            this._removeNodeFromSelection(node);
         }
+
         if (e.target.closest('.port, .node-settings-btn') || e.target.tagName === 'INPUT') return;
         this.activeDrag.isDraggingNode = true;
         this.activeDrag.startMouseX = e.clientX;
@@ -818,7 +819,7 @@ class WorkflowBuilder extends EventTarget {
             this._createNode(nodeInfo.type, { x: pasteX + nodeInfo.relX, y: pasteY + nodeInfo.relY }, nodeInfo.data)
         );
         newNodes.forEach(node => this._addNodeToSelection(node));
-        if (newNodes.length === 1) { this._showSettingsPanel(); }
+        if (newNodes.length === 1) { this._updateSettingsPanel(); }
         this._commitState(i18n.get('workflow.state_commit.node_paste'));
     }
     
@@ -837,7 +838,6 @@ class WorkflowBuilder extends EventTarget {
             this.selectedNodes.push(node);
             node.element.classList.add('selected');
             this.dispatchEvent(new CustomEvent('node:selected', { detail: { node } }));
-            this._updateSettingsPanel();
         }
     }
 
